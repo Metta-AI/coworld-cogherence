@@ -33,3 +33,7 @@ export function hexesInRadius(radius: number): Hex[] {
       out.push({ q, r });
   return out;
 }
+
+/** Hex (cube) distance between two axial hexes. */
+export const distance = (a: Hex, b: Hex): number =>
+  (Math.abs(a.q - b.q) + Math.abs(a.r - b.r) + Math.abs(a.q + a.r - b.q - b.r)) / 2;
