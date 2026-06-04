@@ -7,7 +7,7 @@
 
 import type { Treasury, Mineral } from "./types";
 import { MINERALS } from "./types";
-import { SET_ENERGY } from "./constants";
+import { SET_ENERGY, SINGLE_ENERGY } from "./constants";
 
 /** How many complete COGS sets a treasury holds (limited by its scarcest mineral). */
 const fullSets = (t: Treasury) => Math.min(...MINERALS.map((m) => t[m]));
@@ -21,7 +21,7 @@ const fullSets = (t: Treasury) => Math.min(...MINERALS.map((m) => t[m]));
 export function maxEnergy(t: Treasury): number {
   const sets = fullSets(t);
   const leftover = MINERALS.reduce((s, m) => s + (t[m] - sets), 0);
-  return sets * SET_ENERGY + leftover;
+  return sets * SET_ENERGY + leftover * SINGLE_ENERGY;
 }
 
 /**
@@ -45,7 +45,7 @@ export function chargeEnergy(t: Treasury, need: number): Treasury | null {
     const m: Mineral = MINERALS.reduce((a, b) => (out[a] >= out[b] ? a : b));
     if (out[m] <= 0) return null;
     out[m] -= 1;
-    granted += 1;
+    granted += SINGLE_ENERGY;
   }
   return out;
 }

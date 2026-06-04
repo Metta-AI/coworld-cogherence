@@ -35,4 +35,19 @@ describe("chargeEnergy", () => {
   it("returns null when unaffordable", () => {
     expect(chargeEnergy(T(1, 0, 0, 0), 5)).toBeNull();
   });
+  it("breaks largest-pile ties toward the earlier mineral in canonical order", () => {
+    // O and Ge tie at the max; O precedes Ge, so O is spent first.
+    expect(chargeEnergy(T(0, 1, 1, 0), 1)).toEqual(T(0, 0, 1, 0));
+  });
+  it("returns null when unaffordable only after a set is burned", () => {
+    // need 14: burn the one set (granted 10), then no singles remain → null.
+    expect(chargeEnergy(T(1, 1, 1, 1), 14)).toBeNull();
+  });
+  it("pulls trailing singles from the largest piles in the mixed regime", () => {
+    // burn one set to (2,2,1,1), then 2 singles come off the two largest (C, O).
+    expect(chargeEnergy(T(3, 3, 2, 2), 12)).toEqual(T(1, 1, 1, 1));
+  });
+  it("treats need = 0 as a no-op copy", () => {
+    expect(chargeEnergy(T(1, 1, 1, 1), 0)).toEqual(T(1, 1, 1, 1));
+  });
 });
