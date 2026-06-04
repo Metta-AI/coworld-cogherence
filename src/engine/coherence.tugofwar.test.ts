@@ -29,4 +29,8 @@ describe("resolveTile", () => {
     expect(resolveTile("A", 0, [["B", 3]])).toEqual({ alignment: "B", coherence: 3 }));
   it("tie among top attackers -> mutual annihilation to neutral 0", () =>
     expect(resolveTile("A", 0, [["B", 3], ["C", 3]])).toEqual({ alignment: null, coherence: 0 }));
+  it("incumbent's defending force participates in a tie -> neutral 0", () =>
+    expect(resolveTile("A", 3, [["B", 3]])).toEqual({ alignment: null, coherence: 0 }));
+  it("two attackers tie strictly above a defending incumbent -> neutral 0", () =>
+    expect(resolveTile("A", 2, [["B", 5], ["C", 5]])).toEqual({ alignment: null, coherence: 0 }));
 });

@@ -57,7 +57,8 @@ export function resolveTile(
   if (incumbent !== null) force.set(incumbent, incumbentCoherence);
   for (const [cog, energy] of aligns) force.set(cog, (force.get(cog) ?? 0) + energy);
 
-  if (force.size === 0) return { alignment: incumbent, coherence: incumbentCoherence };
+  // size === 0 means a neutral tile (no incumbent) with no aligns: nothing happens.
+  if (force.size === 0) return { alignment: null, coherence: 0 };
 
   let top = -Infinity;
   for (const f of force.values()) if (f > top) top = f;
