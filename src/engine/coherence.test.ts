@@ -59,4 +59,16 @@ describe("applyDrift", () => {
     expect(input.tiles[key({ q: 0, r: 0 })]!.coherence).toBe(2); // input untouched
     expect(input.tiles[key({ q: 1, r: 0 })]!.coherence).toBe(2);
   });
+
+  it("strict boundary: an even 3-of-6 split is NOT a majority and loses", () => {
+    const ns = neighbors({ q: 0, r: 0 }).map((h, i) => tile(h.q, h.r, i < 3 ? "A" : "B", 3));
+    const g = applyDrift(stateOf([tile(0, 0, "A", 3), ...ns]));
+    expect(coh(g, 0, 0)).toBe(2); // 3 same of 6 -> 6 > 6 is false -> -1
+  });
+
+  it("strict boundary: 4-of-6 is the first true majority and gains", () => {
+    const ns = neighbors({ q: 0, r: 0 }).map((h, i) => tile(h.q, h.r, i < 4 ? "A" : "B", 3));
+    const g = applyDrift(stateOf([tile(0, 0, "A", 3), ...ns]));
+    expect(coh(g, 0, 0)).toBe(4); // 4 same of 6 -> 8 > 6 -> +1
+  });
 });
