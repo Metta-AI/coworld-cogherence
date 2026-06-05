@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { applyDrift } from "./coherence";
 import type { GameState, Tile, CogId } from "./types";
 import { key, neighbors } from "./hex";
+import { COHERENCE_MAX } from "./constants";
 
 const tile = (q: number, r: number, alignment: CogId | null, coherence: number): Tile =>
   ({ hex: { q, r }, alignment, coherence, mineral: "C", density: 1 });
@@ -23,9 +24,9 @@ describe("applyDrift", () => {
   });
 
   it("caps at COHERENCE_MAX", () => {
-    const ns = neighbors({ q: 0, r: 0 }).map((h) => tile(h.q, h.r, "A", 6));
-    const g = applyDrift(stateOf([tile(0, 0, "A", 6), ...ns]));
-    expect(coh(g, 0, 0)).toBe(6);
+    const ns = neighbors({ q: 0, r: 0 }).map((h) => tile(h.q, h.r, "A", COHERENCE_MAX));
+    const g = applyDrift(stateOf([tile(0, 0, "A", COHERENCE_MAX), ...ns]));
+    expect(coh(g, 0, 0)).toBe(COHERENCE_MAX);
   });
 
   it("salient with minority-friendly neighbors loses -1", () => {

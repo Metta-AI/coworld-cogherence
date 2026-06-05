@@ -540,11 +540,29 @@ svg .tile-mineral {
   font-style: normal;
   margin-right: 2px;
 }
+.roster-delta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin-top: 8px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.delta-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.delta-up {
+  color: var(--accent-2);
+}
+.delta-down {
+  color: #ff8a8a;
+}
 .roster-graph {
   margin-top: 10px;
-  display: none;
-}
-.roster-row:hover .roster-graph {
   display: block;
 }
 .graph-row {

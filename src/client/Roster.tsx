@@ -1,6 +1,6 @@
-// The roster: one card per Cog — color, name, hearts, energy, tiles held, and
-// treasury (C/O/Ge/S). Hovering a card reveals hearts + energy sparklines over
-// the game so far.
+// The roster: one card per Cog — color, name, hearts, energy, tiles held, the
+// treasury (C/O/Ge/S), the projected change next upkeep (mint + upkeep cost),
+// and hearts + energy sparklines over the game so far.
 import React from "react";
 import type { GameSnapshot } from "../shared/snapshot";
 import { cogColor, cogName } from "./colors";
@@ -15,9 +15,15 @@ export function Roster({
   snapshot: GameSnapshot;
   history?: GameSnapshot[];
 }): React.ReactElement {
-  const tilesByCog = new Map<string, number>();
+  // One pass: tiles held + projected this-turn mint (density×coherence per mineral) + upkeep.
+  const stats = new Map<string, { tiles: number; mint: Record<string, number> }>();
+  for (const c of snapshot.cogs) stats.set(c.id, { tiles: 0, mint: { C: 0, O: 0, Ge: 0, S: 0 } });
   for (const t of snapshot.tiles) {
-    if (t.alignment != null) tilesByCog.set(t.alignment, (tilesByCog.get(t.alignment) ?? 0) + 1);
+    const s = t.alignment != null ? stats.get(t.alignment) : undefined;
+    if (s) {
+      s.tiles++;
+      s.mint[t.mineral]! += t.density * t.coherence;
+    }
   }
   const seriesFor = (id: string, pick: (c: GameSnapshot["cogs"][number]) => number): number[] =>
     history.map((s) => {
@@ -31,6 +37,8 @@ export function Roster({
       <ul>
         {snapshot.cogs.map((c) => {
           const color = cogColor(c.index);
+          const s = stats.get(c.id)!;
+          const mints = MINERALS.filter((m) => s.mint[m]! > 0);
           return (
             <li key={c.id} className="roster-row" data-testid={`roster-${c.id}`}>
               <div className="roster-main">
@@ -39,7 +47,7 @@ export function Roster({
                 <span className="roster-stats">
                   <span title="hearts">♥{c.hearts}</span>
                   <span title="energy">⚡{c.energy}</span>
-                  <span title="tiles held">⬡{tilesByCog.get(c.id) ?? 0}</span>
+                  <span title="tiles held">⬡{s.tiles}</span>
                 </span>
               </div>
               <div className="roster-pips" aria-label="treasury">
@@ -49,6 +57,19 @@ export function Roster({
                     {c.treasury[m]}
                   </span>
                 ))}
+              </div>
+              <div className="roster-delta" title="projected change next upkeep">
+                <span className="delta-label">this turn</span>
+                {mints.length === 0 ? (
+                  <span className="muted">—</span>
+                ) : (
+                  mints.map((m) => (
+                    <span key={m} className="delta-up">
+                      +{s.mint[m]} {m}
+                    </span>
+                  ))
+                )}
+                {s.tiles > 0 && <span className="delta-down">−{s.tiles} ⚡</span>}
               </div>
               <div className="roster-graph">
                 <div className="graph-row">

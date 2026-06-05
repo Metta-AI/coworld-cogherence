@@ -1,20 +1,18 @@
 // Initial GameState construction: a seeded radius-BOARD_RADIUS hex board with a
-// random mineral + density per tile, plus one home tile per Cog spaced evenly
-// around the outer ring at full coherence. Deterministic for a given seed so
-// games are reproducible.
+// random mineral + density per tile, plus one home tile per Cog placed at the
+// board's corners (spread apart) at full coherence. Deterministic for a given
+// seed so games are reproducible.
 
 import { makeRng, randInt } from "./rng";
-import { hexesInRadius, key, distance } from "./hex";
+import { hexesInRadius, key } from "./hex";
 import { MINERALS, emptyTreasury } from "./types";
 import type { GameState, Tile, CogState, CogId } from "./types";
 import { BOARD_RADIUS, COHERENCE_MAX } from "./constants";
 
-const ORIGIN = { q: 0, r: 0 };
-
 /**
  * Generate the initial GameState: a radius-BOARD_RADIUS hex board with random
- * mineral + density per tile (seeded), and one home tile per Cog placed evenly
- * around the outer ring at full coherence. Deterministic for a given seed.
+ * mineral + density per tile (seeded), and one home tile per Cog placed at the
+ * board's six corners (spread apart) at full coherence. Deterministic for a seed.
  */
 export function generateBoard(seed: number, numCogs: number): GameState {
   const rng = makeRng(seed);
@@ -27,14 +25,23 @@ export function generateBoard(seed: number, numCogs: number): GameState {
     tiles[key(hex)] = { hex, alignment: null, coherence: 0, mineral, density };
   }
 
-  const ring = hexes.filter((h) => distance(h, ORIGIN) === BOARD_RADIUS);
+  // The six corners of the hex board, in rotational order; spread cogs across them.
+  const R = BOARD_RADIUS;
+  const corners = [
+    { q: R, r: 0 },
+    { q: R, r: -R },
+    { q: 0, r: -R },
+    { q: -R, r: 0 },
+    { q: -R, r: R },
+    { q: 0, r: R },
+  ];
   const cogs: Record<CogId, CogState> = {};
   const cogOrder: CogId[] = [];
   for (let i = 0; i < numCogs; i++) {
     const id: CogId = `cog${i}`;
     cogOrder.push(id);
     cogs[id] = { id, index: i, treasury: emptyTreasury(), hearts: 0 };
-    const home = ring[Math.floor((i * ring.length) / numCogs)]!;
+    const home = corners[Math.floor((i * corners.length) / numCogs)]!;
     const tile = tiles[key(home)]!;
     tile.alignment = id;
     tile.coherence = COHERENCE_MAX;

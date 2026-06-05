@@ -1,8 +1,8 @@
 // Tunable game constants. v1 defaults are LOCKED in
 // docs/plans/2026-06-04-cogherence-engine.md ("Canonical Resolution Semantics").
 
-/** Maximum Coherence a tile can reach (= neighbor count). */
-export const COHERENCE_MAX = 6;
+/** Maximum Coherence a tile can reach — a tile's 0–10 "margin of dominance" score. */
+export const COHERENCE_MAX = 10;
 
 /** Board radius in hexes. Radius 6 => 127 tiles. */
 export const BOARD_RADIUS = 6;

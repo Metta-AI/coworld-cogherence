@@ -9,8 +9,8 @@ describe("resolveTile", () => {
     expect(resolveTile("A", 4, [["B", 3]])).toEqual({ alignment: "A", coherence: 1 }));
   it("incumbent A coh4, B attacks 5 -> flips to B at 1", () =>
     expect(resolveTile("A", 4, [["B", 5]])).toEqual({ alignment: "B", coherence: 1 }));
-  it("reinforce own tile adds, capped at MAX", () =>
-    expect(resolveTile("A", 5, [["A", 4]])).toEqual({ alignment: "A", coherence: 6 }));
+  it("reinforce own tile adds, capped at MAX (10)", () =>
+    expect(resolveTile("A", 7, [["A", 6]])).toEqual({ alignment: "A", coherence: 10 }));
   it("tie -> neutral 0", () =>
     expect(resolveTile(null, 0, [["A", 3], ["B", 3]])).toEqual({ alignment: null, coherence: 0 }));
 

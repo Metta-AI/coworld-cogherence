@@ -14,8 +14,8 @@ describe("game", () => {
     expect(g.cogOrder).toEqual(["cog0", "cog1", "cog2", "cog3"]);
   });
 
-  it("commons sums coherence across the board (4 homes at COHERENCE_MAX 6 = 24)", () => {
-    expect(commons(newGame(7, 4))).toBe(24);
+  it("commons sums coherence across the board (4 homes at COHERENCE_MAX = 40)", () => {
+    expect(commons(newGame(7, 4))).toBe(40);
   });
 
   it("stepTurn advances the turn, returns to negotiate, and appends one TurnRecord", () => {
