@@ -40,10 +40,10 @@ export function parseArgs(argv: string[]): CliOptions {
     else if (key === "--every") every = Number(val);
   }
   if (!agents) {
-    const n = cogs ?? ROTATION.length;
+    const n = Math.max(1, cogs ?? ROTATION.length);
     agents = Array.from({ length: n }, (_, i) => ROTATION[i % ROTATION.length]!);
   }
-  return { seed, agents, out, every };
+  return { seed, agents, out, every: Math.max(1, every) };
 }
 
 /** Build one agent per spec (ids cog0..cogN). Random agents are seeded off the game seed. */
@@ -83,12 +83,17 @@ export function summarize(result: ReturnType<typeof playGame>, every = 10): stri
 
 function main(): void {
   const opts = parseArgs(process.argv.slice(2));
-  console.log(`Cogherence — seed ${opts.seed}, agents [${opts.agents.join(", ")}]`);
-  const result = playGame(opts);
-  for (const line of summarize(result, opts.every)) console.log(line);
-  if (opts.out) {
-    writeFileSync(opts.out, JSON.stringify(result.state.log, null, 2));
-    console.log(`log written to ${opts.out}`);
+  try {
+    const result = playGame(opts);
+    console.log(`Cogherence — seed ${opts.seed}, agents [${opts.agents.join(", ")}]`);
+    for (const line of summarize(result, opts.every)) console.log(line);
+    if (opts.out) {
+      writeFileSync(opts.out, JSON.stringify(result.state.log, null, 2));
+      console.log(`log written to ${opts.out}`);
+    }
+  } catch (e) {
+    console.error(`error: ${e instanceof Error ? e.message : String(e)}`);
+    process.exit(1);
   }
 }
 

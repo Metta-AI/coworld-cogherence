@@ -15,6 +15,11 @@ describe("cli", () => {
     expect(parseArgs(["--cogs", "3"]).agents).toHaveLength(3);
   });
 
+  it("parseArgs reads --out and clamps --every to >= 1", () => {
+    expect(parseArgs(["--out", "game.json"]).out).toBe("game.json");
+    expect(parseArgs(["--every", "0"]).every).toBe(1);
+  });
+
   it("buildAgents maps specs to agents with cog ids", () => {
     expect(buildAgents(["greedy", "peaceful", "random"], 7).map((a) => a.id)).toEqual(["cog0", "cog1", "cog2"]);
   });
@@ -34,5 +39,13 @@ describe("cli", () => {
     const lines = summarize(r, 25);
     expect(lines.at(-1)).toContain("winner:");
     expect(lines.length).toBeGreaterThan(1);
+  });
+
+  it("summarize samples turn 1 and every Nth turn, then the winner line", () => {
+    const r = playGame({ seed: 7, agents: ["greedy", "peaceful", "random", "greedy"] });
+    const lines = summarize(r, 25); // turns 1, 25, 50, 75, 100 + winner = 6 lines
+    expect(lines).toHaveLength(6);
+    expect(lines[0]).toContain("turn   1");
+    expect(lines.at(-1)).toContain("winner:");
   });
 });
