@@ -35,8 +35,8 @@ describe("HexBoard", () => {
     const polys = [...container.querySelectorAll("polygon")];
     const owned = polys.find((p) => p.getAttribute("fill") !== "var(--neutral)")!;
     const neutral = polys.find((p) => p.getAttribute("fill") === "var(--neutral)")!;
-    expect(Number(owned.getAttribute("fill-opacity"))).toBe(1); // coherence 6/6
-    expect(Number(neutral.getAttribute("fill-opacity"))).toBe(0.2); // coherence 0/6
+    expect(Number(owned.getAttribute("fill-opacity"))).toBe(1); // coherence 10/10
+    expect(Number(neutral.getAttribute("fill-opacity"))).toBe(0.2); // coherence 0/10
   });
   it("shows tile details on hover (owner, mining, upkeep)", () => {
     const { container, getByTestId } = render(<HexBoard snapshot={snap} />);
