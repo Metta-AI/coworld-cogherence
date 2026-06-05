@@ -7,7 +7,7 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   webServer: {
-    command: "npm run build:web && npm run preview -- --port 4173 --strictPort",
+    command: "npm run build:web && npm run serve -- --port 4173 --pace 400",
     url: "http://localhost:4173",
     reuseExistingServer: false,
     timeout: 120_000,
