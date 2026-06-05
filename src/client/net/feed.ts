@@ -10,9 +10,16 @@ import type { Message } from "../../shared/messages";
 /** An actPrompt frame: what a Cog's model saw + decided this turn. */
 export type ActPromptFrame = Extract<ServerMessage, { type: "actPrompt" }>;
 
+/** A board event tagged with the turn it resolved on, so views can show only
+ *  the events that have happened up to the scrubber's current turn. */
+export interface StampedEvent {
+  turn: number;
+  event: TurnEvent;
+}
+
 export interface FeedStore {
   snapshots: GameSnapshot[];
-  events: TurnEvent[];
+  events: StampedEvent[];
   status: ServerStatus | null;
   actPrompts: Record<string, ActPromptFrame[]>;
   messages: Message[];
@@ -28,7 +35,7 @@ export interface LiveSocket {
  *  so a recorded game and a live game populate every panel identically. */
 export function applyFrame(store: FeedStore, m: ServerMessage): void {
   if (m.type === "snapshot") store.snapshots.push(m.snapshot);
-  else if (m.type === "event") store.events.push(m.event);
+  else if (m.type === "event") store.events.push({ turn: m.turn, event: m.event });
   else if (m.type === "serverStatus") store.status = m.status;
   else if (m.type === "actPrompt") {
     const list = (store.actPrompts[m.cogId] ??= []);

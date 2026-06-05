@@ -19,4 +19,15 @@ describe("App", () => {
     fireEvent.click(getByLabelText("step forward"));
     expect(getByTestId("turn-label").textContent).not.toBe(before);
   });
+
+  it("syncs the activity ticker to the scrubber — no events at turn 1, more as you advance", async () => {
+    const { getByLabelText, getByTestId } = render(<App replay={await replay()} />);
+    const ticker = getByTestId("ticker");
+    // Turn 1 is the opening board: nothing has resolved yet.
+    expect(ticker.querySelectorAll("li.ev")).toHaveLength(0);
+    expect(ticker.textContent).toContain("No events yet.");
+    // Advancing the board reveals the events that resolved on the way here.
+    for (let i = 0; i < 5; i++) fireEvent.click(getByLabelText("step forward"));
+    expect(ticker.querySelectorAll("li.ev").length).toBeGreaterThan(0);
+  });
 });

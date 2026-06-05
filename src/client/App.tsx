@@ -5,7 +5,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import "./styles.css";
 import { Scrubber } from "./Scrubber";
-import { parseReplay, snapshots, type Replay } from "./replay-source";
+import { parseReplay, type Replay } from "./replay-source";
 import { applyFrame, connectLiveFeed, type FeedStore } from "./net/feed";
 import { makeWorldSocket } from "./net/world-socket";
 import { parseLocation } from "./ui/nav";
@@ -15,8 +15,8 @@ import { GlobalView } from "./ui/GlobalView";
 import { FeedView } from "./ui/FeedView";
 import { CogView } from "./ui/CogView";
 
-const emptyStore = (snaps: FeedStore["snapshots"] = []): FeedStore => ({
-  snapshots: snaps,
+const emptyStore = (): FeedStore => ({
+  snapshots: [],
   events: [],
   status: null,
   actPrompts: {},
@@ -30,7 +30,15 @@ export function App({ replay: injected, live: liveProp }: { replay?: Replay; liv
       : { view: "global" as const, cogId: null, live: false };
   const liveMode = liveProp ?? loc.live;
 
-  const storeRef = useRef<FeedStore>(emptyStore(injected ? snapshots(injected) : []));
+  // An injected replay populates every panel (snapshots + events + chat) via the
+  // same applyFrame path the fetch/live sources use — so injected mode matches.
+  const storeRef = useRef<FeedStore>(
+    (() => {
+      const s = emptyStore();
+      if (injected) for (const f of injected.frames) applyFrame(s, f);
+      return s;
+    })(),
+  );
   const [, setTick] = useState(0);
   const rerender = () => setTick((t) => t + 1);
   const [index, setIndex] = useState(0);
@@ -74,6 +82,13 @@ export function App({ replay: injected, live: liveProp }: { replay?: Replay; liv
   const snapshot = snaps.length ? snaps[Math.min(index, snaps.length - 1)]! : null;
   const cogs = snapshot ? snapshot.cogs.map((c) => ({ id: c.id, index: c.index })) : [];
 
+  // Sync the activity ticker + chat to the scrubber: a tile's resolve/upkeep
+  // events landed when the board advanced PAST their turn (event.turn < turn now
+  // showing), while a turn's negotiation chat happens AT that turn (msg.turn <=).
+  const turnNow = snapshot ? snapshot.turn : 0;
+  const visibleEvents = store.events.filter((e) => e.turn < turnNow).map((e) => e.event);
+  const visibleMessages = store.messages.filter((m) => m.turn <= turnNow);
+
   return (
     <div className="app">
       <AppHeader snapshot={snapshot} status={store.status} connected={connected && liveMode} />
@@ -86,13 +101,13 @@ export function App({ replay: injected, live: liveProp }: { replay?: Replay; liv
             <GlobalView
               snapshot={snapshot}
               history={snaps.slice(0, index + 1)}
-              events={store.events}
+              events={visibleEvents}
               actPrompts={store.actPrompts}
             />
           )}
-          {loc.view === "feed" && <FeedView messages={store.messages} />}
+          {loc.view === "feed" && <FeedView messages={visibleMessages} />}
           {loc.view === "cog" && loc.cogId && (
-            <CogView snapshot={snapshot} cogId={loc.cogId} actPrompts={store.actPrompts} messages={store.messages} />
+            <CogView snapshot={snapshot} cogId={loc.cogId} actPrompts={store.actPrompts} messages={visibleMessages} />
           )}
           <Scrubber
             index={index}

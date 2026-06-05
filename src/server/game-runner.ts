@@ -23,7 +23,7 @@ export class GameRunner {
   private negotiateRounds: number;
   private listeners: Listener[] = [];
   private clientCount = 0;
-  private recent: TurnEvent[] = [];
+  private recent: Array<{ turn: number; event: TurnEvent }> = [];
 
   constructor(opts: {
     seed: number;
@@ -54,8 +54,9 @@ export class GameRunner {
   currentStatus(): ServerStatus {
     return this.status();
   }
-  /** Recent board events, for backfilling a newly-connected client's ticker. */
-  recentEvents(): TurnEvent[] {
+  /** Recent board events (with the turn they resolved), for backfilling a
+   *  newly-connected client's ticker. */
+  recentEvents(): Array<{ turn: number; event: TurnEvent }> {
     return [...this.recent];
   }
   private emit(m: ServerMessage): void {
@@ -98,8 +99,8 @@ export class GameRunner {
       this.state = stepTurn(this.state, ordersByCog);
       const rec = this.state.log[this.state.log.length - 1]!;
       for (const ev of rec.events) {
-        this.recent.push(ev);
-        this.emit({ type: "event", event: ev });
+        this.recent.push({ turn: rec.turn, event: ev });
+        this.emit({ type: "event", event: ev, turn: rec.turn });
       }
       if (this.recent.length > 60) this.recent = this.recent.slice(-60);
       this.emit({ type: "snapshot", snapshot: toSnapshot(this.state) });

@@ -83,7 +83,7 @@ export const serverStatusSchema = z
 
 export const serverMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("snapshot"), snapshot: gameSnapshotSchema, backfill: z.boolean().optional() }).strict(),
-  z.object({ type: z.literal("event"), event: turnEventSchema }).strict(),
+  z.object({ type: z.literal("event"), event: turnEventSchema, turn: z.number().int() }).strict(),
   z.object({ type: z.literal("serverStatus"), status: serverStatusSchema }).strict(),
   z
     .object({ type: z.literal("actPrompt"), cogId: z.string(), turn: z.number().int(), phase: phaseSchema, content: z.string() })

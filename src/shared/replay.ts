@@ -59,7 +59,7 @@ export async function recordGame(seed: number, agents: Agent[], maxTurns: number
     agents.forEach((a, i) => (ordersByCog[a.id] = decided[i]!));
     state = stepTurn(state, ordersByCog);
     const rec = state.log[state.log.length - 1]!;
-    for (const ev of rec.events) frames.push({ type: "event", event: ev });
+    for (const ev of rec.events) frames.push({ type: "event", event: ev, turn: rec.turn });
     frames.push({ type: "snapshot", snapshot: toSnapshot(state) });
     frames.push({
       type: "serverStatus",
