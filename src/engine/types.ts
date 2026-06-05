@@ -36,7 +36,12 @@ export interface CogState {
   hearts: number;
 }
 
-/** The phases a turn cycles through, in order. */
+/**
+ * The phases a turn cycles through, in order. NOTE: the headless MVP runs
+ * resolve/upkeep synchronously inside `stepTurn`, so `GameState.phase` only ever
+ * holds "negotiate". The "commit"/"resolve"/"upkeep" members are reserved for the
+ * future live server, which drives the phase machine across network round-trips.
+ */
 export type Phase = "negotiate" | "commit" | "resolve" | "upkeep";
 
 /** The complete, serializable game state at a point in time. */
