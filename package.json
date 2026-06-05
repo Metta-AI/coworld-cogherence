@@ -4,12 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "npm run play -- --seed 7 --cogs 4 --out public/replay.json",
     "dev": "vite",
     "build:web": "vite build",
     "preview": "vite preview",
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
+    "presmoke": "npm run play -- --seed 7 --cogs 4 --out public/replay.json",
     "smoke": "playwright test",
     "play": "tsx src/cli.ts"
   },
