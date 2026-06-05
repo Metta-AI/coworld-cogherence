@@ -57,6 +57,20 @@ Coherence is **not a stat you set**; it emerges from the spatial configuration.
 
 Enemy *and* neutral neighbors both count *against* a tile, so only genuinely surrounded tiles gain. **Neutral tiles stay at Coherence 0** — they neither grow nor decay until a Cog claims them. **Edge and corner tiles** use their real neighbor count as both the majority threshold and the cap, so the rim is structurally weaker (it can hold fewer friendly neighbors).
 
+**The neighborhood, visualized.** Every interior tile has 6 neighbors; the ±1 rule just counts how many share its alignment:
+
+```
+        N1    N2
+     N6     X     N3
+        N5    N4
+```
+
+Tile **X** tallies its 6 neighbor slots (enemy *and* neutral count against it):
+- X is **A**, neighbors `A A A A · B` → **4 of 6 → strict majority → +1.**
+- X is **A**, neighbors `A A · · B B` → only 2 → **minority → −1** (a salient rots).
+
+A fully-surrounded interior tile gains every turn (pins at the cap); a lone forward tile loses every turn (sinks to 0). Edge/corner tiles just have fewer slots — both the majority threshold and the cap scale to their real neighbor count.
+
 **Capture rule:** a tile flips alignment **only** through a winning Align (§5). *Neighbor erosion never flips a tile on its own* — it just grinds Coherence toward 0 while the tile stays its owner's. A winning Align flips the instant a challenger's force exceeds the incumbent's defense, even from high Coherence. "Siege, not a snipe" is therefore **emergent, not a hard cap**: a Coherence-6 fortress needs 7+ force in a single turn (effectively unsnipeable), while a thin Coherence-1 salient flips for a trickle of energy.
 
 This single rule produces enormous depth, all emergent:
@@ -243,7 +257,7 @@ All four keys optional; omit or use `[]` / `0` for none. `align.energy ≥ 1`, `
 
 ### 14.3 Validation & failure (deterministic, engine-enforced)
 - **Legal targets:** Align any tile; Exploit only tiles the Cog currently owns; Transfer only minerals it holds. Illegal entries are **dropped and logged**, never errored.
-- **Energy budget (Commit):** committed energy = Σ `align.energy` + (1 per transfer) + `bid`, drawn from the treasury converted on demand (§6). **Exploit resolves first and *mints* energy** (§5), so it can fund the rest and never fails for cost. If commitments still exceed available energy at Resolve, they are paid in priority order — **transfers → aligns (submitted order) → bid** — and anything unaffordable is **dropped** (a dropped or partial bid counts as **0**).
+- **Energy budget (Commit):** committed energy = Σ `align.energy` + (1 per transfer) + `bid`, drawn from the treasury converted on demand (§6). **Exploit resolves first and *mints* energy** (§5), so it can fund the rest and never fails for cost. If commitments still exceed available energy at Resolve, they are paid in priority order — **transfers → aligns (submitted order) → bid** — and anything unaffordable is **dropped** (a dropped or partial bid counts as **0**). A bid only needs to be *covered* at commit — only the **winner** actually pays, and only the **second price** (§8); losers and the winner's overage are refunded.
 - **Upkeep** is separate (step 5 below): each owned tile costs 1 energy; any shortfall is paid in **Coherence loss**, not order failure (§6).
 - **Malformed / missing output** (timeout, invalid JSON, unknown tile id): the Cog is treated as **no orders, bid 0** for the turn, and it's logged. The game never stalls on one agent.
 
@@ -257,3 +271,61 @@ Steps 1–4 are **Resolve** (phase 3); step 5 is **Upkeep** (phase 4):
 
 ### 14.5 Time & token budget (LLM-specific)
 Negotiate is **timed**: a fixed wall-clock or token budget per Cog per round, plus a bounded number of message exchanges (default: a few public + DM rounds). Exceeding the budget ends that Cog's Negotiate turn; it can still Commit. This keeps a 100-turn game tractable and stops one slow agent from stalling the match.
+
+---
+
+## 15. Worked example — one full turn
+
+*Three Cogs (**A**, **B**, **C**), mid-game, Turn 42. Talk → secret orders → simultaneous reveal → the world reacting, with real numbers.*
+
+### Start of turn — what each Cog holds
+Treasuries carry over from Turn 41's Upkeep — you always spend *last* turn's production (§6, one-turn lag). Energy is derived greedily, sets first (§6):
+
+| Cog | C | O | Ge | S | Energy available |
+|---|---|---|---|---|---|
+| A | 2 | 2 | 2 | 1 | 1 COGS set (10) + 3 singles = **13** |
+| B | 3 | 0 | 3 | 3 | no set (0 O) + 9 singles = **9** |
+| C | 1 | 1 | 1 | 1 | 1 set = **10** |
+
+Tracked tiles:
+
+| Tile | Owner | Coherence | Mineral | Density |
+|---|---|---|---|---|
+| t1 | A | 4 | O | 2 |
+| t2 | neutral | 0 | S | 3 |
+| t3 | A | 2 | Ge | 1 |
+
+t1 is A's frontier O-tile (B eyes it); t2 is unclaimed **S** that A badly needs; t3 is a thin A salient A expects to lose.
+
+### 1. Negotiate (public + DM, non-binding §9)
+- **Public:** A proposes a border truce — "t1 stays mine, no aggression." B agrees on the public channel.
+- **DM (A→B):** "You're starved for O — I'll send 2 O this turn if you leave t1 alone." B: "Deal."
+
+### 2. Commit (secret, simultaneous §7)
+- **A** (13e): Align **t2** ← 5 · **Exploit t3** · **Transfer 2 O → B** (1e) · **bid 3.** *(A intends to keep its word.)*
+- **B** (9e): Align **t1** ← 5 · **bid 4.** *(Betrayal — attacks the truce tile; tapped out at 5 + 4 = 9.)*
+- **C** (10e): Align **t2** ← 3 · **bid 2.**
+
+### 3. Resolve (canonical order §14.4)
+**① Exploit** — A scorches t3 (Coh 2, Ge, D1) before losing it: windfall = 2 × Coherence × Density = 2 × 2 × 1 = **4 Ge** to A (minted now, can fund the rest of A's turn); t3 → **neutral @ 0**, Density **1 → 0** (scarred, §12).
+
+**② Align** (tug-of-war, all at once §5):
+- **t1:** incumbent A = standing 4 + 0 committed = **4**; challenger B = **5**. B wins → **t1 flips to B @ Coherence 1** (5 − 4). *The betrayal lands.*
+- **t2:** neutral (0) vs A (5) vs C (3). A wins; next-highest *opposing* force = C's 3 → **A captures t2 @ Coherence 2** (5 − 3). C's 3 energy bought nothing.
+
+**③ Transfer** — 2 O lands in B's treasury. **A kept its promise; B broke its.** The reveal shows both at once — the whole point of simultaneous resolution.
+
+**④ Heart auction** (Vickrey, second-price §8): bids A 3, B 4, C 2 → **B wins**, pays the **second price = 3** energy (A's bid). B: hearts +1. *(B had 9 − 5 = 4 left, so 3 is covered; an uncovered bid would be zeroed, §14.3. A and C lose, so pay nothing — A's 3 reserved energy is freed.)*
+
+### 4. Upkeep — the world breathes (§14.5)
+- **Mint** (Density × Coherence → owner, for *next* turn): t1 → 2 O to B; t2 → **6 S to A** (A finally has S income); t3 (neutral) → nothing.
+- **Drift (±1, §4):** t2 sits inside A's cluster (4 of 6 neighbors A) → majority → **+1 → 3.** t1 is now a lone **B** salient ringed by A → minority → **−1 → 0.** *B's prize is already rotting; A can retake the husk next turn for a trickle.*
+- **Upkeep skim:** 1 energy per owned tile; a Cog that can't pay loses Coherence instead.
+- **Commons:** across these tiles, aligned Coherence went 4 + 2 = **6 → 0 + 3 = 3.** War + Exploit **frayed the Commons** even though the tiles only changed hands.
+
+### What this turn demonstrates
+- **Tug-of-war is king:** a winning Align flips t1 in one turn — no grind-to-0 required (§4/§5).
+- **The reveal is the drama:** A paid the O it promised; B broke the truce — exposed together (§9).
+- **Greed self-punishes:** B's grab is a salient that erodes immediately (§4).
+- **Trade is survival:** A's balanced wallet (a COGS set → 13e) outspends B's starved 9e with no O (§6).
+- **Buying victory costs the world:** the heart drained energy B can't spend on its rotting frontier (§8).
