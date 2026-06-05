@@ -24,6 +24,11 @@ describe("recordGame", () => {
   });
   it("is deterministic for (seed, agents)", async () =>
     expect(await recordGame(7, agents())).toEqual(await recordGame(7, agents())));
+  it("records negotiation as message frames (so the replay feed has chat)", async () => {
+    const msgs = (await recordGame(7, agents())).filter((f) => f.type === "message");
+    expect(msgs.length).toBeGreaterThan(0);
+    expect(msgs[0]!.type === "message" && msgs[0]!.message.text.length).toBeGreaterThan(0);
+  });
 });
 
 describe("makeReplay", () => {

@@ -24,6 +24,19 @@ export interface LiveSocket {
   close(): void;
 }
 
+/** Apply one ServerMessage to the store. Shared by the live feed and replay load
+ *  so a recorded game and a live game populate every panel identically. */
+export function applyFrame(store: FeedStore, m: ServerMessage): void {
+  if (m.type === "snapshot") store.snapshots.push(m.snapshot);
+  else if (m.type === "event") store.events.push(m.event);
+  else if (m.type === "serverStatus") store.status = m.status;
+  else if (m.type === "actPrompt") {
+    const list = (store.actPrompts[m.cogId] ??= []);
+    list.push(m);
+    if (list.length > 20) list.shift();
+  } else if (m.type === "message") store.messages.push(m.message);
+}
+
 export function connectLiveFeed(store: FeedStore, makeSocket: () => LiveSocket, onChange: () => void): () => void {
   const sock = makeSocket();
   sock.onMessage((data) => {
@@ -35,15 +48,7 @@ export function connectLiveFeed(store: FeedStore, makeSocket: () => LiveSocket, 
     }
     const parsed = serverMessageSchema.safeParse(raw);
     if (!parsed.success) return; // drop invalid inbound
-    const m = parsed.data;
-    if (m.type === "snapshot") store.snapshots.push(m.snapshot);
-    else if (m.type === "event") store.events.push(m.event);
-    else if (m.type === "serverStatus") store.status = m.status;
-    else if (m.type === "actPrompt") {
-      const list = (store.actPrompts[m.cogId] ??= []);
-      list.push(m);
-      if (list.length > 20) list.shift();
-    } else if (m.type === "message") store.messages.push(m.message);
+    applyFrame(store, parsed.data);
     onChange();
   });
   return () => sock.close();

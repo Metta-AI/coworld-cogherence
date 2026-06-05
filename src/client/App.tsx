@@ -6,7 +6,7 @@ import React, { useEffect, useRef, useState } from "react";
 import "./styles.css";
 import { Scrubber } from "./Scrubber";
 import { parseReplay, snapshots, type Replay } from "./replay-source";
-import { connectLiveFeed, type FeedStore } from "./net/feed";
+import { applyFrame, connectLiveFeed, type FeedStore } from "./net/feed";
 import { makeWorldSocket } from "./net/world-socket";
 import { parseLocation } from "./ui/nav";
 import { AppHeader } from "./ui/AppHeader";
@@ -44,7 +44,9 @@ export function App({ replay: injected, live: liveProp }: { replay?: Replay; liv
     fetch("./replay.json")
       .then((r) => r.json())
       .then((j) => {
-        storeRef.current.snapshots = snapshots(parseReplay(j));
+        const s = emptyStore();
+        for (const f of parseReplay(j).frames) applyFrame(s, f);
+        storeRef.current = s;
         rerender();
       });
   }, [injected, liveMode]);

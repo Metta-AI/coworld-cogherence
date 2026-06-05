@@ -78,4 +78,12 @@ describe("stub agents", () => {
     const rejected = state.log.flatMap((r) => r.events).filter((e) => e.type === "rejected");
     expect(rejected).toEqual([]);
   });
+
+  it("stub agents negotiate: peaceful broadcasts a public message on its speaking turn", async () => {
+    const s = stateWith([tile(0, 0, "A", 3), tile(0, 1, null, 0)], ["A", "B"], { A: T(1, 1, 1, 1) }); // turn 1
+    const posts = await peacefulAgent("A").negotiate!({ state: s, me: "A" });
+    expect(posts.length).toBeGreaterThan(0);
+    expect(posts[0]!.to).toBe("public");
+    expect(typeof posts[0]!.text).toBe("string");
+  });
 });

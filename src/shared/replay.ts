@@ -9,6 +9,8 @@ import { MAX_TURNS } from "./engine/constants";
 import { toSnapshot } from "./snapshot";
 import { COGHERENCE_VERSION } from "./version";
 import type { ServerMessage } from "./protocol";
+import type { Message } from "./messages";
+import { messageVisibleToCog } from "./messages";
 
 export interface ReplayMeta {
   version: string;
@@ -34,9 +36,25 @@ export async function recordGame(seed: number, agents: Agent[], maxTurns: number
     status: { turn: state.turn, phase: state.phase, finished: false, cogCount: n, clientCount: 0, pending: [], done: [] },
   });
 
+  const messages: Message[] = [];
+  let seq = 0;
+  const visible = (cog: CogId): Message[] => messages.filter((m) => messageVisibleToCog(m, cog));
+
   while (state.turn <= maxTurns) {
     const snapshot = state;
-    const decided = await Promise.all(agents.map((a) => Promise.resolve(a.commit({ state: snapshot, me: a.id }))));
+    // Negotiate round: agents post public/DM messages, recorded as frames.
+    for (const a of agents) {
+      if (!a.negotiate) continue;
+      const posts = await a.negotiate({ state: snapshot, me: a.id, messages: visible(a.id) });
+      for (const p of posts) {
+        const m: Message = { seq: ++seq, turn: snapshot.turn, from: a.id, to: p.to, text: p.text };
+        messages.push(m);
+        frames.push({ type: "message", message: m });
+      }
+    }
+    const decided = await Promise.all(
+      agents.map((a) => Promise.resolve(a.commit({ state: snapshot, me: a.id, messages: visible(a.id) }))),
+    );
     const ordersByCog: Record<CogId, Order[]> = {};
     agents.forEach((a, i) => (ordersByCog[a.id] = decided[i]!));
     state = stepTurn(state, ordersByCog);

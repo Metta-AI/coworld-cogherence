@@ -7,7 +7,7 @@
 // agent is seeded via a closure RNG that advances across the game — so it is
 // single-use per game (construct a fresh instance per `runGame`).
 
-import type { Agent, AgentView } from "./types";
+import type { Agent, AgentView, Post } from "./types";
 import type { Order } from "../shared/engine/orders";
 import type { Tile } from "../shared/engine/types";
 import { maxEnergy } from "../shared/engine/energy";
@@ -46,6 +46,14 @@ export const peacefulAgent = (id: string): Agent => ({
     if (owned.length > 0) return [{ type: "align", tile: key(weakest(owned).hex), energy: spend }];
     return [];
   },
+  negotiate: (view) => {
+    const PEACE = [
+      "Proposing a clean truce on our borders — stability helps everyone.",
+      "Open to mineral trades; I'd rather build than brawl.",
+      "Holding steady this turn — no aggression from me.",
+    ];
+    return view.state.turn % 3 === 1 ? [{ to: "public", text: PEACE[Math.floor(view.state.turn / 3) % PEACE.length]! }] : [];
+  },
 });
 
 /** Greedy: pushes into the weakest adjacent tile and bids for hearts, scaling its bid
@@ -64,6 +72,19 @@ export const greedyAgent = (id: string): Agent => ({
     const bidBudget = e - alignSpend; // whatever's left after the push
     if (bidBudget >= 1) orders.push({ type: "bid", energy: Math.min(bidBudget, 1 + Math.floor(e / 10)) });
     return orders;
+  },
+  negotiate: (view) => {
+    const GREED = [
+      "I'm bidding hard for this heart — save your energy.",
+      "Pushing into the weakest frontier; stay clear.",
+      "Whoever's leading should expect pressure from me.",
+    ];
+    const posts: Post[] = [];
+    if (view.state.turn % 2 === 0) posts.push({ to: "public", text: GREED[Math.floor(view.state.turn / 2) % GREED.length]! });
+    const enemy = adjacentTargets(view).find((t) => t.alignment !== null);
+    if (enemy && enemy.alignment && view.state.turn % 6 === 0)
+      posts.push({ to: enemy.alignment, text: "Back off my frontier or I take that tile." });
+    return posts;
   },
 });
 
@@ -87,6 +108,14 @@ export const randomAgent = (id: string, seed: number): Agent => {
       }
       if (cands.length === 0) return [];
       return [cands[randInt(rng, cands.length)]!];
+    },
+    negotiate: (view) => {
+      const CHAT = [
+        "Anyone want to coordinate against the leader?",
+        "Watching the board — might strike, might not.",
+        "Open to a deal if the price is right.",
+      ];
+      return view.state.turn % 4 === 2 ? [{ to: "public", text: CHAT[Math.floor(view.state.turn / 4) % CHAT.length]! }] : [];
     },
   };
 };
