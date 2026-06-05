@@ -3,8 +3,8 @@
 // observability and only the Commit-phase decision; Task 13 implements concrete
 // agents against this interface. Types only.
 
-import type { GameState, CogId } from "../engine/types";
-import type { Order } from "../engine/orders";
+import type { GameState, CogId } from "../shared/engine/types";
+import type { Order } from "../shared/engine/orders";
 
 /** What an agent observes when choosing its orders. MVP: full observability. */
 export interface AgentView {

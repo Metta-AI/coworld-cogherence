@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { newGame, stepTurn, runGame, scoreGame, commons } from "./game";
-import type { Agent } from "../agents/types";
+import type { Agent } from "../../agents/types";
 import type { CogId } from "./types";
 
 const noop = (id: CogId): Agent => ({ id, commit: () => [] });

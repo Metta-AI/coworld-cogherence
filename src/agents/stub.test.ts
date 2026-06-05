@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { peacefulAgent, greedyAgent, randomAgent } from "./stub";
-import { runGame } from "../engine/game";
-import { isLegalAlignTarget, isOwn } from "../engine/orders";
-import { maxEnergy } from "../engine/energy";
-import type { GameState, Tile, CogId, Treasury, CogState } from "../engine/types";
-import { key } from "../engine/hex";
+import { runGame } from "../shared/engine/game";
+import { isLegalAlignTarget, isOwn } from "../shared/engine/orders";
+import { maxEnergy } from "../shared/engine/energy";
+import type { GameState, Tile, CogId, Treasury, CogState } from "../shared/engine/types";
+import { key } from "../shared/engine/hex";
 
 const tile = (q: number, r: number, alignment: CogId | null, coherence: number, mineral: any = "C", density = 1): Tile =>
   ({ hex: { q, r }, alignment, coherence, mineral, density });

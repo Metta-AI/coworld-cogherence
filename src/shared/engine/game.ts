@@ -6,7 +6,7 @@
 import type { GameState, CogId } from "./types";
 import type { Order } from "./orders";
 import type { TurnRecord } from "./log";
-import type { Agent } from "../agents/types";
+import type { Agent } from "../../agents/types";
 import { generateBoard } from "./board";
 import { resolve } from "./resolve";
 import { upkeep } from "./upkeep";

@@ -8,11 +8,11 @@
 // single-use per game (construct a fresh instance per `runGame`).
 
 import type { Agent, AgentView } from "./types";
-import type { Order } from "../engine/orders";
-import type { Tile } from "../engine/types";
-import { maxEnergy } from "../engine/energy";
-import { neighbors, key } from "../engine/hex";
-import { makeRng, randInt } from "../engine/rng";
+import type { Order } from "../shared/engine/orders";
+import type { Tile } from "../shared/engine/types";
+import { maxEnergy } from "../shared/engine/energy";
+import { neighbors, key } from "../shared/engine/hex";
+import { makeRng, randInt } from "../shared/engine/rng";
 
 const myEnergy = (view: AgentView): number => maxEnergy(view.state.cogs[view.me]!.treasury);
 const ownedTiles = (view: AgentView): Tile[] =>

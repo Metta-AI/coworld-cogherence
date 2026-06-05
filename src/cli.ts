@@ -7,10 +7,10 @@
 
 import { writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
-import { runGame } from "./engine/game";
+import { runGame } from "./shared/engine/game";
 import { greedyAgent, peacefulAgent, randomAgent } from "./agents/stub";
 import type { Agent } from "./agents/types";
-import type { GameState, CogId } from "./engine/types";
+import type { GameState, CogId } from "./shared/engine/types";
 
 /** Parsed CLI options. */
 export interface CliOptions {
