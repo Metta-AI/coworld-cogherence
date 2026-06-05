@@ -493,7 +493,7 @@ svg .tile-mineral {
 /* ---- roster cards + graphs ---- */
 .roster ul {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(196px, 1fr));
   gap: 10px;
 }
 .roster li,
@@ -523,10 +523,17 @@ svg .tile-mineral {
 }
 .roster-pips {
   display: flex;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 4px 10px;
   margin-top: 8px;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
+}
+.roster-main {
+  flex-wrap: wrap;
+}
+.roster-stats {
+  flex-wrap: wrap;
 }
 .pip em {
   color: var(--dim);
