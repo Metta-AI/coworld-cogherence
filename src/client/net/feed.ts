@@ -32,7 +32,8 @@ export function connectLiveFeed(store: FeedStore, makeSocket: () => LiveSocket, 
     const m = parsed.data;
     if (m.type === "snapshot") store.snapshots.push(m.snapshot);
     else if (m.type === "event") store.events.push(m.event);
-    else store.status = m.status;
+    else if (m.type === "serverStatus") store.status = m.status;
+    // actPrompt frames are handled in Phase B5 (PromptsPanel)
     onChange();
   });
   return () => sock.close();
