@@ -4,11 +4,11 @@
 
 import type { Hex } from "./hex";
 
-/** The four mineral types Cogs mine, trade, and burn for energy. */
-export type Mineral = "C" | "O" | "Ge" | "S";
+/** The four minerals, in canonical order — the single source of truth (their letters spell COGS). */
+export const MINERALS = ["C", "O", "Ge", "S"] as const;
 
-/** All minerals in canonical order. */
-export const MINERALS: Mineral[] = ["C", "O", "Ge", "S"];
+/** The four mineral types Cogs mine, trade, and burn for energy. */
+export type Mineral = (typeof MINERALS)[number];
 
 /** Stable identifier for a Cog. */
 export type CogId = string;

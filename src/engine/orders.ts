@@ -5,6 +5,7 @@
 // affordability (budget) is enforced separately in Resolve.
 
 import { z } from "zod";
+import { MINERALS } from "./types";
 import type { GameState, CogId, HexKey } from "./types";
 import { neighbors, key } from "./hex";
 
@@ -18,7 +19,7 @@ const ExploitOrder = z.object({ type: z.literal("exploit"), tile: z.string() });
 const TransferOrder = z.object({
   type: z.literal("transfer"),
   to: z.string(),
-  mineral: z.enum(["C", "O", "Ge", "S"]),
+  mineral: z.enum(MINERALS),
   amount: z.number().int().positive(),
 });
 

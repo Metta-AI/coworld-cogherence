@@ -13,8 +13,11 @@ const stateWith = (tiles: Tile[]): GameState => {
   for (const t of tiles) map[key(t.hex)] = t;
   return {
     turn: 1, phase: "commit", seed: 0, tiles: map,
-    cogs: { A: { id: "A", index: 0, treasury: emptyTreasury(), hearts: 0 } },
-    cogOrder: ["A"], log: [],
+    cogs: {
+      A: { id: "A", index: 0, treasury: emptyTreasury(), hearts: 0 },
+      B: { id: "B", index: 1, treasury: emptyTreasury(), hearts: 0 },
+    },
+    cogOrder: ["A", "B"], log: [],
   };
 };
 
@@ -31,6 +34,8 @@ describe("OrderSchema", () => {
     expect(OrderSchema.parse({ type: "transfer", to: "B", mineral: "S", amount: 2 }).type).toBe("transfer");
     expect(() => OrderSchema.parse({ type: "transfer", to: "B", mineral: "X", amount: 2 })).toThrow();
   });
+  it("rejects a non-integer transfer amount", () =>
+    expect(() => OrderSchema.parse({ type: "transfer", to: "B", mineral: "S", amount: 2.5 })).toThrow());
   it("parses a bid and allows 0 (a non-bid) but rejects negative", () => {
     expect(OrderSchema.parse({ type: "bid", energy: 0 }).type).toBe("bid");
     expect(() => OrderSchema.parse({ type: "bid", energy: -1 })).toThrow();
@@ -55,4 +60,8 @@ describe("legality", () => {
     expect(isLegalAlignTarget(g, "A", "3,0")).toBe(false));
   it("an off-board tile is illegal", () =>
     expect(isLegalAlignTarget(g, "A", "9,9")).toBe(false));
+  it("an enemy-owned tile adjacent to own territory is a legal align target (siege)", () => {
+    const g2 = stateWith([tile(0, 0, "A"), tile(1, 0, "B")]);
+    expect(isLegalAlignTarget(g2, "A", "1,0")).toBe(true);
+  });
 });
