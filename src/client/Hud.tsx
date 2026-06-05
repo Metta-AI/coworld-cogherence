@@ -1,7 +1,7 @@
 // Per-turn readouts: the turn/commons line and a per-cog hearts/energy list.
 import React from "react";
 import type { GameSnapshot } from "../shared/snapshot";
-import { cogColor } from "./colors";
+import { cogColor, cogName } from "./colors";
 
 export function Hud({ snapshot }: { snapshot: GameSnapshot }): React.ReactElement {
   return (
@@ -12,7 +12,7 @@ export function Hud({ snapshot }: { snapshot: GameSnapshot }): React.ReactElemen
       <ul>
         {snapshot.cogs.map((c) => (
           <li key={c.id} style={{ color: cogColor(c.index) }}>
-            {c.id}: ♥{c.hearts} ⚡{c.energy}
+            {cogName(c.index)}: ♥{c.hearts} ⚡{c.energy}
           </li>
         ))}
       </ul>

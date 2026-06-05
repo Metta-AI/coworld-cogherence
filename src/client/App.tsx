@@ -6,6 +6,7 @@ import "./styles.css";
 import { HexBoard } from "./HexBoard";
 import { Scrubber } from "./Scrubber";
 import { Hud } from "./Hud";
+import { Roster } from "./Roster";
 import { parseReplay, snapshots, type Replay } from "./replay-source";
 
 export function App({ replay: injected }: { replay?: Replay } = {}): React.ReactElement {
@@ -36,6 +37,7 @@ export function App({ replay: injected }: { replay?: Replay } = {}): React.React
       <HexBoard snapshot={snap} />
       <Scrubber index={index} count={snaps.length} onSeek={setIndex} playing={playing} onTogglePlay={() => setPlaying((p) => !p)} />
       <Hud snapshot={snap} />
+      <Roster snapshot={snap} />
     </div>
   );
 }
