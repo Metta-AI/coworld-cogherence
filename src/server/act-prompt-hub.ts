@@ -26,6 +26,10 @@ export class ActPromptHub {
   list(cogId: CogId): ActPromptEntry[] {
     return [...(this.byCog.get(cogId) ?? [])];
   }
+  /** Cogs that have produced at least one act-prompt (for operator backfill). */
+  cogs(): CogId[] {
+    return [...this.byCog.keys()];
+  }
   onRecord(fn: Sub): () => void {
     this.subs.push(fn);
     return () => (this.subs = this.subs.filter((s) => s !== fn));

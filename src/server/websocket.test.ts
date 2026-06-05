@@ -59,4 +59,26 @@ describe("websocket", () => {
     wss.close();
     http.close();
   });
+
+  it("backfills recent events on connect", async () => {
+    const runner = new GameRunner({ seed: 7, agents: [greedyAgent("cog0"), greedyAgent("cog1")], maxTurns: 2, deadlineMs: 50 });
+    await runner.run(); // populates recentEvents
+    const http = createServer();
+    const wss = attachWebsockets(http, runner);
+    await new Promise<void>((r) => http.listen(0, r));
+    const port = (http.address() as { port: number }).port;
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/global/ws`);
+    const frames: { type: string }[] = [];
+    await new Promise<void>((res) => {
+      ws.on("message", (d) => {
+        frames.push(JSON.parse(d.toString()));
+        if (frames.some((f) => f.type === "event")) res();
+      });
+      setTimeout(res, 800);
+    });
+    expect(frames.some((f) => f.type === "event")).toBe(true);
+    ws.close();
+    wss.close();
+    http.close();
+  });
 });

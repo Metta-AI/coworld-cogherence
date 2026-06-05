@@ -21,10 +21,10 @@ export function GlobalView({
   return (
     <div className="view view-global" data-testid="global-view">
       <div className="board-col">
+        <Roster snapshot={snapshot} />
         <div className="panel board-panel">
           <HexBoard snapshot={snapshot} />
         </div>
-        <Roster snapshot={snapshot} />
       </div>
       <aside className="side-col">
         <ActivityTicker events={events} />

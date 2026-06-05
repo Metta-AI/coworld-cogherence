@@ -9,6 +9,7 @@ import { newGame, stepTurn, scoreGame } from "../shared/engine/game";
 import { toSnapshot } from "../shared/snapshot";
 import { PhaseCoordinator } from "./phase-coordinator";
 import type { MessageBus } from "./message-bus";
+import type { TurnEvent } from "../shared/engine/log";
 
 type Listener = (m: ServerMessage) => void;
 
@@ -22,6 +23,7 @@ export class GameRunner {
   private negotiateRounds: number;
   private listeners: Listener[] = [];
   private clientCount = 0;
+  private recent: TurnEvent[] = [];
 
   constructor(opts: {
     seed: number;
@@ -51,6 +53,10 @@ export class GameRunner {
   /** Current status frame (for head-first sync to a newly-connected client). */
   currentStatus(): ServerStatus {
     return this.status();
+  }
+  /** Recent board events, for backfilling a newly-connected client's ticker. */
+  recentEvents(): TurnEvent[] {
+    return [...this.recent];
   }
   private emit(m: ServerMessage): void {
     for (const l of this.listeners) l(m);
@@ -91,7 +97,11 @@ export class GameRunner {
 
       this.state = stepTurn(this.state, ordersByCog);
       const rec = this.state.log[this.state.log.length - 1]!;
-      for (const ev of rec.events) this.emit({ type: "event", event: ev });
+      for (const ev of rec.events) {
+        this.recent.push(ev);
+        this.emit({ type: "event", event: ev });
+      }
+      if (this.recent.length > 60) this.recent = this.recent.slice(-60);
       this.emit({ type: "snapshot", snapshot: toSnapshot(this.state) });
       this.emit({ type: "serverStatus", status: this.status() });
 

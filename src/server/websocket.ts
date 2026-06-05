@@ -48,12 +48,16 @@ export function attachWebsockets(
       const head = toSnapshot(runner.state);
       send(ws, { type: "snapshot", snapshot: cogId ? buildCogSnapshot(head, cogId) : head });
       send(ws, { type: "serverStatus", status: runner.currentStatus() });
-      // Backfill recent transparency + chat so a freshly-joined view isn't empty.
+      // Backfill recent activity + transparency + chat so a freshly-joined view isn't empty.
+      for (const ev of runner.recentEvents()) send(ws, { type: "event", event: ev });
       if (cogId) {
         for (const e of hub?.list(cogId) ?? [])
           send(ws, { type: "actPrompt", cogId: e.cogId, turn: e.turn, phase: e.phase, content: e.content });
         for (const m of bus?.visibleTo(cogId) ?? []) send(ws, { type: "message", message: m });
       } else {
+        for (const id of hub?.cogs() ?? [])
+          for (const e of hub.list(id))
+            send(ws, { type: "actPrompt", cogId: e.cogId, turn: e.turn, phase: e.phase, content: e.content });
         for (const m of bus?.recent() ?? []) send(ws, { type: "message", message: m });
       }
       ws.on("close", () => {

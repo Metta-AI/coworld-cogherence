@@ -17,4 +17,10 @@ describe("ActPromptHub", () => {
     hub.record({ cogId: "cog0", turn: 1, phase: "commit", content: "a" });
     expect(fn).toHaveBeenCalledWith({ cogId: "cog0", turn: 1, phase: "commit", content: "a" });
   });
+  it("lists the cogs that have recorded", () => {
+    const hub = new ActPromptHub();
+    hub.record({ cogId: "cog0", turn: 1, phase: "commit", content: "a" });
+    hub.record({ cogId: "cog2", turn: 1, phase: "commit", content: "b" });
+    expect(hub.cogs().sort()).toEqual(["cog0", "cog2"]);
+  });
 });
