@@ -2,14 +2,18 @@
 // notifying on each change. The store's snapshots feed the SAME renderers the
 // replay viewer uses, so live and replay share one render path. Invalid inbound
 // frames are dropped (validated at this boundary).
-import { serverMessageSchema, type ServerStatus } from "../../shared/protocol";
+import { serverMessageSchema, type ServerMessage, type ServerStatus } from "../../shared/protocol";
 import type { GameSnapshot } from "../../shared/snapshot";
 import type { TurnEvent } from "../../shared/engine/log";
+
+/** An actPrompt frame: what a Cog's model saw + decided this turn. */
+export type ActPromptFrame = Extract<ServerMessage, { type: "actPrompt" }>;
 
 export interface FeedStore {
   snapshots: GameSnapshot[];
   events: TurnEvent[];
   status: ServerStatus | null;
+  actPrompts: Record<string, ActPromptFrame[]>;
 }
 
 /** Minimal socket surface (a fake is injected in tests; real one wraps WebSocket). */
@@ -33,7 +37,11 @@ export function connectLiveFeed(store: FeedStore, makeSocket: () => LiveSocket, 
     if (m.type === "snapshot") store.snapshots.push(m.snapshot);
     else if (m.type === "event") store.events.push(m.event);
     else if (m.type === "serverStatus") store.status = m.status;
-    // actPrompt frames are handled in Phase B5 (PromptsPanel)
+    else if (m.type === "actPrompt") {
+      const list = (store.actPrompts[m.cogId] ??= []);
+      list.push(m);
+      if (list.length > 20) list.shift();
+    }
     onChange();
   });
   return () => sock.close();

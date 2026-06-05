@@ -7,6 +7,7 @@ import { HexBoard } from "./HexBoard";
 import { Scrubber } from "./Scrubber";
 import { Hud } from "./Hud";
 import { Roster } from "./Roster";
+import { PromptsPanel } from "./PromptsPanel";
 import { parseReplay, snapshots, type Replay } from "./replay-source";
 import { connectLiveFeed, type FeedStore } from "./net/feed";
 import { makeWorldSocket } from "./net/world-socket";
@@ -18,6 +19,7 @@ export function App({ replay: injected, live }: { replay?: Replay; live?: boolea
   const [index, setIndex] = useState(0);
   const [follow, setFollow] = useState<boolean>(liveMode);
   const [playing, setPlaying] = useState(false);
+  const [prompts, setPrompts] = useState<FeedStore["actPrompts"]>({});
 
   // Replay (file) mode
   useEffect(() => {
@@ -30,11 +32,14 @@ export function App({ replay: injected, live }: { replay?: Replay; live?: boolea
   // Live (websocket) mode
   useEffect(() => {
     if (!liveMode || typeof window === "undefined") return;
-    const store: FeedStore = { snapshots: [], events: [], status: null };
+    const store: FeedStore = { snapshots: [], events: [], status: null, actPrompts: {} };
     return connectLiveFeed(
       store,
       () => makeWorldSocket(`ws://${window.location.host}/global/ws`),
-      () => setSnaps([...store.snapshots]),
+      () => {
+        setSnaps([...store.snapshots]);
+        setPrompts({ ...store.actPrompts });
+      },
     );
   }, [liveMode]);
 
@@ -68,6 +73,7 @@ export function App({ replay: injected, live }: { replay?: Replay; live?: boolea
       />
       <Hud snapshot={snap} />
       <Roster snapshot={snap} />
+      {liveMode && <PromptsPanel actPrompts={prompts} />}
     </div>
   );
 }

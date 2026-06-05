@@ -16,7 +16,7 @@ class FakeSocket implements LiveSocket {
 const snap = (turn: number) => ({
   version: "0", seed: 7, turn, phase: "negotiate", radius: 6, coherenceMax: 6, tiles: [], cogs: [], commons: 0,
 });
-const newStore = (): FeedStore => ({ snapshots: [], events: [], status: null });
+const newStore = (): FeedStore => ({ snapshots: [], events: [], status: null, actPrompts: {} });
 
 describe("connectLiveFeed", () => {
   it("applies snapshot frames and notifies", () => {
@@ -42,5 +42,13 @@ describe("connectLiveFeed", () => {
     connectLiveFeed(store, () => sock, () => {});
     sock.emit({ type: "serverStatus", status: { turn: 2, phase: "commit", finished: false, cogCount: 4 } });
     expect(store.status?.turn).toBe(2);
+  });
+  it("accumulates actPrompt frames per cog", () => {
+    const store = newStore();
+    const sock = new FakeSocket();
+    connectLiveFeed(store, () => sock, () => {});
+    sock.emit({ type: "actPrompt", cogId: "cog0", turn: 1, phase: "commit", content: "saw -> bid 2" });
+    expect(store.actPrompts.cog0).toHaveLength(1);
+    expect(store.actPrompts.cog0![0]!.content).toContain("bid 2");
   });
 });
