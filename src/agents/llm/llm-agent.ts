@@ -2,7 +2,8 @@
 // -> parse the tool call into Order[]. This is the one sanctioned FAIL-SAFE path:
 // any error, missing tool call, or malformed input yields [] (no orders, bid 0),
 // so a flaky model never throws or stalls a game (design §14.3).
-import type { AgentView } from "../types";
+import type { Agent, AgentView } from "../types";
+import type { CogId } from "../../shared/engine/types";
 import type { Order } from "../../shared/engine/orders";
 import { renderView } from "./render";
 import { SUBMIT_ORDERS_TOOL, parseSubmit } from "./submit";
@@ -24,4 +25,10 @@ export async function llmDecide(view: AgentView, client: ToolUseClient): Promise
   const call = reply.content.find((b) => b.type === "tool_use" && b.name === SUBMIT_ORDERS_TOOL.name);
   if (!call || call.type !== "tool_use") return []; // model didn't submit
   return parseSubmit(call.input);
+}
+
+/** An Agent backed by an LLM: each turn it renders the view, asks the model, and
+ *  returns the parsed orders. Construct with a ToolUseClient (real or fake). */
+export function llmAgent(id: CogId, client: ToolUseClient): Agent {
+  return { id, commit: (view) => llmDecide(view, client) };
 }

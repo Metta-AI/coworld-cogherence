@@ -28,29 +28,29 @@ describe("cli", () => {
     expect(() => buildAgents(["frobnicate"], 7)).toThrow();
   });
 
-  it("playGame runs a full game and returns a winner with a 100-turn log", () => {
-    const r = playGame({ seed: 7, agents: ["greedy", "peaceful", "random", "greedy"] });
+  it("playGame runs a full game and returns a winner with a 100-turn log", async () => {
+    const r = await playGame({ seed: 7, agents: ["greedy", "peaceful", "random", "greedy"] });
     expect(r.state.log).toHaveLength(100);
     expect(r.winner).not.toBeNull();
   });
 
-  it("summarize ends with a winner line and includes sampled turns", () => {
-    const r = playGame({ seed: 7, agents: ["greedy", "peaceful", "random", "greedy"] });
+  it("summarize ends with a winner line and includes sampled turns", async () => {
+    const r = await playGame({ seed: 7, agents: ["greedy", "peaceful", "random", "greedy"] });
     const lines = summarize(r, 25);
     expect(lines.at(-1)).toContain("winner:");
     expect(lines.length).toBeGreaterThan(1);
   });
 
-  it("summarize samples turn 1 and every Nth turn, then the winner line", () => {
-    const r = playGame({ seed: 7, agents: ["greedy", "peaceful", "random", "greedy"] });
+  it("summarize samples turn 1 and every Nth turn, then the winner line", async () => {
+    const r = await playGame({ seed: 7, agents: ["greedy", "peaceful", "random", "greedy"] });
     const lines = summarize(r, 25); // turns 1, 25, 50, 75, 100 + winner = 6 lines
     expect(lines).toHaveLength(6);
     expect(lines[0]).toContain("turn   1");
     expect(lines.at(-1)).toContain("winner:");
   });
 
-  it("replayFromOpts builds a meta-stamped replay with frames", () => {
-    const r = replayFromOpts({ seed: 7, agents: ["greedy", "peaceful"] });
+  it("replayFromOpts builds a meta-stamped replay with frames", async () => {
+    const r = await replayFromOpts({ seed: 7, agents: ["greedy", "peaceful"] });
     expect(r.meta.seed).toBe(7);
     expect(r.frames.length).toBeGreaterThan(0);
     expect(r.frames[0]!.type).toBe("snapshot");

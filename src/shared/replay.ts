@@ -21,8 +21,9 @@ export interface Replay {
   frames: ServerMessage[];
 }
 
-/** Play a full game, capturing an initial snapshot then per-turn events + snapshot + status. */
-export function recordGame(seed: number, agents: Agent[]): ServerMessage[] {
+/** Play a game, capturing an initial snapshot then per-turn events + snapshot + status.
+ *  Async (so LLM agents can await a model); `maxTurns` shortens it for demos/tests. */
+export async function recordGame(seed: number, agents: Agent[], maxTurns: number = MAX_TURNS): Promise<ServerMessage[]> {
   const frames: ServerMessage[] = [];
   const n = agents.length;
   let state = newGame(seed, n);
@@ -30,22 +31,32 @@ export function recordGame(seed: number, agents: Agent[]): ServerMessage[] {
   frames.push({ type: "snapshot", snapshot: toSnapshot(state) });
   frames.push({ type: "serverStatus", status: { turn: state.turn, phase: state.phase, finished: false, cogCount: n } });
 
-  while (state.turn <= MAX_TURNS) {
+  while (state.turn <= maxTurns) {
+    const snapshot = state;
+    const decided = await Promise.all(agents.map((a) => Promise.resolve(a.commit({ state: snapshot, me: a.id }))));
     const ordersByCog: Record<CogId, Order[]> = {};
-    for (const a of agents) ordersByCog[a.id] = a.commit({ state, me: a.id });
+    agents.forEach((a, i) => (ordersByCog[a.id] = decided[i]!));
     state = stepTurn(state, ordersByCog);
     const rec = state.log[state.log.length - 1]!;
     for (const ev of rec.events) frames.push({ type: "event", event: ev });
     frames.push({ type: "snapshot", snapshot: toSnapshot(state) });
     frames.push({
       type: "serverStatus",
-      status: { turn: state.turn, phase: state.phase, finished: state.turn > MAX_TURNS, cogCount: n },
+      status: { turn: state.turn, phase: state.phase, finished: state.turn > maxTurns, cogCount: n },
     });
   }
   return frames;
 }
 
 /** Wrap a recorded game with meta for on-disk storage. */
-export function makeReplay(seed: number, agentSpecs: string[], agents: Agent[]): Replay {
-  return { meta: { version: COGHERENCE_VERSION, seed, agents: agentSpecs, turns: MAX_TURNS }, frames: recordGame(seed, agents) };
+export async function makeReplay(
+  seed: number,
+  agentSpecs: string[],
+  agents: Agent[],
+  maxTurns: number = MAX_TURNS,
+): Promise<Replay> {
+  return {
+    meta: { version: COGHERENCE_VERSION, seed, agents: agentSpecs, turns: maxTurns },
+    frames: await recordGame(seed, agents, maxTurns),
+  };
 }

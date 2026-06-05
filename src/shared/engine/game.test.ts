@@ -35,10 +35,10 @@ describe("game", () => {
     expect(g.log).toHaveLength(0);
   });
 
-  it("runGame plays MAX_TURNS turns, returns a winner, and is fully deterministic for (seed, agents)", () => {
+  it("runGame plays MAX_TURNS turns, returns a winner, and is fully deterministic for (seed, agents)", async () => {
     const agents = ["cog0", "cog1", "cog2", "cog3"].map(noop);
-    const a = runGame(7, 4, agents);
-    const b = runGame(7, 4, agents);
+    const a = await runGame(7, 4, agents);
+    const b = await runGame(7, 4, agents);
     expect(a.state.turn).toBe(101);
     expect(a.state.log).toHaveLength(100);
     expect(a.winner).not.toBeNull();

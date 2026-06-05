@@ -12,8 +12,9 @@ export interface AgentView {
   me: CogId;
 }
 
-/** A Cog policy. MVP: just the Commit-phase decision (no negotiation channel yet). */
+/** A Cog policy. MVP: just the Commit-phase decision (no negotiation channel yet).
+ *  `commit` may be sync (scripted stubs) or async (LLM agents that await a model). */
 export interface Agent {
   id: CogId;
-  commit(view: AgentView): Order[];
+  commit(view: AgentView): Order[] | Promise<Order[]>;
 }

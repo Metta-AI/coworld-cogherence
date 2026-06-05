@@ -51,16 +51,21 @@ export function scoreGame(state: GameState): {
   return { winner: ranked[0]?.id ?? null, standings: ranked.map((c) => ({ cog: c.id, hearts: c.hearts })) };
 }
 
-/** Play a full game of MAX_TURNS turns with one Agent per Cog. Deterministic for (seed, agents). */
-export function runGame(
+/** Play a full game with one Agent per Cog (default MAX_TURNS). Async so LLM
+ *  agents can await a model; deterministic for (seed, scripted agents). Within a
+ *  turn, agents run concurrently and each sees the same pre-turn state. */
+export async function runGame(
   seed: number,
   numCogs: number,
   agents: Agent[],
-): { state: GameState; winner: CogId | null; standings: Array<{ cog: CogId; hearts: number }> } {
+  maxTurns: number = MAX_TURNS,
+): Promise<{ state: GameState; winner: CogId | null; standings: Array<{ cog: CogId; hearts: number }> }> {
   let state = newGame(seed, numCogs);
-  while (state.turn <= MAX_TURNS) {
+  while (state.turn <= maxTurns) {
+    const snapshot = state;
+    const orders = await Promise.all(agents.map((a) => Promise.resolve(a.commit({ state: snapshot, me: a.id }))));
     const ordersByCog: Record<CogId, Order[]> = {};
-    for (const a of agents) ordersByCog[a.id] = a.commit({ state, me: a.id });
+    agents.forEach((a, i) => (ordersByCog[a.id] = orders[i]!));
     state = stepTurn(state, ordersByCog);
   }
   return { state, ...scoreGame(state) };
