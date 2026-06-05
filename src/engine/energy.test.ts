@@ -50,4 +50,18 @@ describe("chargeEnergy", () => {
   it("treats need = 0 as a no-op copy", () => {
     expect(chargeEnergy(T(1, 1, 1, 1), 0)).toEqual(T(1, 1, 1, 1));
   });
+  it("monotonic: pays via set-overshoot when loose singles fall short", () => {
+    // one set = 4 singles; a need of 5..9 is covered by burning the set (overshoot)
+    expect(chargeEnergy(T(1, 1, 1, 1), 5)).toEqual(T(0, 0, 0, 0));
+    expect(chargeEnergy(T(1, 1, 1, 1), 9)).toEqual(T(0, 0, 0, 0));
+  });
+  it("monotonic: T(2,2,2,2) pays 9 by burning one set (overshoot by 1)", () =>
+    expect(chargeEnergy(T(2, 2, 2, 2), 9)).toEqual(T(1, 1, 1, 1)));
+  it("small needs still spend only singles (no needless set-burn)", () =>
+    expect(chargeEnergy(T(1, 1, 1, 1), 3)).toEqual(T(0, 0, 0, 1)));
+  it("affordability is monotonic: affordable at every n <= maxEnergy, null just above", () => {
+    const t = T(2, 2, 2, 2); // maxEnergy 20
+    for (let n = 0; n <= 20; n++) expect(chargeEnergy(t, n)).not.toBeNull();
+    expect(chargeEnergy(t, 21)).toBeNull();
+  });
 });
