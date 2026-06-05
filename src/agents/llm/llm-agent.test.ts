@@ -31,4 +31,22 @@ describe("llmDecide", () => {
   it("returns [] on malformed tool input", async () => {
     expect(await llmDecide(view, fake(toolUse({ aligns: [{ tile: "0,0", energy: -5 }] })))).toEqual([]);
   });
+  it("reports the prompt + decision to the reporter", async () => {
+    const reports: { turn: number; content: string }[] = [];
+    const orders = await llmDecide(view, fake(toolUse({ aligns: [{ tile: "0,0", energy: 2 }], bid: 4 })), {
+      report: (turn, content) => reports.push({ turn, content }),
+    });
+    expect(orders).toContainEqual({ type: "bid", energy: 4 });
+    expect(reports).toHaveLength(1);
+    expect(reports[0]!.turn).toBe(1);
+    expect(reports[0]!.content).toMatch(/Your treasury/); // the prompt the model saw
+    expect(reports[0]!.content).toMatch(/bid/); // the decision summary
+  });
+  it("reports even when the model emits no tool call", async () => {
+    const reports: string[] = [];
+    await llmDecide(view, fake({ stopReason: "end_turn", content: [{ type: "text", text: "hmm" }] }), {
+      report: (_t, content) => reports.push(content),
+    });
+    expect(reports[0]).toMatch(/no orders/);
+  });
 });
