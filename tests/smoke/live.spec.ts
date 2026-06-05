@@ -12,3 +12,17 @@ test("renders a live game and advances turns", async ({ page }) => {
     { timeout: 15_000 },
   );
 });
+
+test("the per-cog route renders (absolute asset base)", async ({ page }) => {
+  await page.goto("/cog/cog0?live");
+  await expect(page.getByTestId("cog-view")).toBeVisible();
+  await expect(page.locator("polygon")).toHaveCount(127);
+});
+
+test("the view switcher links to all views", async ({ page }) => {
+  await page.goto("/?live");
+  const nav = page.getByTestId("view-switcher");
+  await expect(nav.getByText("Global")).toBeVisible();
+  await expect(nav.getByText("Feed")).toBeVisible();
+  await expect(nav.getByText("Alice")).toBeVisible();
+});
