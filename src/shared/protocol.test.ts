@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { newGame } from "./engine/game";
 import { toSnapshot } from "./snapshot";
-import { gameSnapshotSchema, serverMessageSchema, turnEventSchema } from "./protocol";
+import { gameSnapshotSchema, serverMessageSchema, serverStatusSchema, turnEventSchema } from "./protocol";
 
 describe("protocol", () => {
   it("validates a real snapshot", () =>
@@ -15,4 +15,12 @@ describe("protocol", () => {
   });
   it("rejects an unknown message type", () =>
     expect(() => serverMessageSchema.parse({ type: "nope" })).toThrow());
+  it("serverStatus carries phase/pending/done/deadline", () => {
+    expect(() =>
+      serverStatusSchema.parse({
+        turn: 3, phase: "commit", finished: false, cogCount: 4, clientCount: 1,
+        pending: ["cog0"], done: ["cog1", "cog2", "cog3"], phaseDeadlineAt: 1000,
+      }),
+    ).not.toThrow();
+  });
 });

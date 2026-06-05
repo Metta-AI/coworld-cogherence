@@ -65,7 +65,16 @@ export const turnEventSchema = z.discriminatedUnion("type", [
 ]);
 
 export const serverStatusSchema = z
-  .object({ turn: z.number().int(), phase: phaseSchema, finished: z.boolean(), cogCount: z.number().int() })
+  .object({
+    turn: z.number().int(),
+    phase: phaseSchema,
+    finished: z.boolean(),
+    cogCount: z.number().int(),
+    clientCount: z.number().int().default(0),
+    pending: z.array(z.string()).default([]),
+    done: z.array(z.string()).default([]),
+    phaseDeadlineAt: z.number().optional(),
+  })
   .strict();
 
 export const serverMessageSchema = z.discriminatedUnion("type", [
