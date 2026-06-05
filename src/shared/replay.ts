@@ -29,7 +29,10 @@ export async function recordGame(seed: number, agents: Agent[], maxTurns: number
   let state = newGame(seed, n);
 
   frames.push({ type: "snapshot", snapshot: toSnapshot(state) });
-  frames.push({ type: "serverStatus", status: { turn: state.turn, phase: state.phase, finished: false, cogCount: n } });
+  frames.push({
+    type: "serverStatus",
+    status: { turn: state.turn, phase: state.phase, finished: false, cogCount: n, clientCount: 0, pending: [], done: [] },
+  });
 
   while (state.turn <= maxTurns) {
     const snapshot = state;
@@ -42,7 +45,7 @@ export async function recordGame(seed: number, agents: Agent[], maxTurns: number
     frames.push({ type: "snapshot", snapshot: toSnapshot(state) });
     frames.push({
       type: "serverStatus",
-      status: { turn: state.turn, phase: state.phase, finished: state.turn > maxTurns, cogCount: n },
+      status: { turn: state.turn, phase: state.phase, finished: state.turn > maxTurns, cogCount: n, clientCount: 0, pending: [], done: [] },
     });
   }
   return frames;
