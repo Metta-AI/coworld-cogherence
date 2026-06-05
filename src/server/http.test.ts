@@ -2,6 +2,7 @@ import { describe, it, expect, afterAll } from "vitest";
 import { createApp } from "./http";
 import { GameRunner } from "./game-runner";
 import { greedyAgent } from "../agents/stub";
+import { ActPromptHub } from "./act-prompt-hub";
 
 const runner = new GameRunner({ seed: 7, agents: [greedyAgent("cog0"), greedyAgent("cog1")], maxTurns: 100 });
 const server = createApp(runner).listen(0);
@@ -24,5 +25,15 @@ describe("http", () => {
   it("GET /cog/:id/state.json -> redacted snapshot (others' treasury hidden)", async () => {
     const j = await (await fetch(`${base()}/cog/cog0/state.json`)).json();
     expect(j.cogs.find((c: { id: string }) => c.id === "cog1").treasury).toEqual({ C: 0, O: 0, Ge: 0, S: 0 });
+  });
+  it("GET /cog/:id/act-prompts -> the cog's recorded entries", async () => {
+    const hub = new ActPromptHub();
+    hub.record({ cogId: "cog0", turn: 1, phase: "commit", content: "hello" });
+    const srv = createApp(runner, hub).listen(0);
+    const p = (srv.address() as { port: number }).port;
+    const j = await (await fetch(`http://127.0.0.1:${p}/cog/cog0/act-prompts`)).json();
+    srv.close();
+    expect(j).toHaveLength(1);
+    expect(j[0].content).toBe("hello");
   });
 });

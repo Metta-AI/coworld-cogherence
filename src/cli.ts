@@ -13,6 +13,7 @@ import { greedyAgent, peacefulAgent, randomAgent } from "./agents/stub";
 import { llmAgent } from "./agents/llm/llm-agent";
 import { BedrockToolUseClient, type ToolUseClient } from "./agents/llm/tool-client";
 import type { Agent } from "./agents/types";
+import type { ActPromptEntry } from "./server/act-prompt-hub";
 import type { GameState, CogId } from "./shared/engine/types";
 
 /** Parsed CLI options. */
@@ -53,7 +54,11 @@ export function parseArgs(argv: string[]): CliOptions {
 }
 
 /** Build one agent per spec (ids cog0..cogN). Random agents are seeded off the game seed. */
-export function buildAgents(specs: string[], seed: number): Agent[] {
+export function buildAgents(
+  specs: string[],
+  seed: number,
+  opts?: { onActPrompt?: (e: ActPromptEntry) => void },
+): Agent[] {
   let toolClient: ToolUseClient | null = null;
   const llmClient = (): ToolUseClient => (toolClient ??= new BedrockToolUseClient());
   return specs.map((spec, i) => {
@@ -61,7 +66,10 @@ export function buildAgents(specs: string[], seed: number): Agent[] {
     if (spec === "greedy") return greedyAgent(id);
     if (spec === "peaceful") return peacefulAgent(id);
     if (spec === "random") return randomAgent(id, seed * 1000 + i);
-    if (spec === "llm") return llmAgent(id, llmClient());
+    if (spec === "llm")
+      return llmAgent(id, llmClient(), {
+        report: (turn, content) => opts?.onActPrompt?.({ cogId: id, turn, phase: "commit", content }),
+      });
     throw new Error(`unknown agent type: "${spec}" (expected greedy | peaceful | random | llm)`);
   });
 }

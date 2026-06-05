@@ -8,13 +8,15 @@ import { dirname, resolve } from "node:path";
 import { toSnapshot } from "../shared/snapshot";
 import { buildCogSnapshot } from "./redact";
 import type { GameRunner } from "./game-runner";
+import type { ActPromptHub } from "./act-prompt-hub";
 
-export function createApp(runner: GameRunner): express.Express {
+export function createApp(runner: GameRunner, hub?: ActPromptHub): express.Express {
   const app = express();
 
   app.get("/health", (_req, res) => res.type("text/plain").send("ok"));
   app.get("/global.json", (_req, res) => res.json(toSnapshot(runner.state)));
   app.get("/cog/:id/state.json", (req, res) => res.json(buildCogSnapshot(toSnapshot(runner.state), req.params.id)));
+  app.get("/cog/:id/act-prompts", (req, res) => res.json(hub?.list(req.params.id) ?? []));
 
   const dist = resolve(dirname(fileURLToPath(import.meta.url)), "../../dist");
   app.use(express.static(dist));

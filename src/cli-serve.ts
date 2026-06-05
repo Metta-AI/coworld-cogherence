@@ -2,6 +2,7 @@
 // the URLs. Run via `npm run serve -- --seed 7 --cogs 4 --agents greedy,...`.
 import { buildAgents } from "./cli";
 import { startServer } from "./server/runtime";
+import { ActPromptHub } from "./server/act-prompt-hub";
 
 const arg = (name: string, dflt: string): string => {
   const i = process.argv.indexOf(`--${name}`);
@@ -21,8 +22,9 @@ async function main(): Promise<void> {
     ? agentsArg.split(",").map((s) => s.trim())
     : Array.from({ length: Math.max(1, cogs) }, (_, i) => ROTATION[i % ROTATION.length]!);
 
-  const agents = buildAgents(specs, seed);
-  const h = await startServer({ seed, agents, port, deadlineMs, minTurnMs, autorun: true });
+  const hub = new ActPromptHub();
+  const agents = buildAgents(specs, seed, { onActPrompt: (e) => hub.record(e) });
+  const h = await startServer({ seed, agents, port, deadlineMs, minTurnMs, hub, autorun: true });
   console.log(`Cogherence live — seed ${seed}, agents [${specs.join(", ")}]`);
   console.log(`  server:   ${h.url}`);
   console.log(`  viewer:   ${h.url}/?live`);
