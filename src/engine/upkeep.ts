@@ -56,14 +56,16 @@ export function upkeep(state: GameState): { state: GameState; events: UpkeepEven
       }
     }
 
-    // 3. mint (post-drift, post-upkeep coherence)
-    const gained: Treasury = { C: 0, O: 0, Ge: 0, S: 0 };
-    for (const k of owned) {
-      const t = tiles[k]!;
-      gained[t.mineral] += t.density * t.coherence;
+    // 3. mint (post-drift, post-upkeep coherence) — tile-less cogs mint nothing
+    if (owned.length > 0) {
+      const gained: Treasury = { C: 0, O: 0, Ge: 0, S: 0 };
+      for (const k of owned) {
+        const t = tiles[k]!;
+        gained[t.mineral] += t.density * t.coherence;
+      }
+      treasury = addT(treasury, gained);
+      events.push({ type: "mint", cog: cogId, gained });
     }
-    treasury = addT(treasury, gained);
-    events.push({ type: "mint", cog: cogId, gained });
 
     cogs[cogId] = { ...cog, treasury };
   }

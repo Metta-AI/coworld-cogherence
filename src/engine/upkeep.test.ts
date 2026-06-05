@@ -57,4 +57,26 @@ describe("upkeep", () => {
     const { state } = upkeep(s);
     expect(at(state, 5, 0)).toMatchObject({ alignment: null, coherence: 0, density: 2 });
   });
+
+  it("charges and starves each cog independently (rich cog funds all, broke cog starves all)", () => {
+    // A is rich (funds both its tiles); B is broke (starves both). All tiles isolated -> drift -1 each.
+    const s = makeState({
+      tiles: [tile(0, 0, "A", 4), tile(10, 0, "A", 4), tile(20, 0, "B", 3), tile(30, 0, "B", 3)],
+      cogOrder: ["A", "B"], treasuries: { A: T(2, 2, 2, 2), B: T() },
+    });
+    const { state } = upkeep(s);
+    expect(at(state, 0, 0).coherence).toBe(3);  // A: drift 4->3, funded
+    expect(at(state, 10, 0).coherence).toBe(3); // A: drift 4->3, funded
+    expect(at(state, 20, 0).coherence).toBe(1); // B: drift 3->2, starved -> 1
+    expect(at(state, 30, 0).coherence).toBe(1); // B: drift 3->2, starved -> 1
+    expect(tre(state, "A")).toEqual(T(7, 1, 2, 2)); // charge 2 (two singles) -> T(1,1,2,2); mint 3+3=6 C
+    expect(tre(state, "B")).toEqual(T(2, 0, 0, 0)); // no charge; mint 1+1=2 C
+  });
+
+  it("a starved tile mints density x its REDUCED coherence", () => {
+    const s = makeState({ tiles: [tile(0, 0, "A", 4, "O", 3)], cogOrder: ["A"], treasuries: { A: T() } });
+    const { state } = upkeep(s);
+    expect(at(state, 0, 0).coherence).toBe(2);     // drift 4->3, starved -> 2
+    expect(tre(state, "A")).toEqual(T(0, 6, 0, 0)); // mint 3 (density) * 2 (coherence) = 6 O, NOT 9 or 12
+  });
 });
