@@ -21,4 +21,13 @@ describe("Roster", () => {
     expect(getByTestId("roster-cog0").textContent).toContain("Alice");
     expect(getByTestId("roster-cog0").textContent).toContain("1");
   });
+
+  it("shows hearts, energy, treasury pips, and renders sparklines with history", () => {
+    const { getByTestId, container } = render(<Roster snapshot={snapshot()} history={[snapshot(), snapshot()]} />);
+    const row = getByTestId("roster-cog0").textContent ?? "";
+    expect(row).toMatch(/♥/); // hearts
+    expect(row).toMatch(/⚡/); // energy
+    expect(row).toContain("C"); // a treasury pip label
+    expect(container.querySelectorAll(".spark").length).toBe(8); // hearts + energy sparkline per cog
+  });
 });

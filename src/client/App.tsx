@@ -80,7 +80,14 @@ export function App({ replay: injected, live: liveProp }: { replay?: Replay; liv
         <p className="loading">{liveMode ? "Waiting for the live game…" : "Loading replay…"}</p>
       ) : (
         <>
-          {loc.view === "global" && <GlobalView snapshot={snapshot} events={store.events} actPrompts={store.actPrompts} />}
+          {loc.view === "global" && (
+            <GlobalView
+              snapshot={snapshot}
+              history={snaps.slice(0, index + 1)}
+              events={store.events}
+              actPrompts={store.actPrompts}
+            />
+          )}
           {loc.view === "feed" && <FeedView messages={store.messages} />}
           {loc.view === "cog" && loc.cogId && (
             <CogView snapshot={snapshot} cogId={loc.cogId} actPrompts={store.actPrompts} messages={store.messages} />

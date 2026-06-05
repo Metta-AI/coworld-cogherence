@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
-import { render } from "@testing-library/react";
+import { render, fireEvent } from "@testing-library/react";
 import { HexBoard } from "./HexBoard";
 import { toSnapshot } from "../shared/snapshot";
 import { newGame } from "../shared/engine/game";
@@ -37,5 +37,15 @@ describe("HexBoard", () => {
     const neutral = polys.find((p) => p.getAttribute("fill") === "var(--neutral)")!;
     expect(Number(owned.getAttribute("fill-opacity"))).toBe(1); // coherence 6/6
     expect(Number(neutral.getAttribute("fill-opacity"))).toBe(0.2); // coherence 0/6
+  });
+  it("shows tile details on hover (owner, mining, upkeep)", () => {
+    const { container, getByTestId } = render(<HexBoard snapshot={snap} />);
+    expect(getByTestId("tile-tip").textContent).toMatch(/hover a tile/);
+    const owned = [...container.querySelectorAll("polygon")].find((p) => p.getAttribute("fill") !== "var(--neutral)")!;
+    fireEvent.mouseEnter(owned.parentElement!);
+    const tip = getByTestId("tile-tip").textContent ?? "";
+    expect(tip).toMatch(/mining/);
+    expect(tip).toMatch(/upkeep/);
+    expect(tip).toMatch(/\/turn/);
   });
 });
