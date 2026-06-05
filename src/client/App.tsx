@@ -6,6 +6,7 @@ import "./styles.css";
 import { HexBoard } from "./HexBoard";
 import { Scrubber } from "./Scrubber";
 import { Hud } from "./Hud";
+import { Roster } from "./Roster";
 import { parseReplay, snapshots, type Replay } from "./replay-source";
 import { connectLiveFeed, type FeedStore } from "./net/feed";
 import { makeWorldSocket } from "./net/world-socket";
@@ -66,6 +67,7 @@ export function App({ replay: injected, live }: { replay?: Replay; live?: boolea
         onTogglePlay={() => setPlaying((p) => !p)}
       />
       <Hud snapshot={snap} />
+      <Roster snapshot={snap} />
     </div>
   );
 }
