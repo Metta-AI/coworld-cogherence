@@ -22,6 +22,7 @@ export async function startServer(opts: {
   port?: number;
   deadlineMs?: number;
   minTurnMs?: number;
+  maxTurns?: number;
   hub?: ActPromptHub;
   bus?: MessageBus;
   autorun?: boolean;
@@ -29,6 +30,7 @@ export async function startServer(opts: {
   const runner = new GameRunner({
     seed: opts.seed,
     agents: opts.agents,
+    maxTurns: opts.maxTurns,
     deadlineMs: opts.deadlineMs,
     minTurnMs: opts.minTurnMs,
     bus: opts.bus,

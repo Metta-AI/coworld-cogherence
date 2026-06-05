@@ -18,6 +18,7 @@ async function main(): Promise<void> {
   const port = Number(arg("port", "8080"));
   const deadlineMs = Number(arg("deadline", "20000"));
   const minTurnMs = Number(arg("pace", "800"));
+  const maxTurns = Number(arg("turns", "0")) || undefined;
   const agentsArg = arg("agents", "");
   const specs = agentsArg
     ? agentsArg.split(",").map((s) => s.trim())
@@ -26,7 +27,7 @@ async function main(): Promise<void> {
   const hub = new ActPromptHub();
   const bus = new MessageBus();
   const agents = buildAgents(specs, seed, { onActPrompt: (e) => hub.record(e) });
-  const h = await startServer({ seed, agents, port, deadlineMs, minTurnMs, hub, bus, autorun: true });
+  const h = await startServer({ seed, agents, port, deadlineMs, minTurnMs, maxTurns, hub, bus, autorun: true });
   console.log(`Cogherence live — seed ${seed}, agents [${specs.join(", ")}]`);
   console.log(`  server:   ${h.url}`);
   console.log(`  viewer:   ${h.url}/?live`);

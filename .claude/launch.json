@@ -12,6 +12,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "preview"],
       "port": 4173
+    },
+    {
+      "name": "live",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "serve:llm", "--", "--agents", "llm,llm,greedy,greedy", "--turns", "12", "--pace", "2000", "--port", "5174"],
+      "port": 5174
     }
   ]
 }
