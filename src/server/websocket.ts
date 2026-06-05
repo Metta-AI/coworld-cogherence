@@ -56,7 +56,7 @@ export function attachWebsockets(
         for (const m of bus?.visibleTo(cogId) ?? []) send(ws, { type: "message", message: m });
       } else {
         for (const id of hub?.cogs() ?? [])
-          for (const e of hub.list(id))
+          for (const e of hub!.list(id))
             send(ws, { type: "actPrompt", cogId: e.cogId, turn: e.turn, phase: e.phase, content: e.content });
         for (const m of bus?.recent() ?? []) send(ws, { type: "message", message: m });
       }
