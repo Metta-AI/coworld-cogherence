@@ -17,7 +17,7 @@ Cogs *Align* tiles on a hex lattice — a tug-of-war where **Coherence = margin 
 
 ## Status
 
-Design phase. The full design lives in **[docs/design.md](docs/design.md)**.
+**Engine MVP complete** — a deterministic, headless, fully-tested game engine (109 tests). Run a game with `npm run play`. See **[src/engine/README.md](src/engine/README.md)** for the module map and how it works, and **[docs/design.md](docs/design.md)** for the full game design.
 
 ## Round structure
 
