@@ -148,4 +148,42 @@ describe("resolve", () => {
     expect(tre(state, "B")).toEqual(T(1, 1, 2, 2)); // spent 2 (align)
     expect(events.find((e) => e.type === "auction")).toMatchObject({ winner: "A", price: 2 });
   });
+
+  it("an incoming transfer is next-turn money: it does not fund the recipient's same-turn spend", () => {
+    const s = makeState({
+      tiles: [tile(0, 0, "A", 3)], cogOrder: ["A", "B"],
+      treasuries: { A: T(), B: T(5, 1, 1, 1) },
+    });
+    const { state, events } = resolve(s, {
+      A: [{ type: "align", tile: "0,0", energy: 1 }], // A has 0 energy -> rejected
+      B: [{ type: "transfer", to: "A", mineral: "C", amount: 4 }],
+    });
+    expect(events.some((e) => e.type === "rejected" && e.cog === "A")).toBe(true);
+    expect(at(state, 0, 0).coherence).toBe(3);      // A's align did not happen
+    expect(tre(state, "A")).toEqual(T(4, 0, 0, 0));  // but A still received B's transfer (usable next turn)
+  });
+
+  it("exploit windfall is next-turn money: a set relying on it to afford an align is rejected wholesale (the exploit does not happen)", () => {
+    const s = makeState({
+      tiles: [tile(0, 0, "A", 5, "C", 4), tile(1, 0, null, 0)], cogOrder: ["A"],
+      treasuries: { A: T() },
+    });
+    const { state, events } = resolve(s, {
+      A: [{ type: "exploit", tile: "0,0" }, { type: "align", tile: "1,0", energy: 5 }],
+    });
+    expect(events.some((e) => e.type === "rejected" && e.cog === "A")).toBe(true);
+    expect(at(state, 0, 0)).toMatchObject({ alignment: "A", coherence: 5, density: 4 }); // exploit did NOT happen
+  });
+
+  it("an incumbent's coherence participates in a tie: equal force annihilates the tile to neutral (capture to null)", () => {
+    const s = makeState({
+      tiles: [tile(0, 0, "A", 3), tile(1, 0, "B", 4)], cogOrder: ["A", "B"],
+      treasuries: { A: T(), B: T(1, 1, 1, 1) },
+    });
+    const { state, events } = resolve(s, {
+      B: [{ type: "align", tile: "0,0", energy: 3 }], // B force 3 == A's defending coherence 3
+    });
+    expect(at(state, 0, 0)).toMatchObject({ alignment: null, coherence: 0 });
+    expect(events.some((e) => e.type === "capture" && e.tile === "0,0" && e.from === "A" && e.to === null)).toBe(true);
+  });
 });

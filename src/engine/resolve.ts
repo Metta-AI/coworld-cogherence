@@ -48,6 +48,8 @@ export function resolve(
   const plans = new Map<CogId, Plan>();
 
   // 1. validate + budget — reject the WHOLE order set on any violation.
+  // Relies on the stable-order invariant from types.ts: `cogOrder` contains
+  // exactly the keys of `state.cogs` (so iterating it visits every Cog once).
   for (const cogId of state.cogOrder) {
     const cog = state.cogs[cogId];
     if (!cog) continue;
@@ -139,7 +141,11 @@ export function resolve(
     }
     const actual = p.spendBase + (winner === cogId ? clearingPrice : 0);
     const afterSend = subT(cog.treasury, p.sent);
-    postCharge.set(cogId, chargeEnergy(afterSend, actual) ?? afterSend); // guaranteed non-null
+    const charged = chargeEnergy(afterSend, actual);
+    // Invariant: the budget gate validated maxEnergy(afterSend) >= worstCase >= actual,
+    // and chargeEnergy is monotonic, so this is always non-null. Fail loud if that ever breaks.
+    if (charged === null) throw new Error(`resolve: affordability invariant violated for ${cogId}`);
+    postCharge.set(cogId, charged);
   }
 
   // 3b. transfers -> recipient incoming (next-turn money). Rejected Cogs still
