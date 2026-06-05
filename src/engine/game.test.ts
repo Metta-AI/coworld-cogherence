@@ -1,0 +1,61 @@
+import { describe, it, expect } from "vitest";
+import { newGame, stepTurn, runGame, scoreGame, commons } from "./game";
+import type { Agent } from "../agents/types";
+import type { CogId } from "./types";
+
+const noop = (id: CogId): Agent => ({ id, commit: () => [] });
+
+describe("game", () => {
+  it("newGame starts at turn 1, negotiate phase, 127 tiles, n cogs", () => {
+    const g = newGame(7, 4);
+    expect(g.turn).toBe(1);
+    expect(g.phase).toBe("negotiate");
+    expect(Object.keys(g.tiles)).toHaveLength(127);
+    expect(g.cogOrder).toEqual(["cog0", "cog1", "cog2", "cog3"]);
+  });
+
+  it("commons sums coherence across the board (4 homes at COHERENCE_MAX 6 = 24)", () => {
+    expect(commons(newGame(7, 4))).toBe(24);
+  });
+
+  it("stepTurn advances the turn, returns to negotiate, and appends one TurnRecord", () => {
+    const g2 = stepTurn(newGame(7, 4), {});
+    expect(g2.turn).toBe(2);
+    expect(g2.phase).toBe("negotiate");
+    expect(g2.log).toHaveLength(1);
+    expect(g2.log[0]!.turn).toBe(1);
+    expect(typeof g2.log[0]!.commons).toBe("number");
+    expect(g2.log[0]!.hearts).toHaveProperty("cog0");
+  });
+
+  it("stepTurn does not mutate the input state", () => {
+    const g = newGame(7, 4);
+    stepTurn(g, {});
+    expect(g.turn).toBe(1);
+    expect(g.log).toHaveLength(0);
+  });
+
+  it("runGame plays MAX_TURNS turns, returns a winner, and is fully deterministic for (seed, agents)", () => {
+    const agents = ["cog0", "cog1", "cog2", "cog3"].map(noop);
+    const a = runGame(7, 4, agents);
+    const b = runGame(7, 4, agents);
+    expect(a.state.turn).toBe(101);
+    expect(a.state.log).toHaveLength(100);
+    expect(a.winner).not.toBeNull();
+    expect(a.state).toEqual(b.state);
+    expect(a.winner).toBe(b.winner);
+  });
+
+  it("scoreGame ranks by hearts, then maxEnergy, then index", () => {
+    const g = newGame(7, 3);
+    g.cogs.cog0!.hearts = 2;
+    g.cogs.cog1!.hearts = 5;
+    g.cogs.cog2!.hearts = 5; // tie with cog1 on hearts
+    g.cogs.cog1!.treasury = { C: 0, O: 0, Ge: 0, S: 0 };
+    g.cogs.cog2!.treasury = { C: 2, O: 2, Ge: 2, S: 2 }; // higher maxEnergy breaks the tie
+    const { winner, standings } = scoreGame(g);
+    expect(winner).toBe("cog2");
+    expect(standings[0]).toEqual({ cog: "cog2", hearts: 5 });
+    expect(standings[2]).toEqual({ cog: "cog0", hearts: 2 });
+  });
+});
