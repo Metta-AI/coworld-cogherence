@@ -7,6 +7,8 @@ import { HexBoard } from "./HexBoard";
 import { Scrubber } from "./Scrubber";
 import { Hud } from "./Hud";
 import { Roster } from "./Roster";
+import { Legend } from "./Legend";
+import { Icon } from "./Icon";
 import { parseReplay, snapshots, type Replay } from "./replay-source";
 import { connectLiveFeed, type FeedStore } from "./net/feed";
 import { makeWorldSocket } from "./net/world-socket";
@@ -54,7 +56,10 @@ export function App({ replay: injected, live }: { replay?: Replay; live?: boolea
   const snap = snaps[Math.min(index, snaps.length - 1)]!;
   return (
     <div className="app">
-      <h1>Cogherence{liveMode ? " · live" : ""}</h1>
+      <h1>
+        <Icon name="logo" size={30} title="Cogherence" />
+        Cogherence{liveMode ? " · live" : ""}
+      </h1>
       <HexBoard snapshot={snap} />
       <Scrubber
         index={index}
@@ -68,6 +73,7 @@ export function App({ replay: injected, live }: { replay?: Replay; live?: boolea
       />
       <Hud snapshot={snap} />
       <Roster snapshot={snap} />
+      <Legend />
     </div>
   );
 }

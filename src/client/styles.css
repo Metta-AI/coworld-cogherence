@@ -21,11 +21,57 @@ body {
 .scrubber input[type="range"] {
   flex: 1;
 }
+.app h1 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.icon {
+  display: inline-block;
+  vertical-align: middle;
+  flex: none;
+}
+.hud-commons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 12px;
+  color: #b8b8c8;
+}
 .hud ul {
   display: flex;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 8px 12px;
   list-style: none;
+  margin: 0;
   padding: 0;
+}
+.hud li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #12121c;
+  border: 1px solid #1f1f2c;
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+.hud-name {
+  font-weight: 600;
+  min-width: 46px;
+}
+.hud-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: #ddd;
+  font-variant-numeric: tabular-nums;
+}
+.hud-treasury {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding-left: 10px;
+  border-left: 1px solid #1f1f2c;
 }
 .roster h2 {
   font-size: 13px;
@@ -63,4 +109,32 @@ body {
 .roster-tiles {
   color: #9a9aa9;
   font-variant-numeric: tabular-nums;
+}
+.legend h2 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #8a8a99;
+  margin: 16px 0 8px;
+}
+.legend-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 18px;
+  margin-bottom: 8px;
+}
+.legend-group-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6a6a79;
+  min-width: 64px;
+}
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #b8b8c8;
+  font-size: 13px;
 }
