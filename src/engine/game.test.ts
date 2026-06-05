@@ -58,4 +58,20 @@ describe("game", () => {
     expect(standings[0]).toEqual({ cog: "cog2", hearts: 5 });
     expect(standings[2]).toEqual({ cog: "cog0", hearts: 2 });
   });
+
+  it("accumulates one log record per turn without mutating earlier records", () => {
+    let g = newGame(7, 4);
+    g = stepTurn(g, {});
+    const firstRecord = g.log[0];
+    g = stepTurn(g, {});
+    expect(g.log).toHaveLength(2);
+    expect(g.log[0]!.turn).toBe(1);
+    expect(g.log[1]!.turn).toBe(2);
+    expect(g.log[0]).toBe(firstRecord); // earlier record is the same object (append, not in-place mutation)
+  });
+
+  it("scoreGame breaks a full hearts+maxEnergy tie by lowest index", () => {
+    const g = newGame(7, 3); // all cogs start with 0 hearts and empty treasuries -> fully tied
+    expect(scoreGame(g).winner).toBe("cog0");
+  });
 });
