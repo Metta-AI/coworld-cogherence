@@ -4,18 +4,32 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "dev": "vite",
+    "build:web": "vite build",
+    "preview": "vite preview",
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
+    "smoke": "playwright test",
     "play": "tsx src/cli.ts"
   },
   "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "zod": "^3.23"
   },
   "devDependencies": {
+    "@playwright/test": "^1.45",
+    "@testing-library/dom": "^10",
+    "@testing-library/react": "^16",
     "@types/node": "^20",
+    "@types/react": "^18.3",
+    "@types/react-dom": "^18.3",
+    "@vitejs/plugin-react": "^4.3",
+    "jsdom": "^24",
     "tsx": "^4",
     "typescript": "^5.4",
+    "vite": "^5.4",
     "vitest": "^1.6"
   }
 }
