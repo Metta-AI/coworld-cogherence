@@ -15,6 +15,10 @@ describe("protocol", () => {
   });
   it("rejects an unknown message type", () =>
     expect(() => serverMessageSchema.parse({ type: "nope" })).toThrow());
+  it("validates an actPrompt frame", () =>
+    expect(() =>
+      serverMessageSchema.parse({ type: "actPrompt", cogId: "cog0", turn: 3, phase: "commit", content: "saw X -> bid 2" }),
+    ).not.toThrow());
   it("serverStatus carries phase/pending/done/deadline", () => {
     expect(() =>
       serverStatusSchema.parse({
