@@ -16,13 +16,15 @@ export class GameRunner {
   private agents: Agent[];
   private maxTurns: number;
   private deadlineMs: number;
+  private minTurnMs: number;
   private listeners: Listener[] = [];
   private clientCount = 0;
 
-  constructor(opts: { seed: number; agents: Agent[]; maxTurns?: number; deadlineMs?: number }) {
+  constructor(opts: { seed: number; agents: Agent[]; maxTurns?: number; deadlineMs?: number; minTurnMs?: number }) {
     this.agents = opts.agents;
     this.maxTurns = opts.maxTurns ?? 100;
     this.deadlineMs = opts.deadlineMs ?? 20_000;
+    this.minTurnMs = opts.minTurnMs ?? 0;
     this.state = newGame(opts.seed, opts.agents.length);
   }
 
@@ -58,6 +60,7 @@ export class GameRunner {
     this.emit({ type: "serverStatus", status: this.status() });
 
     while (this.state.turn <= this.maxTurns) {
+      const startedAt = Date.now();
       const coord = new PhaseCoordinator<Order[]>(this.agents.map((a) => a.id));
       const collected = coord.collect(this.deadlineMs, () => []);
       // Drive in-process agents (Phase B replaces this with the CogAgent loop).
@@ -71,6 +74,10 @@ export class GameRunner {
       for (const ev of rec.events) this.emit({ type: "event", event: ev });
       this.emit({ type: "snapshot", snapshot: toSnapshot(this.state) });
       this.emit({ type: "serverStatus", status: this.status() });
+
+      // Pace live games so they're watchable (default 0 = instant, for tests/batch).
+      const remaining = this.minTurnMs - (Date.now() - startedAt);
+      if (remaining > 0) await new Promise((r) => setTimeout(r, remaining));
     }
     return scoreGame(this.state);
   }

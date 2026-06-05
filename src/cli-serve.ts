@@ -15,13 +15,14 @@ async function main(): Promise<void> {
   const cogs = Number(arg("cogs", "4"));
   const port = Number(arg("port", "8080"));
   const deadlineMs = Number(arg("deadline", "20000"));
+  const minTurnMs = Number(arg("pace", "800"));
   const agentsArg = arg("agents", "");
   const specs = agentsArg
     ? agentsArg.split(",").map((s) => s.trim())
     : Array.from({ length: Math.max(1, cogs) }, (_, i) => ROTATION[i % ROTATION.length]!);
 
   const agents = buildAgents(specs, seed);
-  const h = await startServer({ seed, agents, port, deadlineMs, autorun: true });
+  const h = await startServer({ seed, agents, port, deadlineMs, minTurnMs, autorun: true });
   console.log(`Cogherence live — seed ${seed}, agents [${specs.join(", ")}]`);
   console.log(`  server:   ${h.url}`);
   console.log(`  viewer:   ${h.url}/?live`);

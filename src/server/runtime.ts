@@ -19,9 +19,10 @@ export async function startServer(opts: {
   agents: Agent[];
   port?: number;
   deadlineMs?: number;
+  minTurnMs?: number;
   autorun?: boolean;
 }): Promise<ServerHandle> {
-  const runner = new GameRunner({ seed: opts.seed, agents: opts.agents, deadlineMs: opts.deadlineMs });
+  const runner = new GameRunner({ seed: opts.seed, agents: opts.agents, deadlineMs: opts.deadlineMs, minTurnMs: opts.minTurnMs });
   const http = createServer(createApp(runner));
   const ws = attachWebsockets(http, runner);
   await new Promise<void>((r) => http.listen(opts.port ?? 0, r));
