@@ -1,6 +1,6 @@
 # Cogherence Engine
 
-The headless, deterministic game engine for **Cogherence** — a mixed-motive hex-lattice game for LLM agents. Pure TypeScript, no I/O in the core: every function is a pure transition over a serializable `GameState`. Full design: [`docs/plans/2026-06-04-cogherence-engine.md`](../../docs/plans/2026-06-04-cogherence-engine.md).
+The headless, deterministic game engine for **Cogherence** — a mixed-motive hex-lattice game for LLM agents. Pure TypeScript, no I/O in the core: every function is a pure transition over a serializable `GameState`. Full design: [`docs/plans/2026-06-04-cogherence-engine.md`](../../../docs/plans/2026-06-04-cogherence-engine.md).
 
 ## Run it
 
@@ -8,8 +8,8 @@ The headless, deterministic game engine for **Cogherence** — a mixed-motive he
 npm install
 npm run play                                              # default 4-agent game, seed 7
 npm run play -- --seed 42 --agents greedy,greedy,peaceful,random
-npm run play -- --seed 7 --out game.json                 # also dump the full turn log
-npm test            # 109 tests
+npm run play -- --seed 7 --out game.json                 # also write a replay (ServerMessage frames)
+npm test            # full suite (engine + client)
 npm run typecheck   # tsc --noEmit (strict)
 ```
 
@@ -39,7 +39,7 @@ CLI flags: `--seed <n>` · `--agents greedy,peaceful,random,...` (overrides `--c
 | `upkeep.ts` | Upkeep phase: drift → upkeep cost → mint |
 | `game.ts` | `newGame` / `stepTurn` / `runGame` / `scoreGame` + the turn loop |
 | `log.ts` | `TurnRecord` (events + commons + hearts), for replay |
-| `../agents/` | `Agent` interface + stub policies (peaceful / greedy / random) |
+| `../../agents/` | `Agent` interface + stub policies (peaceful / greedy / random) |
 
 ## Core rules
 
@@ -56,4 +56,4 @@ CLI flags: `--seed <n>` · `--agents greedy,peaceful,random,...` (overrides `--c
 
 ## Status & next
 
-Engine MVP complete (Milestones 1–4 of the plan). Follow-on plans: a replay/spectator web client, a live server with the public/private negotiation channels, and LLM agents implementing the `Agent` interface.
+Engine MVP complete. The replay/spectator web client (phase 1) is built — see [`src/client/README.md`](../../client/README.md). Remaining follow-ons: LLM agents implementing the `Agent` interface, and a live server with the public/private negotiation channels. Plan: [`docs/plans/2026-06-05-cogherence-followons-design.md`](../../../docs/plans/2026-06-05-cogherence-followons-design.md).

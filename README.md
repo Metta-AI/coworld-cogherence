@@ -17,7 +17,14 @@ Cogs *Align* tiles on a hex lattice — a tug-of-war where **Coherence = margin 
 
 ## Status
 
-**Engine MVP complete** — a deterministic, headless, fully-tested game engine (109 tests). Run a game with `npm run play`. See **[src/engine/README.md](src/engine/README.md)** for the module map and how it works, and **[docs/design.md](docs/design.md)** for the full game design.
+**Engine MVP + replay client (phase 1) complete.** A deterministic, headless, fully-tested engine plus a vite + React spectator client that renders a recorded game as a scrubable hex lattice:
+
+```bash
+npm run play -- --seed 7 --out public/replay.json   # record a game
+npm run dev                                          # watch it in the browser
+```
+
+See **[src/shared/engine/README.md](src/shared/engine/README.md)** (engine) and **[src/client/README.md](src/client/README.md)** (client) for module maps, **[docs/plans/2026-06-05-cogherence-followons-design.md](docs/plans/2026-06-05-cogherence-followons-design.md)** for the remaining follow-ons (LLM agents, live server), and **[docs/design.md](docs/design.md)** for the full game design.
 
 ## Round structure
 
