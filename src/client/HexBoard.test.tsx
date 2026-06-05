@@ -16,4 +16,26 @@ describe("HexBoard", () => {
     const filled = [...container.querySelectorAll("polygon")].filter((p) => p.getAttribute("fill") !== "var(--neutral)");
     expect(filled.length).toBeGreaterThan(0); // home tiles are owned
   });
+  it("labels every tile with the mineral it provides", () => {
+    const { container } = render(<HexBoard snapshot={snap} />);
+    const minerals = [...container.querySelectorAll(".tile-mineral")];
+    expect(minerals).toHaveLength(127);
+    expect(minerals.every((m) => ["C", "O", "Ge", "S"].includes(m.textContent ?? ""))).toBe(true);
+  });
+  it("labels every tile with a 0–10 coherence score", () => {
+    const { container } = render(<HexBoard snapshot={snap} />);
+    const scores = [...container.querySelectorAll(".tile-coherence")];
+    expect(scores).toHaveLength(127);
+    expect(scores.every((s) => Number(s.textContent) >= 0 && Number(s.textContent) <= 10)).toBe(true);
+    // Home tiles start at full coherence (COHERENCE_MAX) -> a perfect 10.
+    expect(scores.some((s) => s.textContent === "10")).toBe(true);
+  });
+  it("brightens tiles by coherence (full-coherence home > zero-coherence neutral)", () => {
+    const { container } = render(<HexBoard snapshot={snap} />);
+    const polys = [...container.querySelectorAll("polygon")];
+    const owned = polys.find((p) => p.getAttribute("fill") !== "var(--neutral)")!;
+    const neutral = polys.find((p) => p.getAttribute("fill") === "var(--neutral)")!;
+    expect(Number(owned.getAttribute("fill-opacity"))).toBe(1); // coherence 6/6
+    expect(Number(neutral.getAttribute("fill-opacity"))).toBe(0.2); // coherence 0/6
+  });
 });
