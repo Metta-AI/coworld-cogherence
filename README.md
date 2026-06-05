@@ -17,14 +17,24 @@ Cogs *Align* tiles on a hex lattice — a tug-of-war where **Coherence = margin 
 
 ## Status
 
-**Engine MVP + replay client (phase 1) complete.** A deterministic, headless, fully-tested engine plus a vite + React spectator client that renders a recorded game as a scrubable hex lattice:
+**Playable end to end** — a deterministic engine, LLM-driven Cogs that negotiate and play live, and a multi-view spectator dashboard.
 
 ```bash
-npm run play -- --seed 7 --out public/replay.json   # record a game
-npm run dev                                          # watch it in the browser
+npm run serve:llm -- --agents llm,llm,greedy,greedy --turns 12 --pace 2000   # live LLM game
+#   → open http://localhost:8080/?live
+
+npm run play -- --seed 7 --out public/replay.json && npm run dev             # record + watch a replay
 ```
 
-See **[src/shared/engine/README.md](src/shared/engine/README.md)** (engine) and **[src/client/README.md](src/client/README.md)** (client) for module maps, **[docs/plans/2026-06-05-cogherence-followons-design.md](docs/plans/2026-06-05-cogherence-followons-design.md)** for the remaining follow-ons (LLM agents, live server), and **[docs/design.md](docs/design.md)** for the full game design.
+The **live dashboard** (served at `/?live`) has three views, switchable in the nav:
+
+- **Global** — the hex lattice (mineral + 0–10 coherence per tile, glowing by dominance), a roster, an activity ticker, and the act-prompt transparency for every Cog.
+- **Feed** — the negotiation chat: public broadcasts + (visible) DMs, the cheap-talk politics live.
+- **Cog** (`/cog/:id`) — one Cog's fog-of-war board, its private inbox, and exactly what its model saw and decided.
+
+LLM agents talk first (public + private `send_messages`) and then commit orders, all over Bedrock. Architecture: a pure engine in `src/shared`, an async live server in `src/server` (HTTP + ws, per-cog redaction, a message bus, an act-prompt hub), Bedrock agents in `src/agents/llm`, and the React dashboard in `src/client`.
+
+See **[src/shared/engine/README.md](src/shared/engine/README.md)** (engine) and **[src/client/README.md](src/client/README.md)** (client) for module maps, the **[live-dashboard design](docs/plans/2026-06-05-cogherence-live-dashboard-design.md)**, and **[docs/design.md](docs/design.md)** for the full game design.
 
 ## Round structure
 
