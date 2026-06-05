@@ -33,6 +33,10 @@ export class GameRunner {
   setClientCount(n: number): void {
     this.clientCount = n;
   }
+  /** Current status frame (for head-first sync to a newly-connected client). */
+  currentStatus(): ServerStatus {
+    return this.status();
+  }
   private emit(m: ServerMessage): void {
     for (const l of this.listeners) l(m);
   }
