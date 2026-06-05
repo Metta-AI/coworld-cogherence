@@ -46,10 +46,13 @@ export function App({ replay: injected, live: liveProp }: { replay?: Replay; liv
   const [playing, setPlaying] = useState(false);
   const [connected, setConnected] = useState(false);
 
-  // Replay file mode (default, non-live, not injected)
+  // Replay file mode (default, non-live, not injected).
+  // Absolute path: a relative "./replay.json" resolves against the current route
+  // (e.g. /cog/cog0 -> /cog/replay.json), which the SPA fallback answers with
+  // index.html, so the cog views never loaded. "/replay.json" is route-stable.
   useEffect(() => {
     if (injected || liveMode) return;
-    fetch("./replay.json")
+    fetch("/replay.json")
       .then((r) => r.json())
       .then((j) => {
         const s = emptyStore();
