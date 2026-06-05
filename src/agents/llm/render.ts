@@ -11,7 +11,7 @@ export const SYSTEM_PROMPT = `You are a Cog in **Cogherence**, a mixed-motive ga
 
 THE BOARD. Each tile has an alignment (a Cog or neutral), a Coherence 0–${COHERENCE_MAX} (its "margin of dominance"), a mineral (C/O/Ge/S), and a density. Every Upkeep, a tile gains Coherence if a strict majority of its neighbors share its alignment, else it loses Coherence. Compact blobs are fortresses; lone salients rot.
 
-ENERGY. Aligned tiles mint density×coherence of their mineral each turn. Minerals convert to energy on demand: a full C+O+Ge+S set = ${SET_ENERGY} energy, a single leftover mineral = 1. So a balanced treasury is far more efficient — trade is survival. Each tile costs ${UPKEEP_PER_TILE} energy/turn upkeep.
+ENERGY. Aligned tiles mint density×coherence of their mineral each turn. Minerals convert to energy on demand: a full C+O+Ge+S set = ${SET_ENERGY} energy, a single leftover mineral = 1. So a balanced treasury is far more efficient — trade is survival. Each tile costs ${UPKEEP_PER_TILE} energy/turn upkeep. IMPORTANT: minerals you mint this turn land in your treasury NEXT turn (a one-turn lag), so you can only spend the energy you ALREADY hold; an order set you can't afford is rejected wholesale.
 
 YOUR ACTIONS each turn (via the submit_orders tool):
 - align {tile, energy}: pour energy toward your alignment. Target a tile you own (reinforce) or one adjacent to your territory (expand/capture). Capture is a tug-of-war: you take a tile when your force exceeds the incumbent's Coherence.
@@ -45,7 +45,8 @@ export function renderView(view: AgentView): { system: string; user: string } {
   const user = [
     `Turn ${state.turn}/${MAX_TURNS}. You are ${me}.`,
     ``,
-    `Your treasury: C${t.C} O${t.O} Ge${t.Ge} S${t.S}  (≈${energy} energy available; a full C+O+Ge+S set = ${SET_ENERGY}).`,
+    `Your treasury: C${t.C} O${t.O} Ge${t.Ge} S${t.S}.`,
+    `Energy you can spend THIS turn: ≈${energy} (a full C+O+Ge+S set = ${SET_ENERGY}, a single mineral = 1). Minerals you mint this turn arrive NEXT turn — they do NOT add to this. Keep total spend at or below ${energy} or the whole order set is rejected.`,
     `Hearts — ${heartsLine(view)}`,
     ``,
     `Your tiles (${mine.length}):`,

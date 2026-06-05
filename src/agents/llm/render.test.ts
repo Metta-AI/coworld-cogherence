@@ -16,6 +16,11 @@ describe("renderView", () => {
     expect(user).toMatch(/Turn 1\/100/);
     expect(user).toMatch(/Your treasury: C\d+ O\d+ Ge\d+ S\d+/);
   });
+  it("states the spendable-this-turn ceiling and the one-turn lag", () => {
+    const { user } = renderView(view("cog0"));
+    expect(user).toMatch(/Energy you can spend THIS turn/);
+    expect(user).toMatch(/NEXT turn/);
+  });
   it("lists the cog's own tiles and a frontier it may Align", () => {
     const { user } = renderView(view("cog0"));
     expect(user).toContain("Your tiles (1):"); // a fresh game gives each cog one home tile
