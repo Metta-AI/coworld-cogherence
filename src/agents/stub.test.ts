@@ -61,4 +61,21 @@ describe("stub agents", () => {
     expect(a.winner).not.toBeNull();
     expect(a.winner).toBe(b.winner);
   });
+
+  it("randomAgent is seed-sensitive and reproducible per seed", () => {
+    const s = stateWith([tile(0, 0, "A", 3), tile(0, 1, null, 0)], ["A"], { A: T(2, 2, 2, 2) });
+    const stream = (seed: number) => {
+      const ag = randomAgent("A", seed);
+      return Array.from({ length: 8 }, () => JSON.stringify(ag.commit({ state: s, me: "A" })));
+    };
+    expect(stream(1)).toEqual(stream(1));     // reproducible for a seed
+    expect(stream(1)).not.toEqual(stream(2)); // different seeds diverge
+  });
+
+  it("a full 4-stub game never produces a rejected event (all orders stay legal + affordable)", () => {
+    const agents = [greedyAgent("cog0"), peacefulAgent("cog1"), randomAgent("cog2", 1), greedyAgent("cog3")];
+    const { state } = runGame(7, 4, agents);
+    const rejected = state.log.flatMap((r) => r.events).filter((e) => e.type === "rejected");
+    expect(rejected).toEqual([]);
+  });
 });

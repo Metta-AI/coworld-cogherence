@@ -39,7 +39,7 @@ export const peacefulAgent = (id: string): Agent => ({
   commit: (view) => {
     const e = myEnergy(view);
     if (e < 1) return [];
-    const spend = Math.min(e, 4);
+    const spend = Math.min(e, 4); // up to 4: enough to claim/hold a tile without over-committing
     const neutral = adjacentTargets(view).filter((t) => t.alignment === null);
     if (neutral.length > 0) return [{ type: "align", tile: key(weakest(neutral).hex), energy: spend }];
     const owned = ownedTiles(view);
@@ -48,17 +48,21 @@ export const peacefulAgent = (id: string): Agent => ({
   },
 });
 
-/** Greedy: pushes into the weakest adjacent tile (neutral or enemy) and bids 1 for hearts. */
+/** Greedy: pushes into the weakest adjacent tile and bids for hearts, scaling its bid
+ *  with wealth (richer cogs win the second-price auction). Spend stays <= maxEnergy. */
 export const greedyAgent = (id: string): Agent => ({
   id,
   commit: (view) => {
     const orders: Order[] = [];
     const e = myEnergy(view);
     const targets = adjacentTargets(view);
+    let alignSpend = 0;
     if (e >= 2 && targets.length > 0) {
-      orders.push({ type: "align", tile: key(weakest(targets).hex), energy: Math.min(e - 1, 5) });
+      alignSpend = Math.min(e - 1, 5); // up to 5: enough to flip a max-coherence(6) tile over a couple turns
+      orders.push({ type: "align", tile: key(weakest(targets).hex), energy: alignSpend });
     }
-    if (myEnergy(view) >= 1) orders.push({ type: "bid", energy: 1 });
+    const bidBudget = e - alignSpend; // whatever's left after the push
+    if (bidBudget >= 1) orders.push({ type: "bid", energy: Math.min(bidBudget, 1 + Math.floor(e / 10)) });
     return orders;
   },
 });
@@ -78,7 +82,9 @@ export const randomAgent = (id: string, seed: number): Agent => {
         for (const t of adjacentTargets(view)) cands.push({ type: "align", tile: key(t.hex), energy: amt });
         cands.push({ type: "bid", energy: 1 });
       }
-      for (const t of owned) cands.push({ type: "exploit", tile: key(t.hex) }); // free; always a candidate
+      if (owned.length > 1) {
+        for (const t of owned) cands.push({ type: "exploit", tile: key(t.hex) }); // never strip-mine your last tile
+      }
       if (cands.length === 0) return [];
       return [cands[randInt(rng, cands.length)]!];
     },
