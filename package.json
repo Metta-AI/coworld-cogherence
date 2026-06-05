@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit",
     "presmoke": "npm run play -- --seed 7 --cogs 4 --out public/replay.json",
     "smoke": "playwright test",
-    "play": "tsx src/cli.ts"
+    "play": "tsx src/cli.ts",
+    "dev:llm": "AWS_REGION=${AWS_REGION:-us-west-2} tsx src/cli-llm.ts"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3",
