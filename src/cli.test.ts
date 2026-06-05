@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseArgs, buildAgents, playGame, summarize } from "./cli";
+import { parseArgs, buildAgents, playGame, summarize, replayFromOpts } from "./cli";
 
 describe("cli", () => {
   it("parseArgs reads seed and agents, with defaults", () => {
@@ -47,5 +47,12 @@ describe("cli", () => {
     expect(lines).toHaveLength(6);
     expect(lines[0]).toContain("turn   1");
     expect(lines.at(-1)).toContain("winner:");
+  });
+
+  it("replayFromOpts builds a meta-stamped replay with frames", () => {
+    const r = replayFromOpts({ seed: 7, agents: ["greedy", "peaceful"] });
+    expect(r.meta.seed).toBe(7);
+    expect(r.frames.length).toBeGreaterThan(0);
+    expect(r.frames[0]!.type).toBe("snapshot");
   });
 });

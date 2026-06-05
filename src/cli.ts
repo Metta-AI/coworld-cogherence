@@ -8,6 +8,7 @@
 import { writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { runGame } from "./shared/engine/game";
+import { makeReplay, type Replay } from "./shared/replay";
 import { greedyAgent, peacefulAgent, randomAgent } from "./agents/stub";
 import type { Agent } from "./agents/types";
 import type { GameState, CogId } from "./shared/engine/types";
@@ -67,6 +68,11 @@ export function playGame(opts: { seed: number; agents: string[] }): {
   return runGame(opts.seed, agents.length, agents);
 }
 
+/** Build a recorded replay for the given options (fresh agents; deterministic). */
+export function replayFromOpts(opts: { seed: number; agents: string[] }): Replay {
+  return makeReplay(opts.seed, opts.agents, buildAgents(opts.agents, opts.seed));
+}
+
 /** Compact per-turn (sampled every `every` turns) + final summary from a finished game. */
 export function summarize(result: ReturnType<typeof playGame>, every = 10): string[] {
   const lines: string[] = [];
@@ -88,8 +94,9 @@ function main(): void {
     console.log(`Cogherence — seed ${opts.seed}, agents [${opts.agents.join(", ")}]`);
     for (const line of summarize(result, opts.every)) console.log(line);
     if (opts.out) {
-      writeFileSync(opts.out, JSON.stringify(result.state.log, null, 2));
-      console.log(`log written to ${opts.out}`);
+      const replay = replayFromOpts(opts);
+      writeFileSync(opts.out, JSON.stringify(replay, null, 2));
+      console.log(`replay written to ${opts.out} (${replay.frames.length} frames)`);
     }
   } catch (e) {
     console.error(`error: ${e instanceof Error ? e.message : String(e)}`);
