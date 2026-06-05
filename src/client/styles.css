@@ -1,0 +1,29 @@
+:root {
+  --neutral: #2a2a36;
+}
+body {
+  margin: 0;
+  background: #07070c;
+}
+.app {
+  font-family: system-ui, sans-serif;
+  color: #ddd;
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 16px;
+}
+.scrubber {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 12px 0;
+}
+.scrubber input[type="range"] {
+  flex: 1;
+}
+.hud ul {
+  display: flex;
+  gap: 16px;
+  list-style: none;
+  padding: 0;
+}
