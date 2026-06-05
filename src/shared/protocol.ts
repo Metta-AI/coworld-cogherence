@@ -64,6 +64,10 @@ export const turnEventSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("mint"), cog: z.string(), gained: treasurySchema }).strict(),
 ]);
 
+export const messageSchema = z
+  .object({ seq: z.number().int(), turn: z.number().int(), from: z.string(), to: z.string(), text: z.string() })
+  .strict();
+
 export const serverStatusSchema = z
   .object({
     turn: z.number().int(),
@@ -84,6 +88,7 @@ export const serverMessageSchema = z.discriminatedUnion("type", [
   z
     .object({ type: z.literal("actPrompt"), cogId: z.string(), turn: z.number().int(), phase: phaseSchema, content: z.string() })
     .strict(),
+  z.object({ type: z.literal("message"), message: messageSchema }).strict(),
 ]);
 
 export type ServerMessage = z.infer<typeof serverMessageSchema>;

@@ -5,6 +5,7 @@
 import { serverMessageSchema, type ServerMessage, type ServerStatus } from "../../shared/protocol";
 import type { GameSnapshot } from "../../shared/snapshot";
 import type { TurnEvent } from "../../shared/engine/log";
+import type { Message } from "../../shared/messages";
 
 /** An actPrompt frame: what a Cog's model saw + decided this turn. */
 export type ActPromptFrame = Extract<ServerMessage, { type: "actPrompt" }>;
@@ -14,6 +15,7 @@ export interface FeedStore {
   events: TurnEvent[];
   status: ServerStatus | null;
   actPrompts: Record<string, ActPromptFrame[]>;
+  messages: Message[];
 }
 
 /** Minimal socket surface (a fake is injected in tests; real one wraps WebSocket). */
@@ -41,7 +43,7 @@ export function connectLiveFeed(store: FeedStore, makeSocket: () => LiveSocket, 
       const list = (store.actPrompts[m.cogId] ??= []);
       list.push(m);
       if (list.length > 20) list.shift();
-    }
+    } else if (m.type === "message") store.messages.push(m.message);
     onChange();
   });
   return () => sock.close();

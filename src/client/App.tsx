@@ -32,7 +32,7 @@ export function App({ replay: injected, live }: { replay?: Replay; live?: boolea
   // Live (websocket) mode
   useEffect(() => {
     if (!liveMode || typeof window === "undefined") return;
-    const store: FeedStore = { snapshots: [], events: [], status: null, actPrompts: {} };
+    const store: FeedStore = { snapshots: [], events: [], status: null, actPrompts: {}, messages: [] };
     return connectLiveFeed(
       store,
       () => makeWorldSocket(`ws://${window.location.host}/global/ws`),

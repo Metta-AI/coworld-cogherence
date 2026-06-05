@@ -16,7 +16,7 @@ class FakeSocket implements LiveSocket {
 const snap = (turn: number) => ({
   version: "0", seed: 7, turn, phase: "negotiate", radius: 6, coherenceMax: 6, tiles: [], cogs: [], commons: 0,
 });
-const newStore = (): FeedStore => ({ snapshots: [], events: [], status: null, actPrompts: {} });
+const newStore = (): FeedStore => ({ snapshots: [], events: [], status: null, actPrompts: {}, messages: [] });
 
 describe("connectLiveFeed", () => {
   it("applies snapshot frames and notifies", () => {

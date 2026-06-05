@@ -19,6 +19,10 @@ describe("protocol", () => {
     expect(() =>
       serverMessageSchema.parse({ type: "actPrompt", cogId: "cog0", turn: 3, phase: "commit", content: "saw X -> bid 2" }),
     ).not.toThrow());
+  it("validates a message frame", () =>
+    expect(() =>
+      serverMessageSchema.parse({ type: "message", message: { seq: 1, turn: 2, from: "cog0", to: "public", text: "hi all" } }),
+    ).not.toThrow());
   it("serverStatus carries phase/pending/done/deadline", () => {
     expect(() =>
       serverStatusSchema.parse({
