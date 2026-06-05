@@ -3,6 +3,7 @@
 import { buildAgents } from "./cli";
 import { startServer } from "./server/runtime";
 import { ActPromptHub } from "./server/act-prompt-hub";
+import { MessageBus } from "./server/message-bus";
 
 const arg = (name: string, dflt: string): string => {
   const i = process.argv.indexOf(`--${name}`);
@@ -23,8 +24,9 @@ async function main(): Promise<void> {
     : Array.from({ length: Math.max(1, cogs) }, (_, i) => ROTATION[i % ROTATION.length]!);
 
   const hub = new ActPromptHub();
+  const bus = new MessageBus();
   const agents = buildAgents(specs, seed, { onActPrompt: (e) => hub.record(e) });
-  const h = await startServer({ seed, agents, port, deadlineMs, minTurnMs, hub, autorun: true });
+  const h = await startServer({ seed, agents, port, deadlineMs, minTurnMs, hub, bus, autorun: true });
   console.log(`Cogherence live — seed ${seed}, agents [${specs.join(", ")}]`);
   console.log(`  server:   ${h.url}`);
   console.log(`  viewer:   ${h.url}/?live`);

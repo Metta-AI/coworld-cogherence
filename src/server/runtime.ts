@@ -7,6 +7,7 @@ import { GameRunner } from "./game-runner";
 import { createApp } from "./http";
 import { attachWebsockets } from "./websocket";
 import type { ActPromptHub } from "./act-prompt-hub";
+import type { MessageBus } from "./message-bus";
 
 export interface ServerHandle {
   url: string;
@@ -22,11 +23,18 @@ export async function startServer(opts: {
   deadlineMs?: number;
   minTurnMs?: number;
   hub?: ActPromptHub;
+  bus?: MessageBus;
   autorun?: boolean;
 }): Promise<ServerHandle> {
-  const runner = new GameRunner({ seed: opts.seed, agents: opts.agents, deadlineMs: opts.deadlineMs, minTurnMs: opts.minTurnMs });
+  const runner = new GameRunner({
+    seed: opts.seed,
+    agents: opts.agents,
+    deadlineMs: opts.deadlineMs,
+    minTurnMs: opts.minTurnMs,
+    bus: opts.bus,
+  });
   const http = createServer(createApp(runner, opts.hub));
-  const ws = attachWebsockets(http, runner, opts.hub);
+  const ws = attachWebsockets(http, runner, opts.hub, opts.bus);
   await new Promise<void>((r) => http.listen(opts.port ?? 0, r));
   const port = (http.address() as { port: number }).port;
   if (opts.autorun !== false) void runner.run();

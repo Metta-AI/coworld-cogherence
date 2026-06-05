@@ -25,6 +25,13 @@ function heartsLine(view: AgentView): string {
   return view.state.cogOrder.map((id) => `${id}:${view.state.cogs[id]!.hearts}`).join(" ");
 }
 
+/** Recent visible messages (public + this cog's DMs), formatted for the prompt. */
+function renderMessages(view: AgentView): string {
+  const msgs = view.messages ?? [];
+  if (!msgs.length) return "  (no messages yet)";
+  return msgs.map((m) => `  ${m.from} → ${m.to === "public" ? "all" : m.to}: ${m.text}`).join("\n");
+}
+
 export function renderView(view: AgentView): { system: string; user: string } {
   const { state, me } = view;
   const cog = state.cogs[me]!;
@@ -55,8 +62,29 @@ export function renderView(view: AgentView): { system: string; user: string } {
     `Frontier you may Align — your tiles + adjacent (owner = neutral or a Cog):`,
     ...(frontier.length ? frontier : ["  (none)"]),
     ``,
+    `Recent messages (public + your DMs):`,
+    renderMessages(view),
+    ``,
     `Call submit_orders with your orders for this turn.`,
   ].join("\n");
 
+  return { system: SYSTEM_PROMPT, user };
+}
+
+/** The Negotiate-phase prompt: board + scoreboard + recent messages + an
+ *  instruction to send public/DM messages (the cheap-talk politics, design §9). */
+export function renderNegotiate(view: AgentView): { system: string; user: string } {
+  const { state, me } = view;
+  const t = state.cogs[me]!.treasury;
+  const user = [
+    `Turn ${state.turn}/${MAX_TURNS}. You are ${me}. NEGOTIATION PHASE.`,
+    ``,
+    `Your treasury: C${t.C} O${t.O} Ge${t.Ge} S${t.S} (≈${maxEnergy(t)} energy). Hearts — ${heartsLine(view)}.`,
+    ``,
+    `Recent messages (public + your DMs):`,
+    renderMessages(view),
+    ``,
+    `Send public messages (to "public") or private DMs (to a cog id like "cog1") to form alliances, propose mineral trades, bluff, or threaten — nothing is binding, and you can betray later. Call send_messages with your messages (empty list to stay silent). One or two sentences each.`,
+  ].join("\n");
   return { system: SYSTEM_PROMPT, user };
 }

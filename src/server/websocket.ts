@@ -10,6 +10,8 @@ import { toSnapshot } from "../shared/snapshot";
 import { buildCogSnapshot } from "./redact";
 import type { GameRunner } from "./game-runner";
 import type { ActPromptHub } from "./act-prompt-hub";
+import type { MessageBus } from "./message-bus";
+import { messageVisibleToCog } from "../shared/messages";
 
 interface Client {
   ws: WebSocket;
@@ -20,7 +22,12 @@ const send = (ws: WebSocket, m: ServerMessage): void => {
   if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(m));
 };
 
-export function attachWebsockets(http: HttpServer, runner: GameRunner, hub?: ActPromptHub): { close: () => void } {
+export function attachWebsockets(
+  http: HttpServer,
+  runner: GameRunner,
+  hub?: ActPromptHub,
+  bus?: MessageBus,
+): { close: () => void } {
   const wss = new WebSocketServer({ noServer: true });
   const clients = new Set<Client>();
 
@@ -65,10 +72,18 @@ export function attachWebsockets(http: HttpServer, runner: GameRunner, hub?: Act
       for (const c of clients) if (c.cogId === null || c.cogId === e.cogId) send(c.ws, frame);
     }) ?? (() => {});
 
+  // Negotiation chat: public to everyone; DMs only to sender + recipient.
+  const unsubBus =
+    bus?.onPost((m) => {
+      const frame: ServerMessage = { type: "message", message: m };
+      for (const c of clients) if (c.cogId === null || messageVisibleToCog(m, c.cogId)) send(c.ws, frame);
+    }) ?? (() => {});
+
   return {
     close: () => {
       unsub();
       unsubHub();
+      unsubBus();
       for (const c of clients) c.ws.close();
       wss.close();
     },

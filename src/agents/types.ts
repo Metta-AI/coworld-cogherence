@@ -5,16 +5,25 @@
 
 import type { GameState, CogId } from "../shared/engine/types";
 import type { Order } from "../shared/engine/orders";
+import type { Message, Audience } from "../shared/messages";
 
-/** What an agent observes when choosing its orders. MVP: full observability. */
+/** What an agent observes: the board, who it is, and recent visible messages. */
 export interface AgentView {
   state: GameState;
   me: CogId;
+  messages?: Message[];
 }
 
-/** A Cog policy. MVP: just the Commit-phase decision (no negotiation channel yet).
- *  `commit` may be sync (scripted stubs) or async (LLM agents that await a model). */
+/** A message a Cog wants to send during the Negotiate phase. */
+export interface Post {
+  to: Audience;
+  text: string;
+}
+
+/** A Cog policy. `commit` decides orders (sync for stubs, async for LLM agents);
+ *  the optional `negotiate` posts public/DM messages before committing. */
 export interface Agent {
   id: CogId;
   commit(view: AgentView): Order[] | Promise<Order[]>;
+  negotiate?(view: AgentView): Post[] | Promise<Post[]>;
 }

@@ -8,6 +8,7 @@ import type { ServerMessage, ServerStatus } from "../shared/protocol";
 import { newGame, stepTurn, scoreGame } from "../shared/engine/game";
 import { toSnapshot } from "../shared/snapshot";
 import { PhaseCoordinator } from "./phase-coordinator";
+import type { MessageBus } from "./message-bus";
 
 type Listener = (m: ServerMessage) => void;
 
@@ -17,14 +18,26 @@ export class GameRunner {
   private maxTurns: number;
   private deadlineMs: number;
   private minTurnMs: number;
+  private bus?: MessageBus;
+  private negotiateRounds: number;
   private listeners: Listener[] = [];
   private clientCount = 0;
 
-  constructor(opts: { seed: number; agents: Agent[]; maxTurns?: number; deadlineMs?: number; minTurnMs?: number }) {
+  constructor(opts: {
+    seed: number;
+    agents: Agent[];
+    maxTurns?: number;
+    deadlineMs?: number;
+    minTurnMs?: number;
+    bus?: MessageBus;
+    negotiateRounds?: number;
+  }) {
     this.agents = opts.agents;
     this.maxTurns = opts.maxTurns ?? 100;
     this.deadlineMs = opts.deadlineMs ?? 20_000;
     this.minTurnMs = opts.minTurnMs ?? 0;
+    this.bus = opts.bus;
+    this.negotiateRounds = opts.negotiateRounds ?? 1;
     this.state = newGame(opts.seed, opts.agents.length);
   }
 
@@ -61,12 +74,19 @@ export class GameRunner {
 
     while (this.state.turn <= this.maxTurns) {
       const startedAt = Date.now();
+      const snapshot = this.state;
+
+      // Negotiate phase (free-form cheap talk): agents post public/DM messages.
+      if (this.bus) await this.negotiateRound(snapshot);
+
       const coord = new PhaseCoordinator<Order[]>(this.agents.map((a) => a.id));
       const collected = coord.collect(this.deadlineMs, () => []);
-      // Drive in-process agents (Phase B replaces this with the CogAgent loop).
       // The deadline guards a hung agent: its submit never fires -> default [].
-      const snapshot = this.state;
-      await Promise.all(this.agents.map(async (a) => coord.submit(a.id, await a.commit({ state: snapshot, me: a.id }))));
+      await Promise.all(
+        this.agents.map(async (a) =>
+          coord.submit(a.id, await a.commit({ state: snapshot, me: a.id, messages: this.bus?.visibleTo(a.id) })),
+        ),
+      );
       const ordersByCog = await collected;
 
       this.state = stepTurn(this.state, ordersByCog);
@@ -80,5 +100,18 @@ export class GameRunner {
       if (remaining > 0) await new Promise((r) => setTimeout(r, remaining));
     }
     return scoreGame(this.state);
+  }
+
+  /** One or more rounds of cheap talk: each negotiating agent posts to the bus,
+   *  seeing prior messages (so later agents can react within the round). */
+  private async negotiateRound(snapshot: GameState): Promise<void> {
+    const bus = this.bus!;
+    for (let round = 0; round < this.negotiateRounds; round++) {
+      for (const a of this.agents) {
+        if (!a.negotiate) continue;
+        const posts = await a.negotiate({ state: snapshot, me: a.id, messages: bus.visibleTo(a.id) });
+        for (const p of posts) bus.post(a.id, p.to, p.text, snapshot.turn);
+      }
+    }
   }
 }
