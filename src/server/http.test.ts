@@ -57,6 +57,19 @@ describe("http", () => {
     expect(steering.get("cog0")).toEqual({ persona: "betray everyone", paused: true });
   });
 
+  it("POST /reset -> ok, restarting the runner from turn 1", async () => {
+    const r2 = new GameRunner({ seed: 7, agents: [greedyAgent("cog0"), greedyAgent("cog1")], maxTurns: 1, deadlineMs: 20 });
+    await r2.run();
+    expect(r2.state.turn).toBe(2); // finished a 1-turn game
+    const srv = createApp(r2).listen(0);
+    const url = `http://127.0.0.1:${(srv.address() as { port: number }).port}`;
+    const res = await fetch(`${url}/reset`, { method: "POST" });
+    const body = await res.json();
+    srv.close();
+    expect(res.status).toBe(200);
+    expect(body).toEqual({ ok: true });
+  });
+
   it("POST /cog/:id/steering -> 400 on an invalid patch", async () => {
     const steering = new SteeringStore();
     const srv = createApp(runner, undefined, steering).listen(0);

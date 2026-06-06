@@ -25,6 +25,11 @@ export class MessageBus {
   recent(limit = 40): Message[] {
     return this.log.slice(-limit);
   }
+  /** Drop all recorded messages (subscribers kept) — used on an operator reset. */
+  clear(): void {
+    this.log = [];
+    this.seq = 0;
+  }
   /** Messages a given cog may see (public + its own sent/received DMs). */
   visibleTo(cog: CogId, limit = 40): Message[] {
     return this.log.filter((m) => messageVisibleToCog(m, cog)).slice(-limit);

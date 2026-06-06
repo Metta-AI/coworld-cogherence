@@ -24,6 +24,12 @@ export function createApp(runner: GameRunner, hub?: ActPromptHub, steering?: Ste
   app.get("/cog/:id/state.json", (req, res) => res.json(buildCogSnapshot(toSnapshot(runner.state), req.params.id)));
   app.get("/cog/:id/act-prompts", (req, res) => res.json(hub?.list(req.params.id) ?? []));
 
+  // Operator: restart the live game from turn 1 (keeps personas/pauses).
+  app.post("/reset", (_req, res) => {
+    runner.reset();
+    res.json({ ok: true });
+  });
+
   // Operator steering (Phase D): read + edit a cog's persona / paused flag live.
   app.get("/cog/:id/steering", (req, res) => res.json(steering?.get(req.params.id) ?? { persona: "", paused: false }));
   app.post("/cog/:id/steering", (req, res) => {

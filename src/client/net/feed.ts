@@ -34,8 +34,18 @@ export interface LiveSocket {
 /** Apply one ServerMessage to the store. Shared by the live feed and replay load
  *  so a recorded game and a live game populate every panel identically. */
 export function applyFrame(store: FeedStore, m: ServerMessage): void {
-  if (m.type === "snapshot") store.snapshots.push(m.snapshot);
-  else if (m.type === "event") store.events.push({ turn: m.turn, event: m.event });
+  if (m.type === "snapshot") {
+    // A snapshot whose turn moves backwards means the operator restarted the game
+    // on this same socket — drop the abandoned game's history before the new one.
+    const last = store.snapshots[store.snapshots.length - 1];
+    if (last && m.snapshot.turn < last.turn) {
+      store.snapshots = [];
+      store.events = [];
+      store.messages = [];
+      store.actPrompts = {};
+    }
+    store.snapshots.push(m.snapshot);
+  } else if (m.type === "event") store.events.push({ turn: m.turn, event: m.event });
   else if (m.type === "serverStatus") store.status = m.status;
   else if (m.type === "actPrompt") {
     const list = (store.actPrompts[m.cogId] ??= []);

@@ -16,6 +16,7 @@ type Listener = (m: ServerMessage) => void;
 export class GameRunner {
   state: GameState;
   private agents: Agent[];
+  private seed: number;
   private maxTurns: number;
   private deadlineMs: number;
   private minTurnMs: number;
@@ -24,6 +25,8 @@ export class GameRunner {
   private listeners: Listener[] = [];
   private clientCount = 0;
   private recent: Array<{ turn: number; event: TurnEvent }> = [];
+  /** Bumped on reset; a running loop exits once its captured generation is stale. */
+  private generation = 0;
 
   constructor(opts: {
     seed: number;
@@ -35,12 +38,24 @@ export class GameRunner {
     negotiateRounds?: number;
   }) {
     this.agents = opts.agents;
+    this.seed = opts.seed;
     this.maxTurns = opts.maxTurns ?? 100;
     this.deadlineMs = opts.deadlineMs ?? 20_000;
     this.minTurnMs = opts.minTurnMs ?? 0;
     this.bus = opts.bus;
     this.negotiateRounds = opts.negotiateRounds ?? 1;
     this.state = newGame(opts.seed, opts.agents.length);
+  }
+
+  /** Operator reset: abandon the current game and start a fresh one from turn 1.
+   *  Bumping the generation makes any in-flight run loop exit at its next guard;
+   *  we clear history (events + chat) and kick a new loop that re-broadcasts. */
+  reset(): void {
+    this.generation += 1;
+    this.state = newGame(this.seed, this.agents.length);
+    this.recent = [];
+    this.bus?.clear();
+    void this.run();
   }
 
   onUpdate(fn: Listener): () => void {
@@ -76,10 +91,11 @@ export class GameRunner {
   }
 
   async run(): Promise<{ winner: CogId | null; standings: Array<{ cog: CogId; hearts: number }> }> {
+    const gen = this.generation;
     this.emit({ type: "snapshot", snapshot: toSnapshot(this.state) });
     this.emit({ type: "serverStatus", status: this.status() });
 
-    while (this.state.turn <= this.maxTurns) {
+    while (this.state.turn <= this.maxTurns && gen === this.generation) {
       const startedAt = Date.now();
       const snapshot = this.state;
 
@@ -95,6 +111,10 @@ export class GameRunner {
         ),
       );
       const ordersByCog = await collected;
+
+      // A reset may have landed during the awaits above — drop this stale turn so
+      // we don't step/emit the abandoned game over the fresh one.
+      if (gen !== this.generation) return scoreGame(this.state);
 
       this.state = stepTurn(this.state, ordersByCog);
       const rec = this.state.log[this.state.log.length - 1]!;

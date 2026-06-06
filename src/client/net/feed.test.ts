@@ -51,4 +51,20 @@ describe("connectLiveFeed", () => {
     expect(store.actPrompts.cog0).toHaveLength(1);
     expect(store.actPrompts.cog0![0]!.content).toContain("bid 2");
   });
+  it("clears history when a reset is detected (snapshot turn moves backwards)", () => {
+    const store = newStore();
+    const sock = new FakeSocket();
+    connectLiveFeed(store, () => sock, () => {});
+    sock.emit({ type: "snapshot", snapshot: snap(1) });
+    sock.emit({ type: "snapshot", snapshot: snap(2) });
+    sock.emit({ type: "event", event: { type: "auction", winner: "cog0", price: 1, bids: [] }, turn: 2 });
+    sock.emit({ type: "message", message: { seq: 1, turn: 2, from: "cog0", to: "public", text: "old game" } });
+    expect(store.snapshots).toHaveLength(2);
+    // operator reset -> server re-broadcasts from turn 1 over the same socket
+    sock.emit({ type: "snapshot", snapshot: snap(1) });
+    expect(store.snapshots).toHaveLength(1);
+    expect(store.snapshots[0]!.turn).toBe(1);
+    expect(store.events).toHaveLength(0); // abandoned game's events dropped
+    expect(store.messages).toHaveLength(0); // and its chat
+  });
 });

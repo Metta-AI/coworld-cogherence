@@ -32,6 +32,24 @@ describe("GameRunner", () => {
     expect(["cog0", "cog1", null]).toContain(result.winner);
   });
 
+  it("reset() restarts the game from turn 1 and re-broadcasts a fresh snapshot", async () => {
+    const bus = new MessageBus();
+    const runner = new GameRunner({ seed: 7, agents: [greedyAgent("cog0"), greedyAgent("cog1")], maxTurns: 2, deadlineMs: 50, bus });
+    await runner.run();
+    expect(runner.state.turn).toBe(3); // finished a 2-turn game
+    bus.post("cog0", "public", "stale chatter", 1);
+
+    const frames: ServerMessage[] = [];
+    runner.onUpdate((m) => frames.push(m));
+    runner.reset();
+    await new Promise((r) => setTimeout(r, 120)); // let the fresh loop play out
+
+    expect(bus.recent().some((m) => m.text === "stale chatter")).toBe(false); // abandoned game's chat cleared
+    const firstSnap = frames.find((f) => f.type === "snapshot");
+    expect(firstSnap && firstSnap.type === "snapshot" && firstSnap.snapshot.turn).toBe(1); // re-broadcast from turn 1
+    expect(runner.recentEvents().every((e) => e.turn <= 2)).toBe(true); // only the new game's events
+  });
+
   it("runs a negotiate round: agents post to the bus, others stay silent", async () => {
     const chatty: Agent = { id: "cog0", commit: () => [], negotiate: () => [{ to: "public", text: "hello all" }] };
     const quiet: Agent = { id: "cog1", commit: () => [] };

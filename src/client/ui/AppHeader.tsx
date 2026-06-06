@@ -12,6 +12,9 @@ export function AppHeader({
   status: ServerStatus | null;
   connected: boolean;
 }): React.ReactElement {
+  const resetGame = (): void => {
+    void fetch("/reset", { method: "POST" });
+  };
   return (
     <header className="app-header">
       <div className="brand">
@@ -31,6 +34,11 @@ export function AppHeader({
         )}
         {status && (
           <span className={`stat phase phase-${status.phase}`}>{status.finished ? "finished" : status.phase}</span>
+        )}
+        {connected && (
+          <button type="button" className="reset-btn" data-testid="reset-btn" onClick={resetGame} title="Restart the live game from turn 1">
+            ↻ reset
+          </button>
         )}
         <span className={`conn ${connected ? "conn-live" : "conn-replay"}`}>{connected ? "● live" : "▷ replay"}</span>
       </div>

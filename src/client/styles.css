@@ -641,3 +641,18 @@ svg .tile-mineral {
   font-size: 12px;
   color: var(--accent-2);
 }
+
+.reset-btn {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--line-2);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.reset-btn:hover {
+  color: #ff8a8a;
+  border-color: #ff8a8a;
+}
