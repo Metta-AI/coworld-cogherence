@@ -26,6 +26,11 @@ export const SET_ENERGY = 10;
  *  Cog can act from turn 1. maxEnergy(starting treasury) == STARTING_ENERGY. */
 export const STARTING_ENERGY = 100;
 
+/** First-mover tempo bonus (from cogame-polis): the first Cog to lock its Commit
+ *  each turn gets this many units of its scarcest mineral — rewarding decisiveness
+ *  and nudging toward the balanced wallet that forms efficient COGS sets. */
+export const FIRST_COMMIT_REWARD = 2;
+
 /** Energy yielded by a single leftover mineral. */
 export const SINGLE_ENERGY = 1;
 

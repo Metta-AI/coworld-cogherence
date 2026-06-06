@@ -89,6 +89,48 @@ body {
   color: var(--accent);
   border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
 }
+
+/* ---- live turn-timing phase strip ---- */
+@keyframes phase-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+.phase-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.phase-chips {
+  display: flex;
+  gap: 3px;
+}
+.phase-chip {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 3px 7px;
+  border-radius: 5px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+.phase-chip.done {
+  color: var(--text-dim, #6b7088);
+  background: var(--bg-2);
+}
+.phase-chip.live {
+  color: #0a0b12;
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 55%, transparent);
+  animation: phase-pulse 1.5s ease-in-out infinite;
+}
+.phase-meta {
+  font-size: 11px;
+  color: var(--accent-2);
+  font-variant-numeric: tabular-nums;
+}
 .conn {
   font-size: 12px;
   padding: 5px 10px;

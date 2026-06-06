@@ -5,7 +5,7 @@
 // minting use post-drift, post-upkeep coherence. Pure: the input state is never
 // mutated.
 
-import type { GameState, CogId, HexKey, Tile, Treasury, CogState } from "./types";
+import type { GameState, CogId, HexKey, Tile, Treasury, CogState, Mineral } from "./types";
 import { applyDrift } from "./coherence";
 import { chargeEnergy, maxEnergy } from "./energy";
 import { makeRng } from "./rng";
@@ -14,7 +14,9 @@ import { MINT_DIVISOR, UPKEEP_PER_TILE } from "./constants";
 /** Events emitted by an Upkeep phase (for the turn log / replay). */
 export type UpkeepEvent =
   | { type: "starved"; cog: CogId; tile: HexKey; coherence: number }
-  | { type: "mint"; cog: CogId; gained: Treasury };
+  | { type: "mint"; cog: CogId; gained: Treasury }
+  /** Tempo bonus for the first Cog to lock its Commit this turn (granted in stepTurn). */
+  | { type: "firstCommit"; cog: CogId; mineral: Mineral; reward: number };
 
 const addT = (a: Treasury, b: Treasury): Treasury => ({ C: a.C + b.C, O: a.O + b.O, Ge: a.Ge + b.Ge, S: a.S + b.S });
 

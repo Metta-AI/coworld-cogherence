@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { newGame, stepTurn, runGame, scoreGame, commons } from "./game";
 import type { Agent } from "../../agents/types";
-import type { CogId } from "./types";
+import type { CogId, Treasury } from "./types";
+import { FIRST_COMMIT_REWARD } from "./constants";
 
 const noop = (id: CogId): Agent => ({ id, commit: () => [] });
 
@@ -33,6 +34,24 @@ describe("game", () => {
     stepTurn(g, {});
     expect(g.turn).toBe(1);
     expect(g.log).toHaveLength(0);
+  });
+
+  it("awards the first committer the tempo bonus and logs a firstCommit event", () => {
+    const g = newGame(7, 4);
+    const sum = (t: Treasury) => t.C + t.O + t.Ge + t.S;
+    const without = stepTurn(g, {});
+    const withFirst = stepTurn(g, {}, "cog1");
+    // cog1's wallet is FIRST_COMMIT_REWARD richer than if it hadn't moved first.
+    expect(sum(withFirst.cogs.cog1!.treasury)).toBe(sum(without.cogs.cog1!.treasury) + FIRST_COMMIT_REWARD);
+    expect(withFirst.log[0]!.events.find((e) => e.type === "firstCommit")).toMatchObject({
+      cog: "cog1",
+      reward: FIRST_COMMIT_REWARD,
+    });
+  });
+
+  it("no first committer -> no bonus, no event (scripted replays opt out)", () => {
+    const g2 = stepTurn(newGame(7, 4), {});
+    expect(g2.log[0]!.events.some((e) => e.type === "firstCommit")).toBe(false);
   });
 
   it("runGame plays MAX_TURNS turns, returns a winner, and is fully deterministic for (seed, agents)", async () => {

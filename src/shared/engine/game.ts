@@ -3,15 +3,16 @@
 // MAX_TURNS game with one Agent per Cog. Everything is pure/deterministic, so a
 // game is fully reproducible from (seed, agents): no hidden state, no clocks.
 
-import type { GameState, CogId } from "./types";
+import type { GameState, CogId, Mineral } from "./types";
+import { MINERALS } from "./types";
 import type { Order } from "./orders";
-import type { TurnRecord } from "./log";
+import type { TurnRecord, TurnEvent } from "./log";
 import type { Agent } from "../../agents/types";
 import { generateBoard } from "./board";
 import { resolve } from "./resolve";
 import { upkeep } from "./upkeep";
 import { maxEnergy } from "./energy";
-import { MAX_TURNS } from "./constants";
+import { MAX_TURNS, FIRST_COMMIT_REWARD } from "./constants";
 
 /** Total Coherence across the lattice — the visible "Commons" meter. */
 export function commons(state: GameState): number {
@@ -25,19 +26,43 @@ export function newGame(seed: number, numCogs: number): GameState {
   return generateBoard(seed, numCogs);
 }
 
-/** Run one full turn: Resolve -> Upkeep -> advance the turn, appending a TurnRecord. Pure. */
-export function stepTurn(state: GameState, ordersByCog: Record<CogId, Order[]>): GameState {
+/** Award the first-mover its tempo bonus: FIRST_COMMIT_REWARD units of its scarcest
+ *  mineral (next-turn money). WHO committed first is decided by the IO layer (timing
+ *  lives there); the engine just applies the named bonus, so it stays deterministic. */
+function awardFirstCommit(
+  cogs: GameState["cogs"],
+  firstCommitter: CogId | undefined,
+): { cogs: GameState["cogs"]; event: TurnEvent | null } {
+  const cog = firstCommitter ? cogs[firstCommitter] : undefined;
+  if (!cog) return { cogs, event: null };
+  const mineral: Mineral = MINERALS.reduce((a, b) => (cog.treasury[a] <= cog.treasury[b] ? a : b));
+  const treasury = { ...cog.treasury, [mineral]: cog.treasury[mineral] + FIRST_COMMIT_REWARD };
+  return {
+    cogs: { ...cogs, [cog.id]: { ...cog, treasury } },
+    event: { type: "firstCommit", cog: cog.id, mineral, reward: FIRST_COMMIT_REWARD },
+  };
+}
+
+/** Run one full turn: Resolve -> Upkeep -> first-mover bonus -> advance the turn,
+ *  appending a TurnRecord. `firstCommitter` (the first Cog to lock its Commit, from
+ *  the live runner; omitted for scripted replays) earns the tempo bonus. Pure. */
+export function stepTurn(
+  state: GameState,
+  ordersByCog: Record<CogId, Order[]>,
+  firstCommitter?: CogId,
+): GameState {
   const r = resolve(state, ordersByCog);
   const u = upkeep(r.state);
+  const award = awardFirstCommit(u.state.cogs, firstCommitter);
   const hearts: Record<CogId, number> = {};
-  for (const id of u.state.cogOrder) hearts[id] = u.state.cogs[id]!.hearts;
+  for (const id of u.state.cogOrder) hearts[id] = award.cogs[id]!.hearts;
   const record: TurnRecord = {
     turn: state.turn,
-    events: [...r.events, ...u.events],
+    events: [...r.events, ...u.events, ...(award.event ? [award.event] : [])],
     commons: commons(u.state),
     hearts,
   };
-  return { ...u.state, turn: state.turn + 1, phase: "negotiate", log: [...u.state.log, record] };
+  return { ...u.state, cogs: award.cogs, turn: state.turn + 1, phase: "negotiate", log: [...u.state.log, record] };
 }
 
 /** Final standings: most hearts wins; tiebreak by higher maxEnergy(treasury), then lower index. */

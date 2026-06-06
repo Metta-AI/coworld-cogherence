@@ -2,6 +2,7 @@
 import React from "react";
 import type { GameSnapshot } from "../../shared/snapshot";
 import type { ServerStatus } from "../../shared/protocol";
+import { PhaseStrip } from "./PhaseStrip";
 
 export function AppHeader({
   snapshot,
@@ -32,9 +33,11 @@ export function AppHeader({
             </span>
           </>
         )}
-        {status && (
+        {status && connected && !status.finished ? (
+          <PhaseStrip status={status} />
+        ) : status ? (
           <span className={`stat phase phase-${status.phase}`}>{status.finished ? "finished" : status.phase}</span>
-        )}
+        ) : null}
         {connected && (
           <button type="button" className="reset-btn" data-testid="reset-btn" onClick={resetGame} title="Restart the live game from turn 1">
             ↻ reset

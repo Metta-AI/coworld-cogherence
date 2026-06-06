@@ -29,4 +29,18 @@ describe("PhaseCoordinator.collect", () => {
     pc.submit("cog1", ["b"]);
     await p;
   });
+
+  it("records the first cog to submit (the tempo winner) and fires onProgress per submit", async () => {
+    const pc = new PhaseCoordinator<string[]>(["cog0", "cog1", "cog2"]);
+    const progress = vi.fn();
+    const p = pc.collect(1000, () => [], progress);
+    expect(pc.first()).toBeNull();
+    pc.submit("cog2", ["a"]); // cog2 moves first
+    expect(pc.first()).toBe("cog2");
+    pc.submit("cog0", ["b"]);
+    expect(pc.first()).toBe("cog2"); // stays the first, not the latest
+    pc.submit("cog1", ["c"]);
+    await p;
+    expect(progress).toHaveBeenCalledTimes(3);
+  });
 });

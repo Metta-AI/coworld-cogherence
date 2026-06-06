@@ -21,6 +21,8 @@ function eventLine(e: TurnEvent): string {
       return `${nameOf(e.from)} → ${nameOf(e.to)}: ${e.amount} ${e.mineral}`;
     case "starved":
       return `${nameOf(e.cog)} starved ${e.tile}`;
+    case "firstCommit":
+      return `${nameOf(e.cog)} committed first ⚡ +${e.reward} ${e.mineral}`;
     case "rejected":
       return `${nameOf(e.cog)} order rejected`;
     default:

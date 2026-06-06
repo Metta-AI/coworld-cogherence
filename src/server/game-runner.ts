@@ -27,6 +27,11 @@ export class GameRunner {
   private recent: Array<{ turn: number; event: TurnEvent }> = [];
   /** Bumped on reset; a running loop exits once its captured generation is stale. */
   private generation = 0;
+  /** Turn-timing (polis-style): the phase the spectator sees during the loop, its
+   *  wall-clock deadline, and the live coordinator (for pending/done in status). */
+  private livePhase: GameState["phase"] | null = null;
+  private phaseDeadlineAt: number | undefined;
+  private coord: PhaseCoordinator<Order[]> | null = null;
 
   constructor(opts: {
     seed: number;
@@ -54,6 +59,9 @@ export class GameRunner {
     this.generation += 1;
     this.state = newGame(this.seed, this.agents.length);
     this.recent = [];
+    this.coord = null;
+    this.livePhase = null;
+    this.phaseDeadlineAt = undefined;
     this.bus?.clear();
     void this.run();
   }
@@ -80,12 +88,13 @@ export class GameRunner {
   private status(extra: Partial<ServerStatus> = {}): ServerStatus {
     return {
       turn: this.state.turn,
-      phase: this.state.phase,
+      phase: this.livePhase ?? this.state.phase,
       finished: this.state.turn > this.maxTurns,
       cogCount: this.agents.length,
       clientCount: this.clientCount,
-      pending: [],
-      done: [],
+      pending: this.coord?.pending() ?? [],
+      done: this.coord?.done() ?? [],
+      ...(this.phaseDeadlineAt !== undefined ? { phaseDeadlineAt: this.phaseDeadlineAt } : {}),
       ...extra,
     };
   }
@@ -100,10 +109,21 @@ export class GameRunner {
       const snapshot = this.state;
 
       // Negotiate phase (free-form cheap talk): agents post public/DM messages.
-      if (this.bus) await this.negotiateRound(snapshot);
+      if (this.bus) {
+        this.livePhase = "negotiate";
+        this.emit({ type: "serverStatus", status: this.status() });
+        await this.negotiateRound(snapshot);
+      }
 
+      // Commit phase: open a deadline window; broadcast it + each cog's ready flip.
       const coord = new PhaseCoordinator<Order[]>(this.agents.map((a) => a.id));
-      const collected = coord.collect(this.deadlineMs, () => []);
+      this.coord = coord;
+      this.livePhase = "commit";
+      this.phaseDeadlineAt = Date.now() + this.deadlineMs;
+      this.emit({ type: "serverStatus", status: this.status() });
+      const collected = coord.collect(this.deadlineMs, () => [], () =>
+        this.emit({ type: "serverStatus", status: this.status() }),
+      );
       // The deadline guards a hung agent: its submit never fires -> default [].
       await Promise.all(
         this.agents.map(async (a) =>
@@ -111,12 +131,16 @@ export class GameRunner {
         ),
       );
       const ordersByCog = await collected;
+      const firstCommitter = coord.first() ?? undefined; // the tempo winner this turn
+      this.coord = null;
+      this.livePhase = null;
+      this.phaseDeadlineAt = undefined;
 
       // A reset may have landed during the awaits above — drop this stale turn so
       // we don't step/emit the abandoned game over the fresh one.
       if (gen !== this.generation) return scoreGame(this.state);
 
-      this.state = stepTurn(this.state, ordersByCog);
+      this.state = stepTurn(this.state, ordersByCog, firstCommitter);
       const rec = this.state.log[this.state.log.length - 1]!;
       for (const ev of rec.events) {
         this.recent.push({ turn: rec.turn, event: ev });
