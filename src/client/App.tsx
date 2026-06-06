@@ -92,6 +92,19 @@ export function App({ replay: injected, live: liveProp }: { replay?: Replay; liv
   const visibleEvents = store.events.filter((e) => e.turn < turnNow).map((e) => e.event);
   const visibleMessages = store.messages.filter((m) => m.turn <= turnNow);
 
+  // Per-turn scrubber annotations: chat sent on a turn, and captures that flipped a
+  // tile on the way into it (capture events of turn T-1 produce the turn-T board).
+  const msgByTurn = new Map<number, number>();
+  for (const m of store.messages) msgByTurn.set(m.turn, (msgByTurn.get(m.turn) ?? 0) + 1);
+  const capByTurn = new Map<number, number>();
+  for (const e of store.events)
+    if (e.event.type === "capture" && e.event.to !== null) capByTurn.set(e.turn, (capByTurn.get(e.turn) ?? 0) + 1);
+  const turnAt = (i: number): number => snaps[i]?.turn ?? i + 1;
+  const marks = (i: number): { messages: number; captures: number } => {
+    const t = turnAt(i);
+    return { messages: msgByTurn.get(t) ?? 0, captures: capByTurn.get(t - 1) ?? 0 };
+  };
+
   return (
     <div className="app">
       <AppHeader snapshot={snapshot} status={store.status} connected={connected && liveMode} />
@@ -127,6 +140,9 @@ export function App({ replay: injected, live: liveProp }: { replay?: Replay; liv
             }}
             playing={playing}
             onTogglePlay={() => setPlaying((p) => !p)}
+            live={liveMode && follow}
+            turnAt={turnAt}
+            marks={marks}
           />
         </>
       )}

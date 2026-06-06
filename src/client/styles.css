@@ -403,30 +403,131 @@ svg .tile-mineral {
   align-items: center;
   gap: 10px;
   margin-top: 18px;
-  padding: 10px 14px;
+  padding: 10px 16px;
   background: color-mix(in srgb, var(--panel) 92%, transparent);
   backdrop-filter: blur(8px);
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: 14px;
   box-shadow: var(--shadow);
 }
-.scrubber button {
+.scrub-btn {
+  flex: 0 0 auto;
   background: var(--panel-2);
   color: var(--text);
   border: 1px solid var(--line-2);
   border-radius: 8px;
-  width: 34px;
+  width: 32px;
   height: 30px;
   cursor: pointer;
   font-size: 13px;
 }
-.scrubber button:hover {
+.scrub-btn:hover {
   border-color: var(--accent);
   color: #fff;
 }
-.scrubber input[type="range"] {
+.scrub-track {
+  position: relative;
   flex: 1;
-  accent-color: var(--accent);
+  height: 26px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+.scrub-track.has-marks {
+  height: 42px;
+}
+.scrub-rail {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 3px;
+  border-radius: 3px;
+  background: var(--line-2);
+}
+.scrub-fill {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 3px;
+  border-radius: 3px;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+}
+.scrub-knob {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  top: 50%;
+  background: var(--accent);
+  border: 2px solid #0a0b12;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--accent) 70%, transparent);
+  transition: left 0.16s cubic-bezier(0.4, 0.8, 0.3, 1);
+}
+/* Per-turn markers straddling the rail: chat dots ride above, captures below. */
+.scrub-marks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.scrub-mark {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  padding: 2px 0;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.scrub-mark-dots {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1px;
+  max-width: 16px;
+  margin-bottom: auto;
+}
+.scrub-mark-dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--accent-2);
+  box-shadow: 0 0 3px var(--accent-2);
+}
+.scrub-mark-cap {
+  font-size: 8px;
+  line-height: 1;
+  color: #ff8a8a;
+  margin-top: auto;
+  font-variant-numeric: tabular-nums;
+}
+.scrub-readout {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.scrub-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+.scrub-dot.is-live {
+  background: var(--accent-2);
+  box-shadow: 0 0 6px var(--accent-2);
+}
+.scrub-dot.is-replay {
+  background: #ff8a8a;
+  box-shadow: 0 0 6px #ff8a8a;
 }
 
 .loading {
