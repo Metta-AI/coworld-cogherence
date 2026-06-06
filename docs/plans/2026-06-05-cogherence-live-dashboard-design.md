@@ -143,10 +143,14 @@ Reuses `HexBoard`/`Scrubber`/`Hud`; adds a shell (`AppHeader`, `ErrorBoundary`, 
 
 ## 10. Build sequence (each = its own implementation plan + merge)
 
-- **Phase A — Live server core.** `tsconfig.node.json`; `protocol`/`snapshot` extended (status only); `cog-state-store`, `phase-coordinator`, `game-runner` (commit barrier + deadline), `http` + `websocket` (`/global/ws`, basic `/cog/:id/ws` redaction), `runtime`, `cli-serve`; client `world-socket` + `feed`; the existing single view goes live. → **watch a live scripted game in the browser.**
-- **Phase B — Multi-LLM in-process + transparency.** `cog-agent` driver, `act-prompt-log` + `transcript-log`, the **per-cog console** (PromptsPanel) + **operator/global console** + shell/ViewSwitcher; `serve:llm`. → **watch live LLM Cogs play, and see what each saw.**
-- **Phase C — Free-form negotiation.** `messages.ts`, message frames, `message-bus`, the timed Negotiate window + reactive responders, the **feed/chat view**, per-cog message redaction. → **watch the Cogs scheme (public + DM).**
-- **Phase D — Operator steering + replay-over-ws.** editable per-cog prompt docs (re-read each turn), `reset`/`kick`, `/replay` socket + per-cog projection.
+> **Implementation status (2026-06-05): Phases A–D all shipped and verified live.**
+> The dashboard runs live Bedrock Cogs that negotiate (public + DM), shows what
+> each brain saw, and is operator-steerable. Build notes per phase below.
+
+- **Phase A — Live server core. ✅** `protocol`/`snapshot` extended; `cog-state-store`, `phase-coordinator`, `game-runner` (commit barrier + deadline), `http` + `websocket` (`/global/ws`, `/cog/:id/ws` redaction), `runtime`, `cli-serve`; client `world-socket` + `feed`. → live scripted game in the browser.
+- **Phase B — Multi-LLM in-process + transparency. ✅** in-process Bedrock agents (`agents/llm/*`), `act-prompt-hub` transparency, the **per-cog console** (PromptsPanel) + **operator/global console** + shell/ViewSwitcher; `serve:llm`. → live LLM Cogs play, with each brain's prompt+decision on display.
+- **Phase C — Free-form negotiation. ✅** `messages.ts`, message frames, `message-bus`, the Negotiate round + reactive responders, the **feed/chat view**, per-cog message redaction. → the Cogs scheme (public + DM), verified live (alliances, threats, betrayal).
+- **Phase D — Operator steering + replay. ✅** Live-editable per-cog **persona** (`SteeringStore`, prepended to the prompt and re-read every turn) + **pause/kick** (`pausableAgent`); operator **reset** (`GameRunner.reset()` with a generation guard; client clears history on a backwards turn); and the live server **records its own game**, served at `GET /replay.json` (`ReplayRecorder`) so a finished LLM game is re-watchable in the existing replay client. Operator API: `GET|POST /cog/:id/steering`, `POST /reset`. → set a persona mid-game and watch the LLM flip behavior on the next turn; reset for a fresh match; replay what just happened. *Deferred:* a dedicated `/replay` **websocket** (the static-file replay path already covers re-watching, including live-recorded games) and **server-side** per-cog board redaction in replay (CogView already redacts the inbox client-side).
 
 ---
 
