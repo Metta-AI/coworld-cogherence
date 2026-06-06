@@ -13,6 +13,7 @@ import type { Tile } from "../shared/engine/types";
 import { maxEnergy } from "../shared/engine/energy";
 import { neighbors, key } from "../shared/engine/hex";
 import { makeRng, randInt } from "../shared/engine/rng";
+import { COHERENCE_MAX } from "../shared/engine/constants";
 
 const myEnergy = (view: AgentView): number => maxEnergy(view.state.cogs[view.me]!.treasury);
 const ownedTiles = (view: AgentView): Tile[] =>
@@ -32,6 +33,33 @@ const adjacentTargets = (view: AgentView): Tile[] => {
   return out;
 };
 const weakest = (tiles: Tile[]): Tile => tiles.reduce((a, b) => (a.coherence <= b.coherence ? a : b));
+/** The richest tile (highest density; ties → lowest coherence). At full Coherence a
+ *  density-3 tile mints more than its upkeep, so it's the sustainable anchor of a blob. */
+const richest = (tiles: Tile[]): Tile =>
+  tiles.reduce((a, b) => (b.density > a.density || (b.density === a.density && b.coherence < a.coherence) ? b : a));
+
+/** How many of a tile's in-board neighbors the cog already owns — its blob compactness.
+ *  A tile with ≥4 owned neighbors gains Coherence each Upkeep; <4 erodes (design §4). */
+const ownNeighborCount = (view: AgentView, t: Tile): number => {
+  let n = 0;
+  for (const nb of neighbors(t.hex)) {
+    const nt = view.state.tiles[key(nb)];
+    if (nt && nt.alignment === view.me) n++;
+  }
+  return n;
+};
+
+/** The adjacent target that touches the MOST of our tiles (ties → lowest coherence,
+ *  cheapest to take). Claiming these pockets fills concavities into a coherent blob. */
+const bestPocket = (view: AgentView): Tile | null => {
+  const targets = adjacentTargets(view);
+  if (targets.length === 0) return null;
+  return targets.reduce((a, b) => {
+    const da = ownNeighborCount(view, a);
+    const db = ownNeighborCount(view, b);
+    return db > da || (db === da && b.coherence < a.coherence) ? b : a;
+  });
+};
 
 /** Peaceful: claims adjacent NEUTRAL land, else reinforces its weakest tile. Never attacks, never bids. */
 export const peacefulAgent = (id: string): Agent => ({
@@ -56,21 +84,43 @@ export const peacefulAgent = (id: string): Agent => ({
   },
 });
 
-/** Greedy: pushes into the weakest adjacent tile and bids for hearts, scaling its bid
- *  with wealth (richer cogs win the second-price auction). Spend stays <= maxEnergy. */
+/** Greedy: builds a compact blob (so its land earns Coherence instead of rotting to
+ *  neutral, §4) and bids leftover energy for hearts, scaling its bid with wealth.
+ *  Each turn it first rescues any core tile about to rot, else claims the pocket that
+ *  most thickens its territory, else reinforces. Spend stays <= maxEnergy. */
 export const greedyAgent = (id: string): Agent => ({
   id,
   commit: (view) => {
     const orders: Order[] = [];
-    const e = myEnergy(view);
-    const targets = adjacentTargets(view);
-    let alignSpend = 0;
-    if (e >= 2 && targets.length > 0) {
-      alignSpend = Math.min(e - 1, 5); // up to 5: enough to flip a max-coherence(6) tile over a couple turns
-      orders.push({ type: "align", tile: key(weakest(targets).hex), energy: alignSpend });
+    const owned = ownedTiles(view);
+    let budget = myEnergy(view);
+    if (owned.length === 0) {
+      if (budget >= 1) orders.push({ type: "bid", energy: 1 });
+      return orders;
     }
-    const bidBudget = e - alignSpend; // whatever's left after the push
-    if (bidBudget >= 1) orders.push({ type: "bid", energy: Math.min(bidBudget, 1 + Math.floor(e / 10)) });
+    const align = (t: Tile, want: number): void => {
+      const energy = Math.min(want, budget - 1); // keep ≥1 for a possible bid; never spend it all
+      if (energy >= 1) {
+        orders.push({ type: "align", tile: key(t.hex), energy });
+        budget -= energy;
+      }
+    };
+
+    // 1. Anchor: hold our richest tile (the density-3 home) near full Coherence — it's
+    //    energy-positive there and subsidizes the rest of the blob. Cheap to maintain.
+    const anchor = richest(owned);
+    if (anchor.coherence < COHERENCE_MAX) align(anchor, Math.min(COHERENCE_MAX - anchor.coherence, 3));
+    // 2. Rescue any other core tile one Upkeep from rotting to neutral.
+    const critical = owned
+      .filter((t) => t !== anchor && t.coherence <= 1 && ownNeighborCount(view, t) >= 2)
+      .sort((a, b) => a.coherence - b.coherence)[0];
+    if (critical) align(critical, 3);
+    // 3. Grow: when still flush, claim the pocket that most thickens the blob.
+    const pocket = bestPocket(view);
+    if (pocket && budget >= 4) align(pocket, 3);
+
+    // 4. Bid leftover energy, scaling with wealth (richer cogs take the second-price auction).
+    if (budget >= 1) orders.push({ type: "bid", energy: Math.min(budget, 1 + Math.floor(myEnergy(view) / 10)) });
     return orders;
   },
   negotiate: (view) => {
