@@ -9,6 +9,10 @@ import { cogColor, cogName } from "./colors";
 const SIZE = 14;
 const UPKEEP_PER_TILE = 1;
 const MINT_DIVISOR = 10;
+// Richer deposits read as raised tiles: each density level above 1 enlarges the
+// hex and lifts it a few px; denser tiles are drawn last so they sit on top.
+const DENSITY_SCALE = 0.08;
+const DENSITY_LIFT = 1.7;
 
 const ownerIndex = (snapshot: GameSnapshot, id: string | null): number | null =>
   id == null ? null : snapshot.cogs.find((c) => c.id === id)?.index ?? null;
@@ -81,43 +85,48 @@ export function HexBoard({
   return (
     <div className="board-wrap" onMouseLeave={() => setHover(null)}>
       <svg viewBox={`${minX} ${minY} ${w} ${h}`} width="100%" style={{ background: "#0b0b12" }}>
-        {snapshot.tiles.map((t, i) => {
-          const c = centers[i]!;
-          const idx = t.alignment != null ? indexById.get(t.alignment) ?? 0 : null;
-          const fill = idx === null ? "var(--neutral)" : cogColor(idx);
-          const f = Math.max(0, Math.min(1, t.coherence / snapshot.coherenceMax));
-          const opacity = 0.2 + 0.8 * f;
-          const hovered = hover === t;
-          return (
-            <g key={`${t.q},${t.r}`} onMouseEnter={() => setHover(t)} style={{ cursor: "pointer" }}>
-              <polygon
-                points={polygonPoints(hexCorners(c.x, c.y, SIZE))}
-                fill={fill}
-                fillOpacity={opacity}
-                stroke={hovered ? "#fff" : "#000"}
-                strokeWidth={hovered ? 1.4 : 0.5}
-              >
-                {showMinerals && <title>{`${t.mineral} d${t.density} coh${t.coherence}`}</title>}
-              </polygon>
-              <text
-                className="tile-mineral"
-                x={c.x}
-                y={c.y}
-                textAnchor="middle"
-                dominantBaseline="central"
-                fontSize={SIZE * 0.5}
-                fontWeight={700}
-                fill="#fff"
-                stroke="#000"
-                strokeWidth={0.4}
-                paintOrder="stroke"
-                pointerEvents="none"
-              >
-                {t.mineral}
-              </text>
-            </g>
-          );
-        })}
+        {/* Draw thin deposits first and rich ones last, so denser (raised) tiles sit on top. */}
+        {[...snapshot.tiles]
+          .sort((a, b) => a.density - b.density)
+          .map((t) => {
+            const base = axialToPixel(t.q, t.r, SIZE);
+            const size = SIZE * (1 + (t.density - 1) * DENSITY_SCALE);
+            const cy = base.y - (t.density - 1) * DENSITY_LIFT; // lift richer tiles up
+            const idx = t.alignment != null ? indexById.get(t.alignment) ?? 0 : null;
+            const fill = idx === null ? "var(--neutral)" : cogColor(idx);
+            const f = Math.max(0, Math.min(1, t.coherence / snapshot.coherenceMax));
+            const opacity = 0.2 + 0.8 * f;
+            const hovered = hover === t;
+            return (
+              <g key={`${t.q},${t.r}`} onMouseEnter={() => setHover(t)} style={{ cursor: "pointer" }}>
+                <polygon
+                  points={polygonPoints(hexCorners(base.x, cy, size))}
+                  fill={fill}
+                  fillOpacity={opacity}
+                  stroke={hovered ? "#fff" : "#000"}
+                  strokeWidth={hovered ? 1.4 : 0.5}
+                >
+                  {showMinerals && <title>{`${t.mineral} d${t.density} coh${t.coherence}`}</title>}
+                </polygon>
+                <text
+                  className="tile-mineral"
+                  x={base.x}
+                  y={cy}
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                  fontSize={SIZE * 0.5}
+                  fontWeight={700}
+                  fill="#fff"
+                  stroke="#000"
+                  strokeWidth={0.4}
+                  paintOrder="stroke"
+                  pointerEvents="none"
+                >
+                  {t.mineral}
+                </text>
+              </g>
+            );
+          })}
       </svg>
       <TileTip tile={hover} snapshot={snapshot} />
     </div>

@@ -4,6 +4,12 @@ import { render, fireEvent } from "@testing-library/react";
 import { HexBoard } from "./HexBoard";
 import { toSnapshot } from "../shared/snapshot";
 import { newGame } from "../shared/engine/game";
+import type { GameSnapshot } from "../shared/snapshot";
+
+const polyHeight = (poly: Element): number => {
+  const ys = (poly.getAttribute("points") ?? "").split(" ").map((p) => Number(p.split(",")[1]));
+  return Math.max(...ys) - Math.min(...ys);
+};
 
 describe("HexBoard", () => {
   const snap = toSnapshot(newGame(7, 4));
@@ -26,6 +32,19 @@ describe("HexBoard", () => {
     const { container } = render(<HexBoard snapshot={snap} />);
     expect(container.querySelectorAll(".tile-coherence")).toHaveLength(0); // coherence shows via brightness, not text
     expect(container.querySelectorAll(".tile-mineral")).toHaveLength(127); // exactly one label per tile
+  });
+  it("renders denser tiles taller (a bigger hex) and on top", () => {
+    const snapshot: GameSnapshot = {
+      version: "0", seed: 7, turn: 1, phase: "negotiate", radius: 6, coherenceMax: 10, commons: 0, cogs: [],
+      tiles: [
+        { q: 0, r: 0, alignment: null, coherence: 0, mineral: "C", density: 1 },
+        { q: 2, r: 0, alignment: null, coherence: 0, mineral: "C", density: 3 },
+      ],
+    };
+    const { container } = render(<HexBoard snapshot={snapshot} />);
+    const polys = [...container.querySelectorAll("polygon")];
+    // sorted by density ascending -> the thin tile is drawn first, the dense one last (on top)
+    expect(polyHeight(polys[1]!)).toBeGreaterThan(polyHeight(polys[0]!));
   });
   it("brightens tiles by coherence (full-coherence home > zero-coherence neutral)", () => {
     const { container } = render(<HexBoard snapshot={snap} />);
