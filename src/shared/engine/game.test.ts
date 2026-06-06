@@ -71,7 +71,7 @@ describe("game", () => {
   });
 
   it("scoreGame breaks a full hearts+maxEnergy tie by lowest index", () => {
-    const g = newGame(7, 3); // all cogs start with 0 hearts and empty treasuries -> fully tied
+    const g = newGame(7, 3); // all cogs start with 0 hearts and identical wallets -> fully tied
     expect(scoreGame(g).winner).toBe("cog0");
   });
 });

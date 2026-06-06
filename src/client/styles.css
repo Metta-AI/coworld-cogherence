@@ -441,8 +441,6 @@ svg .tile-mineral {
 }
 .tile-tip {
   position: absolute;
-  top: 12px;
-  right: 12px;
   min-width: 156px;
   background: rgba(10, 11, 17, 0.92);
   backdrop-filter: blur(6px);
@@ -451,10 +449,7 @@ svg .tile-mineral {
   padding: 10px 12px;
   pointer-events: none;
   box-shadow: var(--shadow);
-}
-.tile-tip-empty {
-  color: var(--dim);
-  font-size: 12px;
+  z-index: 5;
 }
 .tip-head {
   display: flex;

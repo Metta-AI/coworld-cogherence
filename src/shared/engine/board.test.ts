@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { generateBoard } from "./board";
 import { key } from "./hex";
+import { maxEnergy } from "./energy";
 import { BOARD_RADIUS } from "./constants";
 
 const R = BOARD_RADIUS;
@@ -43,6 +44,11 @@ describe("generateBoard", () => {
     expect(counts[3]! / n).toBeCloseTo(0.1, 1);
     expect(counts[1]!).toBeGreaterThan(counts[2]!);
     expect(counts[2]!).toBeGreaterThan(counts[3]!);
+  });
+
+  it("starts each cog with 100 energy (a balanced wallet)", () => {
+    const g = generateBoard(7, 4);
+    for (const id of g.cogOrder) expect(maxEnergy(g.cogs[id]!.treasury)).toBe(100);
   });
 
   it("home tiles start with positive coherence", () => {

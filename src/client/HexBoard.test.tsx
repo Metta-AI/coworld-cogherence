@@ -58,14 +58,19 @@ describe("HexBoard", () => {
     expect(Number(owned.getAttribute("fill-opacity"))).toBe(1); // coherence 10/10
     expect(Number(neutral.getAttribute("fill-opacity"))).toBe(0.2); // coherence 0/10
   });
-  it("shows tile details on hover (owner, mining, upkeep)", () => {
-    const { container, getByTestId } = render(<HexBoard snapshot={snap} />);
-    expect(getByTestId("tile-tip").textContent).toMatch(/hover a tile/);
+  it("shows the tile detail card only on hover, anchored at the cursor", () => {
+    const { container, getByTestId, queryByTestId } = render(<HexBoard snapshot={snap} />);
+    expect(queryByTestId("tile-tip")).toBeNull(); // nothing until you hover (no fixed box)
     const owned = [...container.querySelectorAll("polygon")].find((p) => p.getAttribute("fill") !== "var(--neutral)")!;
-    fireEvent.mouseEnter(owned.parentElement!);
-    const tip = getByTestId("tile-tip").textContent ?? "";
-    expect(tip).toMatch(/mining/);
-    expect(tip).toMatch(/upkeep/);
-    expect(tip).toMatch(/\/turn/);
+    fireEvent.mouseMove(owned.parentElement!, { clientX: 40, clientY: 30 });
+    const tip = getByTestId("tile-tip");
+    expect(tip.textContent).toMatch(/mining/);
+    expect(tip.textContent).toMatch(/upkeep/);
+    expect(tip.textContent).toMatch(/\/turn/);
+    // anchored at the cursor via inline left/top (not pinned to a fixed slot)
+    expect((tip as HTMLElement).style.left).not.toBe("");
+    expect((tip as HTMLElement).style.top).not.toBe("");
+    fireEvent.mouseLeave(container.querySelector(".board-wrap")!);
+    expect(queryByTestId("tile-tip")).toBeNull(); // and disappears when you leave
   });
 });

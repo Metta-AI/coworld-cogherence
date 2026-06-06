@@ -22,6 +22,10 @@ export const MINT_DIVISOR = 10;
 /** Energy yielded by a full COGS set (1×C + 1×O + 1×Ge + 1×S). */
 export const SET_ENERGY = 10;
 
+/** Energy each Cog starts with — seeded as a balanced COGS wallet, so a fresh
+ *  Cog can act from turn 1. maxEnergy(starting treasury) == STARTING_ENERGY. */
+export const STARTING_ENERGY = 100;
+
 /** Energy yielded by a single leftover mineral. */
 export const SINGLE_ENERGY = 1;
 

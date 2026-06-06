@@ -2,10 +2,17 @@
 // (neutral otherwise), brightness = coherence, and a luminous mineral gem icon
 // sized by density (bigger gem = richer deposit). Hovering a tile shows a detail
 // card: owner, coherence, mining, upkeep.
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import type { GameSnapshot, TileSnapshot } from "../shared/snapshot";
 import { axialToPixel, hexCorners, polygonPoints } from "./hex-layout";
 import { cogColor, cogName } from "./colors";
+
+/** Hovered tile + the cursor position (relative to the board) to anchor the card. */
+interface Hover {
+  tile: TileSnapshot;
+  x: number;
+  y: number;
+}
 
 const SIZE = 14;
 const UPKEEP_PER_TILE = 1;
@@ -20,19 +27,16 @@ const mineralIcon = (mineral: string): string => `/icons/transparent/mineral-${m
 const ownerIndex = (snapshot: GameSnapshot, id: string | null): number | null =>
   id == null ? null : snapshot.cogs.find((c) => c.id === id)?.index ?? null;
 
-function TileTip({ tile, snapshot }: { tile: TileSnapshot | null; snapshot: GameSnapshot }): React.ReactElement {
-  if (!tile) {
-    return (
-      <div className="tile-tip tile-tip-empty" data-testid="tile-tip">
-        hover a tile
-      </div>
-    );
-  }
+function TileTip({ tile, snapshot, x, y }: { tile: TileSnapshot; snapshot: GameSnapshot; x: number; y: number }): React.ReactElement {
   const idx = ownerIndex(snapshot, tile.alignment);
   const owner = idx === null ? "neutral" : cogName(idx);
   const mining = tile.alignment ? (tile.density * tile.coherence) / MINT_DIVISOR : 0;
   return (
-    <div className="tile-tip" data-testid="tile-tip" style={idx !== null ? { borderColor: cogColor(idx) } : undefined}>
+    <div
+      className="tile-tip"
+      data-testid="tile-tip"
+      style={{ left: x, top: y, ...(idx !== null ? { borderColor: cogColor(idx) } : {}) }}
+    >
       <div className="tip-head">
         <span className="tip-coord">{`${tile.q},${tile.r}`}</span>
         <span className="tip-owner" style={idx !== null ? { color: cogColor(idx) } : undefined}>
@@ -74,7 +78,8 @@ export function HexBoard({
   snapshot: GameSnapshot;
   showMinerals?: boolean;
 }): React.ReactElement {
-  const [hover, setHover] = useState<TileSnapshot | null>(null);
+  const [hover, setHover] = useState<Hover | null>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
   const indexById = new Map(snapshot.cogs.map((c) => [c.id, c.index]));
   const centers = snapshot.tiles.map((t) => axialToPixel(t.q, t.r, SIZE));
   const xs = centers.map((c) => c.x);
@@ -85,8 +90,23 @@ export function HexBoard({
   const w = Math.max(...xs) - minX + pad;
   const h = Math.max(...ys) - minY + pad;
 
+  // Anchor the detail card just off the cursor, flipping near the right/bottom edge.
+  const showTip = (e: React.MouseEvent, tile: TileSnapshot): void => {
+    const r = wrapRef.current?.getBoundingClientRect();
+    const px = r ? e.clientX - r.left : 0;
+    const py = r ? e.clientY - r.top : 0;
+    const W = r?.width ?? 0;
+    const H = r?.height ?? 0;
+    const TIP_W = 176;
+    const TIP_H = 132;
+    const OFF = 16;
+    const x = px + OFF + TIP_W > W ? Math.max(4, px - OFF - TIP_W) : px + OFF;
+    const y = py + OFF + TIP_H > H ? Math.max(4, py - OFF - TIP_H) : py + OFF;
+    setHover({ tile, x, y });
+  };
+
   return (
-    <div className="board-wrap" onMouseLeave={() => setHover(null)}>
+    <div className="board-wrap" ref={wrapRef} onMouseLeave={() => setHover(null)}>
       <svg viewBox={`${minX} ${minY} ${w} ${h}`} width="100%" style={{ background: "#0b0b12" }}>
         {snapshot.tiles.map((t, i) => {
           const c = centers[i]!;
@@ -94,10 +114,15 @@ export function HexBoard({
           const fill = idx === null ? "var(--neutral)" : cogColor(idx);
           const f = Math.max(0, Math.min(1, t.coherence / snapshot.coherenceMax));
           const opacity = 0.2 + 0.8 * f;
-          const hovered = hover === t;
+          const hovered = hover?.tile === t;
           const isz = mineralIconSize(t.density); // bigger gem = richer deposit
           return (
-            <g key={`${t.q},${t.r}`} onMouseEnter={() => setHover(t)} style={{ cursor: "pointer" }}>
+            <g
+              key={`${t.q},${t.r}`}
+              onMouseEnter={(e) => showTip(e, t)}
+              onMouseMove={(e) => showTip(e, t)}
+              style={{ cursor: "pointer" }}
+            >
               <polygon
                 points={polygonPoints(hexCorners(c.x, c.y, SIZE))}
                 fill={fill}
@@ -122,7 +147,7 @@ export function HexBoard({
           );
         })}
       </svg>
-      <TileTip tile={hover} snapshot={snapshot} />
+      {hover && <TileTip tile={hover.tile} snapshot={snapshot} x={hover.x} y={hover.y} />}
     </div>
   );
 }

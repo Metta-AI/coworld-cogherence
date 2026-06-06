@@ -5,9 +5,15 @@
 
 import { makeRng, randInt } from "./rng";
 import { hexesInRadius, key } from "./hex";
-import { MINERALS, emptyTreasury } from "./types";
-import type { GameState, Tile, CogState, CogId } from "./types";
-import { BOARD_RADIUS, COHERENCE_MAX } from "./constants";
+import { MINERALS } from "./types";
+import type { GameState, Tile, CogState, CogId, Treasury } from "./types";
+import { BOARD_RADIUS, COHERENCE_MAX, SET_ENERGY, STARTING_ENERGY } from "./constants";
+
+/** A balanced starting wallet worth exactly STARTING_ENERGY (maxEnergy of N full sets). */
+const startingTreasury = (): Treasury => {
+  const each = STARTING_ENERGY / SET_ENERGY;
+  return { C: each, O: each, Ge: each, S: each };
+};
 
 /**
  * Generate the initial GameState: a radius-BOARD_RADIUS hex board with random
@@ -46,7 +52,7 @@ export function generateBoard(seed: number, numCogs: number): GameState {
   for (let i = 0; i < numCogs; i++) {
     const id: CogId = `cog${i}`;
     cogOrder.push(id);
-    cogs[id] = { id, index: i, treasury: emptyTreasury(), hearts: 0 };
+    cogs[id] = { id, index: i, treasury: startingTreasury(), hearts: 0 };
     const home = corners[Math.floor((i * corners.length) / numCogs)]!;
     const tile = tiles[key(home)]!;
     tile.alignment = id;
