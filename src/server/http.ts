@@ -11,15 +11,29 @@ import { buildCogSnapshot } from "./redact";
 import type { GameRunner } from "./game-runner";
 import type { ActPromptHub } from "./act-prompt-hub";
 import type { SteeringStore } from "./steering-store";
+import type { ReplayRecorder } from "./replay-recorder";
 
 /** Inbound operator steering patch (validated at the boundary; invalid → 400). */
 const steeringPatchSchema = z.object({ persona: z.string().optional(), paused: z.boolean().optional() }).strict();
 
-export function createApp(runner: GameRunner, hub?: ActPromptHub, steering?: SteeringStore): express.Express {
+export function createApp(
+  runner: GameRunner,
+  hub?: ActPromptHub,
+  steering?: SteeringStore,
+  recorder?: ReplayRecorder,
+): express.Express {
   const app = express();
   app.use(express.json());
 
   app.get("/health", (_req, res) => res.type("text/plain").send("ok"));
+
+  // The live server replays ITS OWN recorded game: open the dashboard without
+  // ?live to re-watch the game just played. Falls through to the bundled file
+  // (the build-time scripted game) until the live recorder has captured a frame.
+  app.get("/replay.json", (_req, res, next) => {
+    if (recorder && !recorder.isEmpty) return res.json(recorder.doc());
+    return next();
+  });
   app.get("/global.json", (_req, res) => res.json(toSnapshot(runner.state)));
   app.get("/cog/:id/state.json", (req, res) => res.json(buildCogSnapshot(toSnapshot(runner.state), req.params.id)));
   app.get("/cog/:id/act-prompts", (req, res) => res.json(hub?.list(req.params.id) ?? []));

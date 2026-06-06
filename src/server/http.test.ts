@@ -4,6 +4,7 @@ import { GameRunner } from "./game-runner";
 import { greedyAgent } from "../agents/stub";
 import { ActPromptHub } from "./act-prompt-hub";
 import { SteeringStore } from "./steering-store";
+import { ReplayRecorder } from "./replay-recorder";
 
 const runner = new GameRunner({ seed: 7, agents: [greedyAgent("cog0"), greedyAgent("cog1")], maxTurns: 100 });
 const server = createApp(runner).listen(0);
@@ -55,6 +56,18 @@ describe("http", () => {
     srv.close();
     expect(posted).toEqual({ persona: "betray everyone", paused: true });
     expect(steering.get("cog0")).toEqual({ persona: "betray everyone", paused: true });
+  });
+
+  it("GET /replay.json -> the live server's own recorded game", async () => {
+    const r2 = new GameRunner({ seed: 7, agents: [greedyAgent("cog0"), greedyAgent("cog1")], maxTurns: 2, deadlineMs: 20 });
+    const recorder = new ReplayRecorder(r2, { seed: 7, agents: ["greedy", "greedy"], turns: 2 });
+    await r2.run();
+    const srv = createApp(r2, undefined, undefined, recorder).listen(0);
+    const url = `http://127.0.0.1:${(srv.address() as { port: number }).port}`;
+    const doc = await (await fetch(`${url}/replay.json`)).json();
+    srv.close();
+    expect(doc.meta.agents).toEqual(["greedy", "greedy"]);
+    expect(doc.frames.filter((f: { type: string }) => f.type === "snapshot").length).toBeGreaterThanOrEqual(3);
   });
 
   it("POST /reset -> ok, restarting the runner from turn 1", async () => {

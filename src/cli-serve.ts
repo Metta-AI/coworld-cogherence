@@ -32,7 +32,7 @@ async function main(): Promise<void> {
     onActPrompt: (e) => hub.record(e),
     persona: (id) => steering.persona(id),
   }).map((a) => pausableAgent(a, steering));
-  const h = await startServer({ seed, agents, port, deadlineMs, minTurnMs, maxTurns, hub, bus, steering, autorun: true });
+  const h = await startServer({ seed, agents, port, deadlineMs, minTurnMs, maxTurns, hub, bus, steering, agentSpecs: specs, autorun: true });
   console.log(`Cogherence live — seed ${seed}, agents [${specs.join(", ")}]`);
   console.log(`  server:   ${h.url}`);
   console.log(`  viewer:   ${h.url}/?live`);
