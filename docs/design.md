@@ -122,7 +122,7 @@ A huge one-time burst that abandons the tile and **scars the land forever**. Goo
 
 ## 6. Economy — minerals, treasury, energy
 
-**Mineral production (every Upkeep):** each aligned tile mints **Density × Coherence** of its mineral into its Cog's **treasury**. Output rewards *both* good geography (Density) *and* stable, consolidated holdings (Coherence).
+**Mineral production (every Upkeep):** each aligned tile mints **Density × Coherence ÷ 10** of its mineral into its Cog's **treasury**, *stochastically rounded* (a raw 2.3 mints 2, plus 1 with probability 0.3 — unbiased on average). On the 0–10 Coherence scale this means a tile at full Coherence yields its Density and weaker tiles yield proportionally less, so output rewards *both* good geography (Density) *and* stable, consolidated holdings (Coherence) while staying on a tractable scale.
 
 **Energy is derived, not stored.** Whenever energy is needed, the engine auto-converts treasury minerals, greedily forming sets first:
 - A full **COGS set** (1 C + 1 O + 1 Ge + 1 S) → **10 energy.**

@@ -7,6 +7,7 @@ import { cogColor, cogName } from "./colors";
 import { Sparkline } from "./ui/Sparkline";
 
 const MINERALS = ["C", "O", "Ge", "S"] as const;
+const MINT_DIVISOR = 10;
 
 export function Roster({
   snapshot,
@@ -15,14 +16,15 @@ export function Roster({
   snapshot: GameSnapshot;
   history?: GameSnapshot[];
 }): React.ReactElement {
-  // One pass: tiles held + projected this-turn mint (density×coherence per mineral) + upkeep.
+  // One pass: tiles held + projected this-turn mint (expected density×coherence/10
+  // per mineral, the engine's stochastic mint averaged) + upkeep (1 ⚡/tile).
   const stats = new Map<string, { tiles: number; mint: Record<string, number> }>();
   for (const c of snapshot.cogs) stats.set(c.id, { tiles: 0, mint: { C: 0, O: 0, Ge: 0, S: 0 } });
   for (const t of snapshot.tiles) {
     const s = t.alignment != null ? stats.get(t.alignment) : undefined;
     if (s) {
       s.tiles++;
-      s.mint[t.mineral]! += t.density * t.coherence;
+      s.mint[t.mineral]! += (t.density * t.coherence) / MINT_DIVISOR;
     }
   }
   const seriesFor = (id: string, pick: (c: GameSnapshot["cogs"][number]) => number): number[] =>
@@ -65,7 +67,7 @@ export function Roster({
                 ) : (
                   mints.map((m) => (
                     <span key={m} className="delta-up">
-                      +{s.mint[m]} {m}
+                      +{s.mint[m]!.toFixed(1)} {m}
                     </span>
                   ))
                 )}

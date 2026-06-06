@@ -1,6 +1,6 @@
 // Renders a GameSnapshot as an SVG hex lattice. Per tile: fill = owner color
-// (neutral otherwise), brightness = coherence, and a two-line label (mineral +
-// 0–10 coherence). Hovering a tile shows a detail card: owner, mining, upkeep.
+// (neutral otherwise), brightness = coherence, and a mineral letter. Hovering a
+// tile shows a detail card: owner, coherence, mining, upkeep.
 import React, { useState } from "react";
 import type { GameSnapshot, TileSnapshot } from "../shared/snapshot";
 import { axialToPixel, hexCorners, polygonPoints } from "./hex-layout";
@@ -8,10 +8,7 @@ import { cogColor, cogName } from "./colors";
 
 const SIZE = 14;
 const UPKEEP_PER_TILE = 1;
-
-/** Scale raw coherence (0..coherenceMax) onto a 0–10 display score. */
-const cohScore = (coherence: number, max: number): number =>
-  Math.round((Math.max(0, Math.min(max, coherence)) / max) * 10);
+const MINT_DIVISOR = 10;
 
 const ownerIndex = (snapshot: GameSnapshot, id: string | null): number | null =>
   id == null ? null : snapshot.cogs.find((c) => c.id === id)?.index ?? null;
@@ -26,7 +23,7 @@ function TileTip({ tile, snapshot }: { tile: TileSnapshot | null; snapshot: Game
   }
   const idx = ownerIndex(snapshot, tile.alignment);
   const owner = idx === null ? "neutral" : cogName(idx);
-  const mining = tile.alignment ? tile.density * tile.coherence : 0;
+  const mining = tile.alignment ? (tile.density * tile.coherence) / MINT_DIVISOR : 0;
   return (
     <div className="tile-tip" data-testid="tile-tip" style={idx !== null ? { borderColor: cogColor(idx) } : undefined}>
       <div className="tip-head">
@@ -52,7 +49,7 @@ function TileTip({ tile, snapshot }: { tile: TileSnapshot | null; snapshot: Game
         </div>
         <div>
           <dt>mining</dt>
-          <dd>{tile.alignment ? `${mining} ${tile.mineral}/turn` : "—"}</dd>
+          <dd>{tile.alignment ? `${mining.toFixed(1)} ${tile.mineral}/turn` : "—"}</dd>
         </div>
         <div>
           <dt>upkeep</dt>
@@ -105,7 +102,7 @@ export function HexBoard({
               <text
                 className="tile-mineral"
                 x={c.x}
-                y={c.y - SIZE * 0.18}
+                y={c.y}
                 textAnchor="middle"
                 dominantBaseline="central"
                 fontSize={SIZE * 0.5}
@@ -117,22 +114,6 @@ export function HexBoard({
                 pointerEvents="none"
               >
                 {t.mineral}
-              </text>
-              <text
-                className="tile-coherence"
-                x={c.x}
-                y={c.y + SIZE * 0.42}
-                textAnchor="middle"
-                dominantBaseline="central"
-                fontSize={SIZE * 0.42}
-                fill="#fff"
-                fillOpacity={0.85}
-                stroke="#000"
-                strokeWidth={0.35}
-                paintOrder="stroke"
-                pointerEvents="none"
-              >
-                {cohScore(t.coherence, snapshot.coherenceMax)}
               </text>
             </g>
           );

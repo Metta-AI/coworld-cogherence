@@ -22,13 +22,10 @@ describe("HexBoard", () => {
     expect(minerals).toHaveLength(127);
     expect(minerals.every((m) => ["C", "O", "Ge", "S"].includes(m.textContent ?? ""))).toBe(true);
   });
-  it("labels every tile with a 0–10 coherence score", () => {
+  it("does not print coherence numbers on tiles (only the mineral letter)", () => {
     const { container } = render(<HexBoard snapshot={snap} />);
-    const scores = [...container.querySelectorAll(".tile-coherence")];
-    expect(scores).toHaveLength(127);
-    expect(scores.every((s) => Number(s.textContent) >= 0 && Number(s.textContent) <= 10)).toBe(true);
-    // Home tiles start at full coherence (COHERENCE_MAX) -> a perfect 10.
-    expect(scores.some((s) => s.textContent === "10")).toBe(true);
+    expect(container.querySelectorAll(".tile-coherence")).toHaveLength(0); // coherence shows via brightness, not text
+    expect(container.querySelectorAll(".tile-mineral")).toHaveLength(127); // exactly one label per tile
   });
   it("brightens tiles by coherence (full-coherence home > zero-coherence neutral)", () => {
     const { container } = render(<HexBoard snapshot={snap} />);

@@ -8,7 +8,8 @@
 import type { GameState, CogId, HexKey, Tile, Treasury, CogState } from "./types";
 import { applyDrift } from "./coherence";
 import { chargeEnergy, maxEnergy } from "./energy";
-import { UPKEEP_PER_TILE } from "./constants";
+import { makeRng } from "./rng";
+import { MINT_DIVISOR, UPKEEP_PER_TILE } from "./constants";
 
 /** Events emitted by an Upkeep phase (for the turn log / replay). */
 export type UpkeepEvent =
@@ -17,12 +18,25 @@ export type UpkeepEvent =
 
 const addT = (a: Treasury, b: Treasury): Treasury => ({ C: a.C + b.C, O: a.O + b.O, Ge: a.Ge + b.Ge, S: a.S + b.S });
 
+/** Round x down to floor(x), plus 1 with probability equal to its fractional part
+ *  (so 2.3 → 2 with p=0.7, 3 with p=0.3). Unbiased: E[result] = x. */
+function stochasticRound(x: number, rng: () => number): number {
+  const floor = Math.floor(x);
+  return floor + (rng() < x - floor ? 1 : 0);
+}
+
 /**
  * The Upkeep phase: (1) coherence drift, (2) per-Cog upkeep cost — fund tiles in
  * descending coherence, starve the rest (lowest first, −1 coherence floored at 0),
  * (3) mint density×coherence of each aligned tile's mineral. Pure.
  */
-export function upkeep(state: GameState): { state: GameState; events: UpkeepEvent[] } {
+export function upkeep(
+  state: GameState,
+  // Stochastic-mint RNG. Defaults to a per-turn stream seeded purely from
+  // (seed, turn) so a game stays fully reproducible (replay == live); tests
+  // inject a fixed rng for deterministic mint assertions.
+  rng: () => number = makeRng((state.seed >>> 0) ^ Math.imul(state.turn, 0x9e3779b1)),
+): { state: GameState; events: UpkeepEvent[] } {
   const events: UpkeepEvent[] = [];
 
   // 1. coherence drift (returns a fresh state; input untouched)
@@ -56,12 +70,13 @@ export function upkeep(state: GameState): { state: GameState; events: UpkeepEven
       }
     }
 
-    // 3. mint (post-drift, post-upkeep coherence) — tile-less cogs mint nothing
+    // 3. mint (post-drift, post-upkeep coherence) — density×coherence/MINT_DIVISOR,
+    //    stochastically rounded to an integer. Tile-less cogs mint nothing.
     if (owned.length > 0) {
       const gained: Treasury = { C: 0, O: 0, Ge: 0, S: 0 };
       for (const k of owned) {
         const t = tiles[k]!;
-        gained[t.mineral] += t.density * t.coherence;
+        gained[t.mineral] += stochasticRound((t.density * t.coherence) / MINT_DIVISOR, rng);
       }
       treasury = addT(treasury, gained);
       events.push({ type: "mint", cog: cogId, gained });
