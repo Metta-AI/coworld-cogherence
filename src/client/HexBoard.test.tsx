@@ -22,18 +22,19 @@ describe("HexBoard", () => {
     const filled = [...container.querySelectorAll("polygon")].filter((p) => p.getAttribute("fill") !== "var(--neutral)");
     expect(filled.length).toBeGreaterThan(0); // home tiles are owned
   });
-  it("labels every tile with the mineral it provides", () => {
+  it("marks every tile with its mineral gem icon", () => {
     const { container } = render(<HexBoard snapshot={snap} />);
-    const minerals = [...container.querySelectorAll(".tile-mineral")];
-    expect(minerals).toHaveLength(127);
-    expect(minerals.every((m) => ["C", "O", "Ge", "S"].includes(m.textContent ?? ""))).toBe(true);
+    const gems = [...container.querySelectorAll("image.tile-mineral")];
+    expect(gems).toHaveLength(127);
+    expect(gems.every((g) => ["C", "O", "Ge", "S"].includes(g.getAttribute("data-mineral") ?? ""))).toBe(true);
+    expect(gems.every((g) => /icons\/transparent\/mineral-(c|o|ge|s)\.png$/.test(g.getAttribute("href") ?? ""))).toBe(true);
   });
-  it("does not print coherence numbers on tiles (only the mineral letter)", () => {
+  it("does not print coherence numbers on tiles (coherence shows via brightness)", () => {
     const { container } = render(<HexBoard snapshot={snap} />);
-    expect(container.querySelectorAll(".tile-coherence")).toHaveLength(0); // coherence shows via brightness, not text
-    expect(container.querySelectorAll(".tile-mineral")).toHaveLength(127); // exactly one label per tile
+    expect(container.querySelectorAll(".tile-coherence")).toHaveLength(0);
+    expect(container.querySelectorAll(".tile-mineral")).toHaveLength(127); // exactly one gem per tile
   });
-  it("renders denser tiles taller (a bigger hex) and on top", () => {
+  it("sizes the mineral gem bigger for denser tiles (and the hex stays uniform)", () => {
     const snapshot: GameSnapshot = {
       version: "0", seed: 7, turn: 1, phase: "negotiate", radius: 6, coherenceMax: 10, commons: 0, cogs: [],
       tiles: [
@@ -42,9 +43,12 @@ describe("HexBoard", () => {
       ],
     };
     const { container } = render(<HexBoard snapshot={snapshot} />);
+    const gems = [...container.querySelectorAll("image.tile-mineral")];
+    const w = (g: Element) => Number(g.getAttribute("width"));
+    expect(w(gems[1]!)).toBeGreaterThan(w(gems[0]!)); // density 3 gem larger than density 1
+    // hexes are uniform now (no taller-tile treatment): equal polygon heights
     const polys = [...container.querySelectorAll("polygon")];
-    // sorted by density ascending -> the thin tile is drawn first, the dense one last (on top)
-    expect(polyHeight(polys[1]!)).toBeGreaterThan(polyHeight(polys[0]!));
+    expect(polyHeight(polys[1]!)).toBeCloseTo(polyHeight(polys[0]!), 5);
   });
   it("brightens tiles by coherence (full-coherence home > zero-coherence neutral)", () => {
     const { container } = render(<HexBoard snapshot={snap} />);
