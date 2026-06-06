@@ -2,28 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "dev",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
-      "port": 5173
-    },
-    {
-      "name": "preview",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "preview"],
-      "port": 4173
-    },
-    {
       "name": "live",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "serve:llm", "--", "--agents", "llm,llm,greedy,greedy", "--turns", "12", "--pace", "2000", "--port", "5174"],
       "port": 5174
-    },
-    {
-      "name": "dashboard",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "serve", "--", "--agents", "greedy,greedy,greedy,greedy", "--pace", "450", "--port", "5175"],
-      "port": 5175
     }
   ]
 }

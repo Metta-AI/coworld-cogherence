@@ -16,6 +16,7 @@
     "play": "tsx src/cli.ts",
     "dev:llm": "AWS_REGION=${AWS_REGION:-us-west-2} tsx src/cli-llm.ts",
     "serve": "tsx src/cli-serve.ts",
+    "preserve:llm": "vite build",
     "serve:llm": "AWS_REGION=${AWS_REGION:-us-west-2} tsx src/cli-serve.ts"
   },
   "dependencies": {
