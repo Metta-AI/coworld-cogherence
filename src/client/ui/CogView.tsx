@@ -6,6 +6,7 @@ import type { Message } from "../../shared/messages";
 import { HexBoard } from "../HexBoard";
 import { cogColor, cogName } from "../colors";
 import { PromptsPanel } from "../PromptsPanel";
+import { SteeringPanel } from "./SteeringPanel";
 import type { ActPromptFrame } from "../net/feed";
 
 const idx = (id: string): number => Number(id.replace(/\D/g, "")) || 0;
@@ -15,11 +16,13 @@ export function CogView({
   cogId,
   actPrompts,
   messages,
+  live = false,
 }: {
   snapshot: GameSnapshot;
   cogId: string;
   actPrompts: Record<string, ActPromptFrame[]>;
   messages: Message[];
+  live?: boolean;
 }): React.ReactElement {
   const i = idx(cogId);
   const me = snapshot.cogs.find((c) => c.id === cogId);
@@ -42,6 +45,7 @@ export function CogView({
         </div>
       </div>
       <aside className="side-col">
+        {live && <SteeringPanel cogId={cogId} />}
         <div className="panel inbox" data-testid="inbox">
           <h2>Inbox</h2>
           <ul className="chat">

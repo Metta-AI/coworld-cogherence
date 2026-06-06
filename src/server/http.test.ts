@@ -3,6 +3,7 @@ import { createApp } from "./http";
 import { GameRunner } from "./game-runner";
 import { greedyAgent } from "../agents/stub";
 import { ActPromptHub } from "./act-prompt-hub";
+import { SteeringStore } from "./steering-store";
 
 const runner = new GameRunner({ seed: 7, agents: [greedyAgent("cog0"), greedyAgent("cog1")], maxTurns: 100 });
 const server = createApp(runner).listen(0);
@@ -35,5 +36,37 @@ describe("http", () => {
     srv.close();
     expect(j).toHaveLength(1);
     expect(j[0].content).toBe("hello");
+  });
+
+  it("GET/POST /cog/:id/steering -> reads and edits operator steering", async () => {
+    const steering = new SteeringStore();
+    const srv = createApp(runner, undefined, steering).listen(0);
+    const url = `http://127.0.0.1:${(srv.address() as { port: number }).port}`;
+    // defaults
+    expect(await (await fetch(`${url}/cog/cog0/steering`)).json()).toEqual({ persona: "", paused: false });
+    // edit
+    const posted = await (
+      await fetch(`${url}/cog/cog0/steering`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ persona: "betray everyone", paused: true }),
+      })
+    ).json();
+    srv.close();
+    expect(posted).toEqual({ persona: "betray everyone", paused: true });
+    expect(steering.get("cog0")).toEqual({ persona: "betray everyone", paused: true });
+  });
+
+  it("POST /cog/:id/steering -> 400 on an invalid patch", async () => {
+    const steering = new SteeringStore();
+    const srv = createApp(runner, undefined, steering).listen(0);
+    const url = `http://127.0.0.1:${(srv.address() as { port: number }).port}`;
+    const r = await fetch(`${url}/cog/cog0/steering`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ paused: "yes please" }), // wrong type
+    });
+    srv.close();
+    expect(r.status).toBe(400);
   });
 });

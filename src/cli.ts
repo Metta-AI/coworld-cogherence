@@ -53,11 +53,13 @@ export function parseArgs(argv: string[]): CliOptions {
   return { seed, agents, out, every: Math.max(1, every), turns };
 }
 
-/** Build one agent per spec (ids cog0..cogN). Random agents are seeded off the game seed. */
+/** Build one agent per spec (ids cog0..cogN). Random agents are seeded off the game
+ *  seed. `opts.persona(id)` (optional) is read each turn so a live operator can steer
+ *  an LLM Cog mid-game; it's ignored by scripted agents. */
 export function buildAgents(
   specs: string[],
   seed: number,
-  opts?: { onActPrompt?: (e: ActPromptEntry) => void },
+  opts?: { onActPrompt?: (e: ActPromptEntry) => void; persona?: (id: CogId) => string },
 ): Agent[] {
   let toolClient: ToolUseClient | null = null;
   const llmClient = (): ToolUseClient => (toolClient ??= new BedrockToolUseClient());
@@ -69,6 +71,7 @@ export function buildAgents(
     if (spec === "llm")
       return llmAgent(id, llmClient(), {
         report: (turn, content) => opts?.onActPrompt?.({ cogId: id, turn, phase: "commit", content }),
+        persona: opts?.persona ? () => opts.persona!(id) : undefined,
       });
     throw new Error(`unknown agent type: "${spec}" (expected greedy | peaceful | random | llm)`);
   });

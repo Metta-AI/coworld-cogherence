@@ -4,6 +4,7 @@ import { buildAgents } from "./cli";
 import { startServer } from "./server/runtime";
 import { ActPromptHub } from "./server/act-prompt-hub";
 import { MessageBus } from "./server/message-bus";
+import { SteeringStore, pausableAgent } from "./server/steering-store";
 
 const arg = (name: string, dflt: string): string => {
   const i = process.argv.indexOf(`--${name}`);
@@ -26,8 +27,12 @@ async function main(): Promise<void> {
 
   const hub = new ActPromptHub();
   const bus = new MessageBus();
-  const agents = buildAgents(specs, seed, { onActPrompt: (e) => hub.record(e) });
-  const h = await startServer({ seed, agents, port, deadlineMs, minTurnMs, maxTurns, hub, bus, autorun: true });
+  const steering = new SteeringStore();
+  const agents = buildAgents(specs, seed, {
+    onActPrompt: (e) => hub.record(e),
+    persona: (id) => steering.persona(id),
+  }).map((a) => pausableAgent(a, steering));
+  const h = await startServer({ seed, agents, port, deadlineMs, minTurnMs, maxTurns, hub, bus, steering, autorun: true });
   console.log(`Cogherence live — seed ${seed}, agents [${specs.join(", ")}]`);
   console.log(`  server:   ${h.url}`);
   console.log(`  viewer:   ${h.url}/?live`);

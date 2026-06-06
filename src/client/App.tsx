@@ -110,7 +110,13 @@ export function App({ replay: injected, live: liveProp }: { replay?: Replay; liv
           )}
           {loc.view === "feed" && <FeedView messages={visibleMessages} />}
           {loc.view === "cog" && loc.cogId && (
-            <CogView snapshot={snapshot} cogId={loc.cogId} actPrompts={store.actPrompts} messages={visibleMessages} />
+            <CogView
+              snapshot={snapshot}
+              cogId={loc.cogId}
+              actPrompts={store.actPrompts}
+              messages={visibleMessages}
+              live={liveMode}
+            />
           )}
           <Scrubber
             index={index}

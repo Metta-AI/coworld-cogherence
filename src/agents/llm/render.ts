@@ -21,6 +21,13 @@ YOUR ACTIONS each turn (via the submit_orders tool):
 
 Spend only energy you can afford — an unaffordable order set is rejected wholesale. Think briefly, then call submit_orders exactly once.`;
 
+/** Prepend an operator-set persona to the system prompt (empty/blank = unchanged).
+ *  Re-applied every turn so live steering takes effect on the next decision. */
+function systemWithPersona(persona?: string): string {
+  const p = persona?.trim();
+  return p ? `OPERATOR DIRECTIVE (follow this persona): ${p}\n\n${SYSTEM_PROMPT}` : SYSTEM_PROMPT;
+}
+
 function heartsLine(view: AgentView): string {
   return view.state.cogOrder.map((id) => `${id}:${view.state.cogs[id]!.hearts}`).join(" ");
 }
@@ -32,7 +39,7 @@ function renderMessages(view: AgentView): string {
   return msgs.map((m) => `  ${m.from} → ${m.to === "public" ? "all" : m.to}: ${m.text}`).join("\n");
 }
 
-export function renderView(view: AgentView): { system: string; user: string } {
+export function renderView(view: AgentView, persona?: string): { system: string; user: string } {
   const { state, me } = view;
   const cog = state.cogs[me]!;
   const t = cog.treasury;
@@ -68,12 +75,12 @@ export function renderView(view: AgentView): { system: string; user: string } {
     `Call submit_orders with your orders for this turn.`,
   ].join("\n");
 
-  return { system: SYSTEM_PROMPT, user };
+  return { system: systemWithPersona(persona), user };
 }
 
 /** The Negotiate-phase prompt: board + scoreboard + recent messages + an
  *  instruction to send public/DM messages (the cheap-talk politics, design §9). */
-export function renderNegotiate(view: AgentView): { system: string; user: string } {
+export function renderNegotiate(view: AgentView, persona?: string): { system: string; user: string } {
   const { state, me } = view;
   const t = state.cogs[me]!.treasury;
   const user = [
@@ -86,5 +93,5 @@ export function renderNegotiate(view: AgentView): { system: string; user: string
     ``,
     `Send public messages (to "public") or private DMs (to a cog id like "cog1") to form alliances, propose mineral trades, bluff, or threaten — nothing is binding, and you can betray later. Call send_messages with your messages (empty list to stay silent). One or two sentences each.`,
   ].join("\n");
-  return { system: SYSTEM_PROMPT, user };
+  return { system: systemWithPersona(persona), user };
 }

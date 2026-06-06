@@ -19,9 +19,9 @@ export type ReportFn = (turn: number, content: string) => void;
 export async function llmDecide(
   view: AgentView,
   client: ToolUseClient,
-  opts?: { report?: ReportFn },
+  opts?: { report?: ReportFn; persona?: string },
 ): Promise<Order[]> {
-  const { system, user } = renderView(view);
+  const { system, user } = renderView(view, opts?.persona);
   const report = (orders: Order[], note?: string): void =>
     opts?.report?.(view.state.turn, `${user}\n\n→ ${note ?? `decided: ${JSON.stringify(orders)}`}`);
 
@@ -43,8 +43,12 @@ export async function llmDecide(
 }
 
 /** Ask the model for negotiation messages this turn. Never throws — returns []. */
-export async function llmNegotiate(view: AgentView, client: ToolUseClient, opts?: { report?: ReportFn }): Promise<Post[]> {
-  const { system, user } = renderNegotiate(view);
+export async function llmNegotiate(
+  view: AgentView,
+  client: ToolUseClient,
+  opts?: { report?: ReportFn; persona?: string },
+): Promise<Post[]> {
+  const { system, user } = renderNegotiate(view, opts?.persona);
   let reply;
   try {
     reply = await client.converse({ system, messages: [{ role: "user", content: user }], tools: [SEND_MESSAGES_TOOL] });
@@ -59,11 +63,17 @@ export async function llmNegotiate(view: AgentView, client: ToolUseClient, opts?
 }
 
 /** An Agent backed by an LLM: negotiates (public/DM messages) then commits orders.
- *  `opts.report` surfaces the act-prompt (transparency). */
-export function llmAgent(id: CogId, client: ToolUseClient, opts?: { report?: ReportFn }): Agent {
+ *  `opts.report` surfaces the act-prompt (transparency). `opts.persona` is read
+ *  every turn (a getter) so operator steering takes effect on the next decision. */
+export function llmAgent(
+  id: CogId,
+  client: ToolUseClient,
+  opts?: { report?: ReportFn; persona?: () => string },
+): Agent {
+  const now = () => ({ report: opts?.report, persona: opts?.persona?.() });
   return {
     id,
-    negotiate: (view) => llmNegotiate(view, client, opts),
-    commit: (view) => llmDecide(view, client, opts),
+    negotiate: (view) => llmNegotiate(view, client, now()),
+    commit: (view) => llmDecide(view, client, now()),
   };
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { renderView, SYSTEM_PROMPT } from "./render";
+import { renderView, renderNegotiate, SYSTEM_PROMPT } from "./render";
 import { newGame } from "../../shared/engine/game";
 
 const view = (me = "cog0") => ({ state: newGame(7, 4), me });
@@ -31,5 +31,23 @@ describe("renderView", () => {
   it("shows the public scoreboard", () => {
     const { user } = renderView(view("cog0"));
     expect(user).toMatch(/Hearts — cog0:0 cog1:0 cog2:0 cog3:0/);
+  });
+
+  it("prepends an operator persona to the system prompt when set", () => {
+    const plain = renderView(view("cog0")).system;
+    const steered = renderView(view("cog0"), "play ruthlessly and betray Bob").system;
+    expect(plain).toBe(SYSTEM_PROMPT); // no persona -> unchanged
+    expect(steered).toContain("OPERATOR DIRECTIVE");
+    expect(steered).toContain("play ruthlessly and betray Bob");
+    expect(steered).toContain(SYSTEM_PROMPT); // persona is prepended, rules retained
+  });
+
+  it("ignores a blank persona (whitespace only)", () => {
+    expect(renderView(view("cog0"), "   ").system).toBe(SYSTEM_PROMPT);
+    expect(renderNegotiate(view("cog0"), "").system).toBe(SYSTEM_PROMPT);
+  });
+
+  it("also steers the negotiate prompt", () => {
+    expect(renderNegotiate(view("cog0"), "always lie in DMs").system).toContain("always lie in DMs");
   });
 });
