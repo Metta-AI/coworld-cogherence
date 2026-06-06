@@ -45,6 +45,13 @@ describe("applyDrift", () => {
     expect(coh(g, 0, 0)).toBe(0);
   });
 
+  it("a tile that erodes to Coherence 0 goes neutral", () => {
+    // lone A tile at coherence 1, no friendly neighbors -> minority -> -1 -> 0 -> neutral husk
+    const g = applyDrift(stateOf([tile(0, 0, "A", 1)]));
+    expect(coh(g, 0, 0)).toBe(0);
+    expect(align(g, 0, 0)).toBeNull();
+  });
+
   it("neutral tiles never drift, even surrounded by aligned tiles", () => {
     const ns = neighbors({ q: 0, r: 0 }).map((h) => tile(h.q, h.r, "A", 3));
     const g = applyDrift(stateOf([tile(0, 0, null, 3), ...ns]));

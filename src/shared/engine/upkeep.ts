@@ -65,7 +65,8 @@ export function upkeep(
       for (const k of byCoherenceDesc.slice(funded)) {
         const t = tiles[k]!;
         const coherence = Math.max(0, t.coherence - 1);
-        tiles[k] = { ...t, coherence };
+        // A tile starved to Coherence 0 loses its alignment — it goes neutral.
+        tiles[k] = coherence === 0 ? { ...t, coherence, alignment: null } : { ...t, coherence };
         events.push({ type: "starved", cog: cogId, tile: k, coherence });
       }
     }

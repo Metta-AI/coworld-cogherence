@@ -65,7 +65,8 @@ export function resolve(
     for (const o of orders) {
       if (reject) break;
       if (o.type === "align") {
-        if (!isLegalAlignTarget(state, cogId, o.tile)) reject = `illegal align ${o.tile}`;
+        if (o.energy < 1) reject = `align ${o.tile} needs at least 1 energy`;
+        else if (!isLegalAlignTarget(state, cogId, o.tile)) reject = `illegal align ${o.tile}`;
         else aligns.push([o.tile, o.energy]);
       } else if (o.type === "exploit") {
         if (!isOwn(state, cogId, o.tile)) reject = `illegal exploit ${o.tile}`;

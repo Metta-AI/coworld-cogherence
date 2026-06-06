@@ -12,8 +12,9 @@ import { COHERENCE_MAX } from "./constants";
  * Each aligned tile counts its in-board neighbors (neighbors absent from the
  * board are not counted). A strict majority sharing its alignment raises
  * Coherence by 1 (capped at COHERENCE_MAX); otherwise it falls by 1 (floored
- * at 0). Neutral tiles never drift. Computed from a snapshot of `state` and
- * pure — the input is never mutated.
+ * at 0). A tile that erodes to Coherence 0 loses its alignment — it goes neutral
+ * (the husk is then anyone's to claim). Neutral tiles never drift. Computed from
+ * a snapshot of `state` and pure — the input is never mutated.
  */
 export function applyDrift(state: GameState): GameState {
   const tiles: Record<string, Tile> = {};
@@ -33,7 +34,7 @@ export function applyDrift(state: GameState): GameState {
     const majority = same * 2 > inBoard; // strict majority of in-board neighbors
     const delta = majority ? 1 : -1;
     const coherence = Math.max(0, Math.min(COHERENCE_MAX, tile.coherence + delta));
-    tiles[k] = { ...tile, coherence };
+    tiles[k] = coherence === 0 ? { ...tile, coherence, alignment: null } : { ...tile, coherence };
   }
   return { ...state, tiles };
 }

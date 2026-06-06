@@ -55,6 +55,15 @@ describe("resolve", () => {
     expect(events.some((e) => e.type === "rejected")).toBe(true);
   });
 
+  it("rejects an align that commits less than 1 energy (no free captures)", () => {
+    // a programmatically-built 0-energy align (bypassing the schema's positive() guard) on A's own
+    // tile is a legal target, so the only reason to bounce it is the energy floor.
+    const s = makeState({ tiles: [tile(0, 0, "A", 3)], cogOrder: ["A"], treasuries: { A: T(1, 1, 1, 1) } });
+    const { state, events } = resolve(s, { A: [{ type: "align", tile: "0,0", energy: 0 }] });
+    expect(at(state, 0, 0).coherence).toBe(3); // untouched
+    expect(events.some((e) => e.type === "rejected" && /1 energy/.test(e.reason))).toBe(true);
+  });
+
   it("transfer moves minerals to the recipient (next-turn money) and costs the sender 1 energy + the sent minerals", () => {
     const s = makeState({
       tiles: [tile(0, 0, "A", 3)], cogOrder: ["A", "B"],

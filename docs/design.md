@@ -71,13 +71,13 @@ Tile **X** tallies its 6 neighbor slots (enemy *and* neutral count against it):
 
 A fully-surrounded interior tile gains every turn (pins at the cap); a lone forward tile loses every turn (sinks to 0). Edge/corner tiles just have fewer slots — both the majority threshold and the cap scale to their real neighbor count.
 
-**Capture rule:** a tile flips alignment **only** through a winning Align (§5). *Neighbor erosion never flips a tile on its own* — it just grinds Coherence toward 0 while the tile stays its owner's. A winning Align flips the instant a challenger's force exceeds the incumbent's defense, even from high Coherence. "Siege, not a snipe" is therefore **emergent, not a hard cap**: a Coherence-6 fortress needs 7+ force in a single turn (effectively unsnipeable), while a thin Coherence-1 salient flips for a trickle of energy.
+**Capture rule:** a tile changes hands two ways — a winning Align (§5) flips it to the challenger, or **erosion to Coherence 0 drops it to neutral**. A tile whose Coherence grinds to 0 (via neighbor drift §4 or unpaid upkeep §6) *loses its alignment and becomes a neutral husk* — anyone adjacent can then claim it with a fresh Align. A winning Align flips the instant a challenger's force exceeds the incumbent's defense, even from high Coherence. "Siege, not a snipe" is therefore **emergent, not a hard cap**: a Coherence-10 fortress needs 11+ force in a single turn (effectively unsnipeable), while a thin Coherence-1 salient flips for a trickle of energy — or simply rots to neutral on its own next Upkeep.
 
 This single rule produces enormous depth, all emergent:
 
-- **Compact blobs are fortresses.** An interior tile has 6 friendly neighbors → Coherence pins at 6 → effectively unflippable. You cannot snipe a heartland.
-- **Overextension self-punishes.** A lone forward tile or thin tendril has minority-friendly neighbors → it erodes on its own, every Upkeep, for free. Greedy grabs rot.
-- **Encirclement is a weapon.** Align the tiles *around* an enemy hex; its neighborhood turns hostile and Upkeep grinds its Coherence to 0 *for* you — then a trivial Align flips the husk. You capture by context, spending almost nothing on the tile itself.
+- **Compact blobs are fortresses.** An interior tile has 6 friendly neighbors → Coherence pins at the cap → effectively unflippable. You cannot snipe a heartland.
+- **Overextension self-punishes.** A lone forward tile or thin tendril has minority-friendly neighbors → it erodes on its own, every Upkeep, for free — and once it hits 0 it falls neutral. Greedy grabs rot away entirely.
+- **Encirclement is a weapon.** Align the tiles *around* an enemy hex; its neighborhood turns hostile and Upkeep grinds its Coherence to 0 *for* you — at which point it drops neutral on its own, and a trivial Align claims the husk. You capture by context, spending almost nothing on the tile itself.
 - **Peace is literally stabilizing.** Two Cogs agreeing on a clean, straight border keep most border tiles majority-friendly → both stay coherent and rich. Jagged contested borders bleed Coherence for *both* sides. **Cooperation and incoherence are opposites on the board itself.**
 
 "Entropy" is just this decay (plus upkeep, §6) — emergent, no separate front.

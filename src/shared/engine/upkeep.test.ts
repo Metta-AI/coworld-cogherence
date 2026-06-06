@@ -92,4 +92,12 @@ describe("upkeep", () => {
     expect(at(state, 0, 0).coherence).toBe(2);     // drift 4->3, starved -> 2
     expect(tre(state, "A")).toEqual(T(0, 1, 0, 0)); // mint floor(5 (density) * 2 (coherence) / 10) = 1 O, NOT floor(5*4/10)=2
   });
+
+  it("a tile starved to Coherence 0 goes neutral", () => {
+    // lone A tile at coherence 2, no energy: drift -1 -> 1, then starved -1 -> 0 -> neutral husk
+    const s = makeState({ tiles: [tile(0, 0, "A", 2)], cogOrder: ["A"], treasuries: { A: T() } });
+    const { state } = upkeep(s, FLOOR);
+    expect(at(state, 0, 0).coherence).toBe(0);
+    expect(at(state, 0, 0).alignment).toBeNull();
+  });
 });
