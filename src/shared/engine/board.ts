@@ -37,6 +37,10 @@ export function generateBoard(seed: number, numCogs: number): GameState {
     { q: -R, r: R },
     { q: 0, r: R },
   ];
+
+  // Strategic landmarks — the six corners and the center — are always rich (density 3).
+  for (const hex of [...corners, { q: 0, r: 0 }]) tiles[key(hex)]!.density = 3;
+
   const cogs: Record<CogId, CogState> = {};
   const cogOrder: CogId[] = [];
   for (let i = 0; i < numCogs; i++) {
