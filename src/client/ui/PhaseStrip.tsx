@@ -19,9 +19,13 @@ function useTick(active: boolean): number {
 export function PhaseStrip({ status }: { status: ServerStatus }): React.ReactElement {
   const counting = status.phaseDeadlineAt !== undefined && !status.finished;
   const now = useTick(counting);
-  const secs =
-    status.phaseDeadlineAt !== undefined ? Math.max(0, Math.ceil((status.phaseDeadlineAt - now) / 1000)) : null;
+  const secs = counting ? Math.max(0, Math.ceil((status.phaseDeadlineAt! - now) / 1000)) : null;
   const liveIdx = PHASES.indexOf(status.phase as (typeof PHASES)[number]);
+
+  // Countdown shows on any deadlined phase; the ready count is Commit-only.
+  const ready = status.phase === "commit" && !status.finished ? `${status.done.length}/${status.cogCount} ready` : "";
+  const clock = secs !== null ? `${secs}s` : "";
+  const meta = [ready, clock].filter(Boolean).join(" · ");
 
   return (
     <div className="phase-strip" data-testid="phase-strip">
@@ -35,11 +39,7 @@ export function PhaseStrip({ status }: { status: ServerStatus }): React.ReactEle
           );
         })}
       </div>
-      {status.phase === "commit" && !status.finished && (
-        <span className="phase-meta">
-          {status.done.length}/{status.cogCount} ready{secs !== null ? ` · ${secs}s` : ""}
-        </span>
-      )}
+      {meta && <span className="phase-meta">{meta}</span>}
     </div>
   );
 }

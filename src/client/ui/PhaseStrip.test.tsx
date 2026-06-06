@@ -33,8 +33,16 @@ describe("PhaseStrip", () => {
     expect(text).toMatch(/\d+s/); // a seconds countdown
   });
 
-  it("hides the ready/countdown meta outside the commit phase", () => {
-    const { getByTestId } = render(<PhaseStrip status={status({ phase: "negotiate" })} />);
-    expect(getByTestId("phase-strip").textContent).not.toMatch(/ready/);
+  it("shows a countdown during a deadlined negotiate phase, but no ready count", () => {
+    const future = Date.now() + 12000;
+    const { getByTestId } = render(<PhaseStrip status={status({ phase: "negotiate", phaseDeadlineAt: future })} />);
+    const text = getByTestId("phase-strip").textContent ?? "";
+    expect(text).toMatch(/\d+s/); // countdown shows here too (it's the long cog-facing window)
+    expect(text).not.toMatch(/ready/); // ready count is Commit-only
+  });
+
+  it("shows no meta when there's no deadline", () => {
+    const { getByTestId } = render(<PhaseStrip status={status({ phase: "negotiate", phaseDeadlineAt: undefined })} />);
+    expect(getByTestId("phase-strip").textContent).not.toMatch(/ready|\ds/);
   });
 });

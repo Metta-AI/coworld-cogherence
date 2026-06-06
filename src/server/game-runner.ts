@@ -108,11 +108,14 @@ export class GameRunner {
       const startedAt = Date.now();
       const snapshot = this.state;
 
-      // Negotiate phase (free-form cheap talk): agents post public/DM messages.
+      // Negotiate phase (free-form cheap talk): a deadline-bounded window so the
+      // spectator sees a countdown here too — it's the longest cog-facing stretch.
       if (this.bus) {
         this.livePhase = "negotiate";
+        this.phaseDeadlineAt = Date.now() + this.deadlineMs;
         this.emit({ type: "serverStatus", status: this.status() });
-        await this.negotiateRound(snapshot);
+        await this.negotiateRound(snapshot, this.phaseDeadlineAt);
+        this.phaseDeadlineAt = undefined;
       }
 
       // Commit phase: open a deadline window; broadcast it + each cog's ready flip.
@@ -158,14 +161,17 @@ export class GameRunner {
   }
 
   /** One or more rounds of cheap talk: each negotiating agent posts to the bus,
-   *  seeing prior messages (so later agents can react within the round). */
-  private async negotiateRound(snapshot: GameState): Promise<void> {
+   *  seeing prior messages (so later agents can react within the round). Bounded by
+   *  `deadlineAt` — once the window closes, remaining agents are skipped (keeps the
+   *  countdown honest and a slow model from stalling the turn). */
+  private async negotiateRound(snapshot: GameState, deadlineAt = Infinity): Promise<void> {
     const bus = this.bus!;
     for (let round = 0; round < this.negotiateRounds; round++) {
       for (const a of this.agents) {
-        if (!a.negotiate) continue;
+        if (!a.negotiate || Date.now() >= deadlineAt) continue;
         const posts = await a.negotiate({ state: snapshot, me: a.id, messages: bus.visibleTo(a.id) });
         for (const p of posts) bus.post(a.id, p.to, p.text, snapshot.turn);
+        this.emit({ type: "serverStatus", status: this.status() }); // refresh the countdown + chat live
       }
     }
   }
