@@ -17,6 +17,23 @@ describe("FeedView", () => {
     expect(getByText(/alliance\?/)).toBeTruthy();
     expect(getAllByText(/Alice/).length).toBeGreaterThan(0); // cog0 -> Alice
   });
+
+  it("groups messages under one header per turn", () => {
+    const { container, getAllByText } = render(
+      <FeedView
+        messages={[
+          { seq: 1, turn: 1, from: "cog0", to: "public", text: "hi" },
+          { seq: 2, turn: 1, from: "cog1", to: "public", text: "hey" },
+          { seq: 3, turn: 2, from: "cog0", to: "public", text: "again" },
+        ]}
+      />,
+    );
+    const heads = [...container.querySelectorAll(".chat-turn-head")];
+    expect(heads.map((h) => h.textContent)).toEqual(["Turn 1", "Turn 2"]); // 2 turns -> 2 group headers
+    expect(getAllByText(/^(hi|hey)$/).length).toBe(2); // both turn-1 messages under "Turn 1"
+    expect(container.querySelectorAll(".chat-group")).toHaveLength(2);
+  });
+
   it("shows an empty state", () => {
     const { getByText } = render(<FeedView messages={[]} />);
     expect(getByText(/haven't spoken/)).toBeTruthy();

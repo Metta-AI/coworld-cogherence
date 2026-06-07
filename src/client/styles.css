@@ -456,9 +456,29 @@ svg .tile-mineral {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 10px;
   max-height: 70vh;
   overflow: auto;
+}
+/* Per-turn grouping: a sticky turn header over that turn's messages. */
+.chat-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.chat-turn-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  font-family: var(--f-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 4px 2px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
 }
 .chat-msg {
   display: flex;
