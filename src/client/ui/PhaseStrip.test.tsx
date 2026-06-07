@@ -25,24 +25,13 @@ describe("PhaseStrip", () => {
     expect(chips[2]!.className).not.toContain("live");
   });
 
-  it("shows ready count + countdown during commit", () => {
-    const future = Date.now() + 8000;
-    const { getByTestId } = render(<PhaseStrip status={status({ phase: "commit", phaseDeadlineAt: future })} />);
-    const text = getByTestId("phase-strip").textContent ?? "";
-    expect(text).toMatch(/2\/4 ready/);
-    expect(text).toMatch(/\d+s/); // a seconds countdown
+  it("shows the ready count during commit (the deadline countdown lives in the header)", () => {
+    const { getByTestId } = render(<PhaseStrip status={status({ phase: "commit" })} />);
+    expect(getByTestId("phase-strip").textContent).toMatch(/2\/4 ready/);
   });
 
-  it("shows a countdown during a deadlined negotiate phase, but no ready count", () => {
-    const future = Date.now() + 12000;
-    const { getByTestId } = render(<PhaseStrip status={status({ phase: "negotiate", phaseDeadlineAt: future })} />);
-    const text = getByTestId("phase-strip").textContent ?? "";
-    expect(text).toMatch(/\d+s/); // countdown shows here too (it's the long cog-facing window)
-    expect(text).not.toMatch(/ready/); // ready count is Commit-only
-  });
-
-  it("shows no meta when there's no deadline", () => {
-    const { getByTestId } = render(<PhaseStrip status={status({ phase: "negotiate", phaseDeadlineAt: undefined })} />);
-    expect(getByTestId("phase-strip").textContent).not.toMatch(/ready|\ds/);
+  it("shows no ready count outside commit", () => {
+    const { getByTestId } = render(<PhaseStrip status={status({ phase: "negotiate" })} />);
+    expect(getByTestId("phase-strip").textContent).not.toMatch(/ready/);
   });
 });

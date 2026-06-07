@@ -1,6 +1,7 @@
-// The dashboard nav: Global · Feed · one tab per Cog. Tabs are links (navigating
-// reloads the page and reconnects to that view's ws endpoint).
-import React from "react";
+// The dashboard view menu (polis-style dropdown): a button showing the current
+// view, opening a menu of Global · Feed · one row per Cog (accent-dotted). Picking
+// a row navigates (full reload → reconnect to that view's ws), preserving ?live.
+import React, { useEffect, useRef, useState } from "react";
 import { viewHref, type View } from "./nav";
 import { cogColor, cogName } from "../colors";
 
@@ -15,25 +16,58 @@ export function ViewSwitcher({
   live: boolean;
   cogs: { id: string; index: number }[];
 }): React.ReactElement {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent): void => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
+  const activeCog = view === "cog" ? cogs.find((c) => c.id === cogId) : undefined;
+  const label = view === "global" ? "Global" : view === "feed" ? "Feed" : activeCog ? cogName(activeCog.index) : "Cog";
+  const labelColor = activeCog ? cogColor(activeCog.index) : "var(--text)";
+
+  const row = (active: boolean, accent: string, name: string, href: string): React.ReactElement => (
+    <a
+      key={name}
+      href={href}
+      className={`vs-row ${active ? "is-active" : ""}`}
+      style={{ borderLeftColor: active ? accent : "transparent", ...(active ? { color: accent } : {}) }}
+    >
+      <span className="vs-dot" style={{ background: accent }} />
+      {name}
+    </a>
+  );
+
   return (
-    <nav className="view-switcher" data-testid="view-switcher">
-      <a className={`tab ${view === "global" ? "tab-active" : ""}`} href={viewHref("global", null, live)}>
-        Global
-      </a>
-      <a className={`tab ${view === "feed" ? "tab-active" : ""}`} href={viewHref("feed", null, live)}>
-        Feed
-      </a>
-      <span className="tab-sep" />
-      {cogs.map((c) => (
-        <a
-          key={c.id}
-          className={`tab tab-cog ${view === "cog" && cogId === c.id ? "tab-active" : ""}`}
-          href={viewHref("cog", c.id, live)}
-        >
-          <span className="tab-swatch" style={{ background: cogColor(c.index) }} />
-          {cogName(c.index)}
-        </a>
-      ))}
-    </nav>
+    <div className="view-switcher" ref={ref} data-testid="view-switcher">
+      <button
+        type="button"
+        className="vs-button"
+        style={{ color: labelColor }}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title="switch view"
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span className="vs-current">{label}</span>
+        <span className="vs-caret">▾</span>
+      </button>
+      {open && (
+        <div className="vs-menu" role="menu">
+          {row(view === "global", "var(--text)", "Global", viewHref("global", null, live))}
+          {row(view === "feed", "var(--accent)", "Feed", viewHref("feed", null, live))}
+          <div className="vs-divider" />
+          {cogs.map((c) =>
+            row(view === "cog" && cogId === c.id, cogColor(c.index), cogName(c.index), viewHref("cog", c.id, live)),
+          )}
+        </div>
+      )}
+    </div>
   );
 }

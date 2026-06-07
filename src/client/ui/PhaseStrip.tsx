@@ -1,31 +1,14 @@
-// Live turn-timing strip (ported from cogame-polis): the four phases with the
-// current one lit, plus the Commit-phase deadline countdown and ready count.
-import React, { useEffect, useState } from "react";
+// Live turn-timing strip (cogame-polis style): the four phases with the current
+// one lit. The deadline countdown lives in the header clock; the strip carries
+// just the Commit-phase ready count (how many cogs have locked their orders).
+import React from "react";
 import type { ServerStatus } from "../../shared/protocol";
 
 const PHASES = ["negotiate", "commit", "resolve", "upkeep"] as const;
 
-/** Re-render on a 500ms tick while `active` so the countdown stays current. */
-function useTick(active: boolean): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!active) return;
-    const id = setInterval(() => setNow(Date.now()), 500);
-    return () => clearInterval(id);
-  }, [active]);
-  return now;
-}
-
 export function PhaseStrip({ status }: { status: ServerStatus }): React.ReactElement {
-  const counting = status.phaseDeadlineAt !== undefined && !status.finished;
-  const now = useTick(counting);
-  const secs = counting ? Math.max(0, Math.ceil((status.phaseDeadlineAt! - now) / 1000)) : null;
   const liveIdx = PHASES.indexOf(status.phase as (typeof PHASES)[number]);
-
-  // Countdown shows on any deadlined phase; the ready count is Commit-only.
   const ready = status.phase === "commit" && !status.finished ? `${status.done.length}/${status.cogCount} ready` : "";
-  const clock = secs !== null ? `${secs}s` : "";
-  const meta = [ready, clock].filter(Boolean).join(" · ");
 
   return (
     <div className="phase-strip" data-testid="phase-strip">
@@ -39,7 +22,7 @@ export function PhaseStrip({ status }: { status: ServerStatus }): React.ReactEle
           );
         })}
       </div>
-      {meta && <span className="phase-meta">{meta}</span>}
+      {ready && <span className="phase-meta">{ready}</span>}
     </div>
   );
 }

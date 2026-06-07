@@ -32,6 +32,8 @@ export class GameRunner {
   private livePhase: GameState["phase"] | null = null;
   private phaseDeadlineAt: number | undefined;
   private coord: PhaseCoordinator<Order[]> | null = null;
+  /** Epoch ms the current game's run loop began (reset each reset) — header clock. */
+  private startedAt: number | undefined;
 
   constructor(opts: {
     seed: number;
@@ -95,12 +97,14 @@ export class GameRunner {
       pending: this.coord?.pending() ?? [],
       done: this.coord?.done() ?? [],
       ...(this.phaseDeadlineAt !== undefined ? { phaseDeadlineAt: this.phaseDeadlineAt } : {}),
+      ...(this.startedAt !== undefined ? { startedAt: this.startedAt } : {}),
       ...extra,
     };
   }
 
   async run(): Promise<{ winner: CogId | null; standings: Array<{ cog: CogId; hearts: number }> }> {
     const gen = this.generation;
+    this.startedAt = Date.now(); // game clock starts now (reset → a fresh clock)
     this.emit({ type: "snapshot", snapshot: toSnapshot(this.state) });
     this.emit({ type: "serverStatus", status: this.status() });
 

@@ -10,7 +10,6 @@ import { applyFrame, connectLiveFeed, type FeedStore } from "./net/feed";
 import { makeWorldSocket } from "./net/world-socket";
 import { parseLocation } from "./ui/nav";
 import { AppHeader } from "./ui/AppHeader";
-import { ViewSwitcher } from "./ui/ViewSwitcher";
 import { GlobalView } from "./ui/GlobalView";
 import { FeedView } from "./ui/FeedView";
 import { CogView } from "./ui/CogView";
@@ -107,8 +106,15 @@ export function App({ replay: injected, live: liveProp }: { replay?: Replay; liv
 
   return (
     <div className="app">
-      <AppHeader snapshot={snapshot} status={store.status} connected={connected && liveMode} />
-      <ViewSwitcher view={loc.view} cogId={loc.cogId} live={liveMode} cogs={cogs} />
+      <AppHeader
+        snapshot={snapshot}
+        status={store.status}
+        connected={connected && liveMode}
+        view={loc.view}
+        cogId={loc.cogId}
+        live={liveMode}
+        cogs={cogs}
+      />
       {!snapshot ? (
         <p className="loading">{liveMode ? "Waiting for the live game…" : "Loading replay…"}</p>
       ) : (

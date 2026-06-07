@@ -79,6 +79,7 @@ export const serverStatusSchema = z
     pending: z.array(z.string()).default([]),
     done: z.array(z.string()).default([]),
     phaseDeadlineAt: z.number().optional(),
+    startedAt: z.number().optional(), // epoch ms the live game began — drives the header GAME clock
   })
   .strict();
 

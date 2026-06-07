@@ -19,10 +19,12 @@ test("the per-cog route renders (absolute asset base)", async ({ page }) => {
   await expect(page.locator("polygon")).toHaveCount(127);
 });
 
-test("the view switcher links to all views", async ({ page }) => {
+test("the view switcher dropdown lists all views", async ({ page }) => {
   await page.goto("/?live");
   const nav = page.getByTestId("view-switcher");
-  await expect(nav.getByText("Global")).toBeVisible();
-  await expect(nav.getByText("Feed")).toBeVisible();
-  await expect(nav.getByText("Alice")).toBeVisible();
+  await nav.getByRole("button").click(); // open the dropdown menu
+  // the menu rows are links (the button label is separate), so target by role
+  await expect(nav.getByRole("link", { name: "Global" })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Feed" })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Alice" })).toBeVisible();
 });
