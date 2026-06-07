@@ -88,7 +88,7 @@ export function App({ replay: injected, live: liveProp }: { replay?: Replay; liv
   // events landed when the board advanced PAST their turn (event.turn < turn now
   // showing), while a turn's negotiation chat happens AT that turn (msg.turn <=).
   const turnNow = snapshot ? snapshot.turn : 0;
-  const visibleEvents = store.events.filter((e) => e.turn < turnNow).map((e) => e.event);
+  const visibleEvents = store.events.filter((e) => e.turn < turnNow); // stamped {turn, event} — the ticker groups by turn
   const visibleMessages = store.messages.filter((m) => m.turn <= turnNow);
 
   // Per-turn scrubber annotations: chat sent on a turn, and captures that flipped a

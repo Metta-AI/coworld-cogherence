@@ -2,12 +2,11 @@
 // act-prompt transparency for every Cog.
 import React from "react";
 import type { GameSnapshot } from "../../shared/snapshot";
-import type { TurnEvent } from "../../shared/engine/log";
 import { HexBoard } from "../HexBoard";
 import { Roster } from "../Roster";
 import { ActivityTicker } from "./ActivityTicker";
 import { PromptsPanel } from "../PromptsPanel";
-import type { ActPromptFrame } from "../net/feed";
+import type { ActPromptFrame, StampedEvent } from "../net/feed";
 
 export function GlobalView({
   snapshot,
@@ -17,7 +16,7 @@ export function GlobalView({
 }: {
   snapshot: GameSnapshot;
   history?: GameSnapshot[];
-  events: TurnEvent[];
+  events: StampedEvent[];
   actPrompts: Record<string, ActPromptFrame[]>;
 }): React.ReactElement {
   return (
