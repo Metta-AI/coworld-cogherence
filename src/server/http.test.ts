@@ -70,6 +70,25 @@ describe("http", () => {
     expect(doc.frames.filter((f: { type: string }) => f.type === "snapshot").length).toBeGreaterThanOrEqual(3);
   });
 
+  it("defaultLive redirects a bare route to ?live (and not when ?live is already present)", async () => {
+    const srv = createApp(runner, undefined, undefined, undefined, { defaultLive: true }).listen(0);
+    const url = `http://127.0.0.1:${(srv.address() as { port: number }).port}`;
+    const bare = await fetch(`${url}/`, { redirect: "manual" });
+    const already = await fetch(`${url}/?live`, { redirect: "manual" });
+    srv.close();
+    expect(bare.status).toBe(302);
+    expect(bare.headers.get("location")).toBe("/?live");
+    expect(already.status).not.toBe(302); // already live -> serve the app, don't loop
+  });
+
+  it("does not redirect when defaultLive is off (replay-mode default)", async () => {
+    const srv = createApp(runner).listen(0);
+    const url = `http://127.0.0.1:${(srv.address() as { port: number }).port}`;
+    const bare = await fetch(`${url}/`, { redirect: "manual" });
+    srv.close();
+    expect(bare.status).not.toBe(302);
+  });
+
   it("POST /reset -> ok, restarting the runner from turn 1", async () => {
     const r2 = new GameRunner({ seed: 7, agents: [greedyAgent("cog0"), greedyAgent("cog1")], maxTurns: 1, deadlineMs: 20 });
     await r2.run();

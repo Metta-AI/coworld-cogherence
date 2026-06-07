@@ -21,6 +21,7 @@ export function createApp(
   hub?: ActPromptHub,
   steering?: SteeringStore,
   recorder?: ReplayRecorder,
+  opts: { defaultLive?: boolean } = {},
 ): express.Express {
   const app = express();
   app.use(express.json());
@@ -54,9 +55,17 @@ export function createApp(
   });
 
   const dist = resolve(dirname(fileURLToPath(import.meta.url)), "../../dist");
-  app.use(express.static(dist));
+  // index:false so "/" falls through to the SPA handler below (which may redirect
+  // to ?live) instead of express.static serving index.html and shadowing it.
+  app.use(express.static(dist, { index: false }));
   // SPA fallback for client routes (the built index.html drives view selection).
-  app.get(["/", "/cog/:id", "/feed"], (_req, res) => res.sendFile(resolve(dist, "index.html")));
+  // On a live server, default the bare routes to the LIVE view (add ?live) so
+  // opening the URL watches the running game instead of the static recording —
+  // live mode also lets you scrub buffered history, so nothing is lost.
+  app.get(["/", "/cog/:id", "/feed"], (req, res) => {
+    if (opts.defaultLive && req.query.live === undefined) return res.redirect(`${req.path}?live`);
+    res.sendFile(resolve(dist, "index.html"));
+  });
 
   return app;
 }

@@ -10,6 +10,7 @@ const arg = (name: string, dflt: string): string => {
   const i = process.argv.indexOf(`--${name}`);
   return i >= 0 && process.argv[i + 1] ? process.argv[i + 1]! : dflt;
 };
+const flag = (name: string): boolean => process.argv.includes(`--${name}`);
 
 const ROTATION = ["greedy", "peaceful", "random", "greedy"];
 
@@ -32,10 +33,13 @@ async function main(): Promise<void> {
     onActPrompt: (e) => hub.record(e),
     persona: (id) => steering.persona(id),
   }).map((a) => pausableAgent(a, steering));
-  const h = await startServer({ seed, agents, port, deadlineMs, minTurnMs, maxTurns, hub, bus, steering, agentSpecs: specs, autorun: true });
+  const defaultLive = flag("default-live");
+  const h = await startServer({
+    seed, agents, port, deadlineMs, minTurnMs, maxTurns, hub, bus, steering, agentSpecs: specs, defaultLive, autorun: true,
+  });
   console.log(`Cogherence live — seed ${seed}, agents [${specs.join(", ")}]`);
   console.log(`  server:   ${h.url}`);
-  console.log(`  viewer:   ${h.url}/?live`);
+  console.log(`  viewer:   ${h.url}/${defaultLive ? "" : "?live"}`);
   console.log(`  globalws: ws://127.0.0.1:${h.port}/global/ws`);
 }
 

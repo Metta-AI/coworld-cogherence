@@ -4,7 +4,7 @@
     {
       "name": "live",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "serve:llm", "--", "--agents", "llm,llm,greedy,greedy", "--turns", "100", "--pace", "1000", "--port", "5174"],
+      "runtimeArgs": ["run", "serve:llm", "--", "--agents", "llm,llm,greedy,greedy", "--turns", "100", "--pace", "1000", "--port", "5174", "--default-live"],
       "port": 5174
     }
   ]
