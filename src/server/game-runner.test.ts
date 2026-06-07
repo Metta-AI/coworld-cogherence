@@ -50,6 +50,16 @@ describe("GameRunner", () => {
     expect(runner.recentEvents().every((e) => e.turn <= 2)).toBe(true); // only the new game's events
   });
 
+  it("a hung negotiate can't stall the turn — it's raced against the deadline", async () => {
+    const bus = new MessageBus();
+    const hung: Agent = { id: "cog0", commit: () => [], negotiate: () => new Promise<never>(() => {}) }; // never resolves
+    const quiet: Agent = { id: "cog1", commit: () => [] };
+    const runner = new GameRunner({ seed: 7, agents: [hung, quiet], maxTurns: 2, deadlineMs: 30, bus });
+    const result = await runner.run(); // completes despite the hung negotiate (would hang forever without the race)
+    expect(runner.state.turn).toBe(3); // 2 turns played
+    expect(["cog0", "cog1", null]).toContain(result.winner);
+  });
+
   it("runs a negotiate round: agents post to the bus, others stay silent", async () => {
     const chatty: Agent = { id: "cog0", commit: () => [], negotiate: () => [{ to: "public", text: "hello all" }] };
     const quiet: Agent = { id: "cog1", commit: () => [] };

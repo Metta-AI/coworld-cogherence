@@ -161,18 +161,33 @@ export class GameRunner {
   }
 
   /** One or more rounds of cheap talk: each negotiating agent posts to the bus,
-   *  seeing prior messages (so later agents can react within the round). Bounded by
-   *  `deadlineAt` — once the window closes, remaining agents are skipped (keeps the
-   *  countdown honest and a slow model from stalling the turn). */
+   *  seeing prior messages (so later agents can react within the round). Hard-bounded
+   *  by `deadlineAt`: an agent that hasn't started past the deadline is skipped, and
+   *  each in-flight `negotiate` is RACED against the remaining time so a hung/throttled
+   *  model can't freeze the turn (it just posts nothing this round). */
   private async negotiateRound(snapshot: GameState, deadlineAt = Infinity): Promise<void> {
     const bus = this.bus!;
     for (let round = 0; round < this.negotiateRounds; round++) {
       for (const a of this.agents) {
         if (!a.negotiate || Date.now() >= deadlineAt) continue;
-        const posts = await a.negotiate({ state: snapshot, me: a.id, messages: bus.visibleTo(a.id) });
+        const work = Promise.resolve(a.negotiate({ state: snapshot, me: a.id, messages: bus.visibleTo(a.id) }));
+        const posts = await raceDeadline(work, deadlineAt - Date.now(), []);
         for (const p of posts) bus.post(a.id, p.to, p.text, snapshot.turn);
         this.emit({ type: "serverStatus", status: this.status() }); // refresh the countdown + chat live
       }
     }
   }
+}
+
+/** Resolve with `work`'s value, or `fallback` once `ms` elapses (and on rejection) —
+ *  so a hung promise can't block the caller. The losing timer is always cleared. */
+function raceDeadline<T>(work: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return new Promise<T>((resolve) => {
+    const timer = setTimeout(() => resolve(fallback), Math.max(0, ms));
+    const done = (v: T): void => {
+      clearTimeout(timer);
+      resolve(v);
+    };
+    work.then(done, () => done(fallback));
+  });
 }
