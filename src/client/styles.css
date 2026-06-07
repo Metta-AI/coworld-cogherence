@@ -28,8 +28,12 @@
   box-sizing: border-box;
 }
 html,
-body {
+body,
+#root {
   margin: 0;
+  height: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
   background: radial-gradient(1200px 700px at 50% -10%, #0e1422 0%, var(--bg) 55%) fixed;
   color: var(--text);
   font-family: var(--f-ui);
@@ -38,18 +42,25 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Single-screen broadcast HUD: pin to the viewport, fixed chrome top & bottom,
+   the active view fills the middle and scrolls internally — the page never scrolls. */
 .app {
-  max-width: 1240px;
-  margin: 0 auto;
-  padding: 18px 22px 80px;
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 20px;
+  overflow: hidden;
 }
 
 /* ---- header ---- */
 .app-header {
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 4px 16px;
+  padding: 4px 4px 0;
 }
 .brand {
   display: flex;
@@ -159,6 +170,7 @@ body {
 
 /* ---- view switcher ---- */
 .view-switcher {
+  flex: none;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -167,7 +179,7 @@ body {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 999px;
-  margin-bottom: 18px;
+  margin-bottom: 0;
 }
 .tab {
   display: inline-flex;
@@ -204,12 +216,14 @@ body {
 
 /* ---- layout ---- */
 .view {
+  flex: 1;
+  min-height: 0; /* let the grid rows shrink so columns scroll internally, not the page */
   display: grid;
-  gap: 18px;
+  gap: 14px;
 }
 .view-global,
 .view-cog {
-  grid-template-columns: minmax(0, 1.55fr) minmax(280px, 1fr);
+  grid-template-columns: minmax(0, 1.55fr) minmax(300px, 1fr);
 }
 .view-feed {
   grid-template-columns: 1fr;
@@ -218,8 +232,16 @@ body {
 .side-col {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
   min-width: 0;
+  min-height: 0;
+}
+.side-col {
+  overflow-y: auto; /* activity + prompts scroll within the fixed-height column */
+}
+.view-feed {
+  min-height: 0;
+  overflow-y: auto;
 }
 @media (max-width: 900px) {
   .view-global,
@@ -236,6 +258,9 @@ body {
   padding: 14px 16px;
 }
 .board-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
   padding: 12px;
   background: radial-gradient(700px 400px at 50% 0%, #11131f, var(--panel));
 }
@@ -261,6 +286,10 @@ svg .tile-mineral {
 
 /* ---- roster ---- */
 .roster {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 40%; /* keep the board the hero; the roster scrolls if it needs more */
+  overflow-y: auto;
   background: linear-gradient(180deg, var(--panel-2), var(--panel));
   border: 1px solid var(--line);
   border-radius: var(--r);
@@ -450,14 +479,12 @@ svg .tile-mineral {
   color: var(--dim);
 }
 
-/* ---- scrubber ---- */
+/* ---- scrubber (fixed bottom chrome of the HUD) ---- */
 .scrubber {
-  position: sticky;
-  bottom: 14px;
+  flex: none;
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-top: 18px;
   padding: 10px 16px;
   background: color-mix(in srgb, var(--panel) 92%, transparent);
   backdrop-filter: blur(8px);
@@ -594,6 +621,14 @@ svg .tile-mineral {
 /* ---- tile hover detail ---- */
 .board-wrap {
   position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.board-wrap svg {
+  display: block;
+  width: 100%;
+  height: 100%; /* viewBox + default preserveAspectRatio scales/centers the lattice to fit */
 }
 .tile-tip {
   position: absolute;
