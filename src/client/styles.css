@@ -1,19 +1,26 @@
-/* Cogherence dashboard — a calm, dark, glowing control room. */
+/* Cogherence dashboard — cinematic broadcast HUD; palette + type from cogame-polis. */
+@import url("https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap");
 :root {
-  --neutral: #232634;
-  --bg: #0a0b11;
-  --bg-2: #0e0f17;
-  --panel: #14151f;
-  --panel-2: #181a26;
-  --line: #242636;
-  --line-2: #2e3142;
-  --text: #d9dbe7;
-  --muted: #797d92;
-  --dim: #565a6e;
-  --accent: #7c9cff;
-  --accent-2: #54e0c7;
-  --shadow: 0 1px 0 rgba(255, 255, 255, 0.03), 0 8px 28px rgba(0, 0, 0, 0.45);
-  --r: 12px;
+  --neutral: #1c2230;
+  --bg: #07090d;
+  --bg-2: #0b0e14;
+  --panel: #11151d;
+  --panel-2: #161b26;
+  --line: #232b3a;
+  --line-2: #2c3548;
+  --text: #eaf0fb;
+  --text-dim: #b6c0d2;
+  --muted: #6a7585;
+  --dim: #4a5260;
+  --accent: #ffa015; /* amber — phase / primary highlight */
+  --accent-2: #5ad7ff; /* signal cyan — energy / info */
+  --live: #ff2d3d; /* ON AIR red */
+  --good: #4ade80;
+  --shadow: 0 1px 0 rgba(255, 255, 255, 0.03), 0 10px 30px rgba(0, 0, 0, 0.5);
+  --r: 10px;
+  --f-display: "Big Shoulders Display", "Bebas Neue", sans-serif;
+  --f-ui: "Space Grotesk", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
   font-synthesis: none;
 }
 
@@ -23,10 +30,11 @@
 html,
 body {
   margin: 0;
-  background: radial-gradient(1200px 700px at 50% -10%, #14182a 0%, var(--bg) 55%) fixed;
+  background: radial-gradient(1200px 700px at 50% -10%, #0e1422 0%, var(--bg) 55%) fixed;
   color: var(--text);
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--f-ui);
   font-size: 14px;
+  font-feature-settings: "tnum" 1;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -47,17 +55,19 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-weight: 700;
-  font-size: 19px;
-  letter-spacing: -0.01em;
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: 28px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 .brand-mark {
   color: var(--accent-2);
-  filter: drop-shadow(0 0 10px rgba(84, 224, 199, 0.5));
+  filter: drop-shadow(0 0 10px rgba(90, 215, 255, 0.55));
   font-size: 22px;
 }
 .brand-name {
-  background: linear-gradient(90deg, #fff, #b9c2e6);
+  background: linear-gradient(90deg, #fff, var(--accent-2));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -74,6 +84,7 @@ body {
   border-radius: 999px;
   padding: 5px 12px;
   color: var(--text);
+  font-family: var(--f-mono);
   font-variant-numeric: tabular-nums;
 }
 .stat em {
@@ -138,11 +149,12 @@ body {
   border: 1px solid var(--line);
 }
 .conn-live {
-  color: var(--accent-2);
-  border-color: color-mix(in srgb, var(--accent-2) 40%, var(--line));
+  color: var(--good);
+  border-color: color-mix(in srgb, var(--good) 45%, var(--line));
 }
 .conn-replay {
-  color: var(--muted);
+  color: var(--live);
+  border-color: color-mix(in srgb, var(--live) 35%, var(--line));
 }
 
 /* ---- view switcher ---- */
@@ -233,6 +245,7 @@ body {
 .chat-panel h2,
 .inbox h2,
 .roster h2 {
+  font-family: var(--f-mono);
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -564,12 +577,12 @@ svg .tile-mineral {
   flex: 0 0 auto;
 }
 .scrub-dot.is-live {
-  background: var(--accent-2);
-  box-shadow: 0 0 6px var(--accent-2);
+  background: var(--good);
+  box-shadow: 0 0 6px var(--good);
 }
 .scrub-dot.is-replay {
-  background: #ff8a8a;
-  box-shadow: 0 0 6px #ff8a8a;
+  background: var(--live);
+  box-shadow: 0 0 6px var(--live);
 }
 
 .loading {
