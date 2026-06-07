@@ -23,6 +23,16 @@ describe("Scrubber", () => {
     expect(container.querySelector(".scrub-dot.is-live")).toBeTruthy();
   });
 
+  it("no overview for a short game; a full-range overview + window appear when zoomed", () => {
+    const short = render(<Scrubber {...base} count={10} index={3} />);
+    expect(short.queryByTestId("scrub-overview")).toBeNull(); // 10 turns fit — no zoom
+
+    const long = render(<Scrubber {...base} count={120} index={60} turnAt={(i) => i + 1} />);
+    expect(long.getByTestId("scrub-overview")).toBeTruthy(); // many turns → local zoom + overview
+    expect(long.container.querySelector(".scrub-ov-window")).toBeTruthy();
+    expect(long.getByText("/ 120")).toBeTruthy(); // readout shows the full-game extent
+  });
+
   it("jump-to-start seeks index 0; step forward seeks index+1", () => {
     const onSeek = vi.fn();
     const { getByLabelText } = render(<Scrubber {...base} onSeek={onSeek} />);

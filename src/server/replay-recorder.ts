@@ -39,6 +39,12 @@ export class ReplayRecorder {
     return this.frames.length === 0;
   }
 
+  /** The recorded global frame stream, for backfilling a freshly-connected client
+   *  with the WHOLE game so far (scrubber spans turn 1 → now). Read-only view. */
+  framesView(): readonly ServerMessage[] {
+    return this.frames;
+  }
+
   /** The recorded game as a replay envelope the client's parseReplay accepts. */
   doc(): Replay {
     return {

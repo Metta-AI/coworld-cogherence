@@ -1,14 +1,17 @@
-// Replay scrubber (ported from cogame-polis): play/pause, jump-to-start, step,
-// and a clickable track with an animated knob, optional per-turn markers (chat
-// dots + capture count), a live/replay dot, and a turn readout. Indices are
-// snapshot positions; `turnAt` maps them to the displayed turn number, `marks`
-// annotates each turn.
-import React from "react";
+// Replay scrubber (cogame-polis style): play/pause, jump-to-start, step, and a
+// clickable track. The track is a LOCAL ZOOM window over the game — by default a
+// slice of turns around the playhead (so individual turns stay readable/clickable
+// even in a long game), wheel to zoom in/out. A full-range overview bar above it
+// spans turn 1 → now; click it to jump anywhere. Per-turn markers (chat dots +
+// capture count), a live/replay dot, and a turn readout.
+import React, { useState } from "react";
 
 export interface TurnMark {
   messages: number;
   captures: number;
 }
+
+const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v));
 
 export function Scrubber({
   index,
@@ -34,68 +37,105 @@ export function Scrubber({
 }): React.ReactElement {
   const n = Math.max(1, count);
   const last = n - 1;
-  const pct = last > 0 ? (index / last) * 100 : 0;
-  const posOf = (i: number) => (last > 0 ? (i / last) * 100 : 0);
-  const go = (i: number) => onSeek(Math.max(0, Math.min(last, i)));
-  const turn = turnAt ? turnAt(index) : index + 1;
+  const [winSize, setWinSize] = useState(30); // turns visible in the zoom window
+  const turn = (i: number): number => (turnAt ? turnAt(i) : i + 1);
+  const go = (i: number): void => onSeek(clamp(Math.round(i), 0, last));
+
+  // The local-zoom window [lo..hi], centered on the playhead and clamped to range.
+  const win = Math.min(winSize, n);
+  const zoomed = win < n;
+  const lo = zoomed ? clamp(index - Math.floor(win / 2), 0, last - (win - 1)) : 0;
+  const hi = zoomed ? lo + (win - 1) : last;
+  const span = Math.max(1, hi - lo);
+  const winPct = (i: number): number => ((i - lo) / span) * 100;
+  const seekFromTrack = (e: React.MouseEvent): void => {
+    const r = e.currentTarget.getBoundingClientRect();
+    go(lo + ((e.clientX - r.left) / r.width) * span);
+  };
+  const seekFromOverview = (e: React.MouseEvent): void => {
+    const r = e.currentTarget.getBoundingClientRect();
+    go(((e.clientX - r.left) / r.width) * last);
+  };
+  const onWheel = (e: React.WheelEvent): void => {
+    // wheel up → zoom in (fewer turns), down → zoom out; clamp to [6, all]
+    setWinSize((w) => clamp((e.deltaY < 0 ? w - 4 : w + 4), 6, Math.max(6, n)));
+  };
+
+  const winMarks = marks
+    ? Array.from({ length: win }, (_, k) => lo + k).filter((i) => {
+        const m = marks(i);
+        return m.messages > 0 || m.captures > 0;
+      })
+    : [];
 
   return (
     <div className="scrubber" data-testid="scrubber">
-      <button className="scrub-btn" aria-label={playing ? "pause" : "play"} onClick={onTogglePlay}>
-        {playing ? "⏸" : "▶"}
-      </button>
-      <button className="scrub-btn" aria-label="jump to start" onClick={() => go(0)}>
-        ⏮
-      </button>
-      <button className="scrub-btn" aria-label="step back" onClick={() => go(index - 1)}>
-        ◀
-      </button>
-      <button className="scrub-btn" aria-label="step forward" onClick={() => go(index + 1)}>
-        ▶
-      </button>
-      <div
-        className={`scrub-track${marks ? " has-marks" : ""}`}
-        role="slider"
-        aria-label="turn"
-        aria-valuemin={0}
-        aria-valuemax={last}
-        aria-valuenow={index}
-        onClick={(e) => {
-          const r = e.currentTarget.getBoundingClientRect();
-          go(Math.round(((e.clientX - r.left) / r.width) * last));
-        }}
-      >
-        {marks && (
-          <div className="scrub-marks">
-            {Array.from({ length: n }, (_, i) => {
-              const m = marks(i);
-              if (m.messages === 0 && m.captures === 0) return null;
-              return (
-                <div key={i} className="scrub-mark" style={{ left: `${posOf(i)}%` }}>
-                  {m.messages > 0 && (
-                    <div className="scrub-mark-dots" title={`${m.messages} message${m.messages === 1 ? "" : "s"}`}>
-                      {Array.from({ length: Math.min(m.messages, 6) }, (_, j) => (
-                        <span key={j} className="scrub-mark-dot" />
-                      ))}
-                    </div>
-                  )}
-                  {m.captures > 0 && (
-                    <div className="scrub-mark-cap" title={`${m.captures} capture${m.captures === 1 ? "" : "s"}`}>
-                      ⬡{m.captures}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+      <div className="scrub-controls">
+        <button className="scrub-btn" aria-label={playing ? "pause" : "play"} onClick={onTogglePlay}>
+          {playing ? "⏸" : "▶"}
+        </button>
+        <button className="scrub-btn" aria-label="jump to start" onClick={() => go(0)}>
+          ⏮
+        </button>
+        <button className="scrub-btn" aria-label="step back" onClick={() => go(index - 1)}>
+          ◀
+        </button>
+        <button className="scrub-btn" aria-label="step forward" onClick={() => go(index + 1)}>
+          ▶
+        </button>
+      </div>
+
+      <div className="scrub-main">
+        {zoomed && (
+          <div className="scrub-overview" title="whole game — click to jump" onClick={seekFromOverview} data-testid="scrub-overview">
+            <div className="scrub-ov-window" style={{ left: `${(lo / last) * 100}%`, width: `${(span / last) * 100}%` }} />
+            <div className="scrub-ov-head" style={{ left: `${(index / last) * 100}%` }} />
           </div>
         )}
-        <div className="scrub-rail" />
-        <div className="scrub-fill" style={{ width: `${pct}%` }} />
-        <div className="scrub-knob" style={{ left: `${pct}%` }} />
+        <div
+          className={`scrub-track${marks ? " has-marks" : ""}`}
+          role="slider"
+          aria-label="turn"
+          aria-valuemin={0}
+          aria-valuemax={last}
+          aria-valuenow={index}
+          onClick={seekFromTrack}
+          onWheel={onWheel}
+          title="scrub · scroll to zoom"
+        >
+          {marks && (
+            <div className="scrub-marks">
+              {winMarks.map((i) => {
+                const m = marks(i);
+                return (
+                  <div key={i} className="scrub-mark" style={{ left: `${winPct(i)}%` }}>
+                    {m.messages > 0 && (
+                      <div className="scrub-mark-dots" title={`${m.messages} message${m.messages === 1 ? "" : "s"}`}>
+                        {Array.from({ length: Math.min(m.messages, 6) }, (_, j) => (
+                          <span key={j} className="scrub-mark-dot" />
+                        ))}
+                      </div>
+                    )}
+                    {m.captures > 0 && (
+                      <div className="scrub-mark-cap" title={`${m.captures} capture${m.captures === 1 ? "" : "s"}`}>
+                        ⬡{m.captures}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <div className="scrub-rail" />
+          <div className="scrub-fill" style={{ width: `${clamp(winPct(index), 0, 100)}%` }} />
+          <div className="scrub-knob" style={{ left: `${clamp(winPct(index), 0, 100)}%` }} />
+        </div>
       </div>
+
       <div className="scrub-readout">
         <span className={`scrub-dot ${live ? "is-live" : "is-replay"}`} title={live ? "live" : "replay"} />
-        <span className="scrub-turn">turn {turn}</span>
+        <span className="scrub-turn">turn {turn(index)}</span>
+        {zoomed && <span className="scrub-of">/ {turn(last)}</span>}
       </div>
     </div>
   );

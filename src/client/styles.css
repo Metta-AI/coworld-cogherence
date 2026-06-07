@@ -421,8 +421,11 @@ svg .tile-mineral {
   overflow: auto;
 }
 .ev-group {
-  display: flex;
-  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--panel-2) 45%, transparent);
+  margin-bottom: 10px;
 }
 .ev-turn-head {
   position: sticky;
@@ -431,25 +434,27 @@ svg .tile-mineral {
   font-family: var(--f-mono);
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--muted);
-  padding: 4px 2px;
-  margin-top: 6px;
-  background: var(--panel);
+  color: var(--text-dim);
+  padding: 5px 10px;
+  background: var(--panel-2);
   border-bottom: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
 }
 .ev-rows {
   list-style: none;
   margin: 0;
-  padding: 6px 0 0;
+  padding: 7px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 .ticker li {
   padding: 6px 8px;
   border-radius: 7px;
   font-size: 13px;
   border-left: 2px solid var(--line-2);
-  margin-bottom: 3px;
   color: var(--text);
   background: var(--bg-2);
   font-variant-numeric: tabular-nums;
@@ -481,11 +486,15 @@ svg .tile-mineral {
   max-height: 70vh;
   overflow: auto;
 }
-/* Per-turn grouping: a sticky turn header over that turn's messages. */
+/* Per-turn grouping: each turn is a bordered subpanel with a sticky, amber-accented header. */
 .chat-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--panel-2) 45%, transparent);
+}
+.chat-group .chat-msg {
+  margin: 6px 8px;
 }
 .chat-turn-head {
   position: sticky;
@@ -494,12 +503,13 @@ svg .tile-mineral {
   font-family: var(--f-mono);
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--muted);
-  padding: 4px 2px;
-  background: var(--panel);
+  color: var(--text-dim);
+  padding: 5px 10px;
+  background: var(--panel-2);
   border-bottom: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
 }
 .chat-msg {
   display: flex;
@@ -635,9 +645,47 @@ svg .tile-mineral {
   border-color: var(--accent);
   color: #fff;
 }
+.scrub-controls {
+  flex: none;
+  display: flex;
+  gap: 8px;
+}
+.scrub-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+/* Full-game overview: turn 1 → now; the shaded box is the local-zoom window. */
+.scrub-overview {
+  position: relative;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  cursor: pointer;
+}
+.scrub-ov-window {
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+}
+.scrub-ov-head {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--accent-2);
+  box-shadow: 0 0 6px var(--accent-2);
+}
 .scrub-track {
   position: relative;
-  flex: 1;
+  width: 100%;
   height: 26px;
   display: flex;
   align-items: center;
@@ -722,8 +770,12 @@ svg .tile-mineral {
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  color: var(--muted);
+  color: var(--text);
   font-variant-numeric: tabular-nums;
+  font-family: var(--f-mono);
+}
+.scrub-of {
+  color: var(--muted);
 }
 .scrub-dot {
   width: 8px;

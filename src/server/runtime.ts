@@ -47,7 +47,7 @@ export async function startServer(opts: {
     { hub: opts.hub, bus: opts.bus },
   );
   const http = createServer(createApp(runner, opts.hub, opts.steering, recorder, { defaultLive: opts.defaultLive }));
-  const ws = attachWebsockets(http, runner, opts.hub, opts.bus);
+  const ws = attachWebsockets(http, runner, opts.hub, opts.bus, recorder);
   await new Promise<void>((r) => http.listen(opts.port ?? 0, r));
   const port = (http.address() as { port: number }).port;
   if (opts.autorun !== false) void runner.run();
