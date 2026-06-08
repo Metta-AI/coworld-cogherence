@@ -198,6 +198,18 @@ export class GameRunner {
       // we don't step/emit the abandoned game over the fresh one.
       if (gen !== this.generation) return scoreGame(this.state);
 
+      // Auction phase: the sealed heart bids settle into a single Vickrey
+      // second-price winner. Its own brief, paced window so the spectator sees it
+      // as a distinct phase (the engine still computes it inside stepTurn below).
+      // The window is absorbed by the per-turn pace budget (minTurnMs), so the
+      // overall turn cadence is unchanged.
+      this.livePhase = "auction";
+      this.emit({ type: "serverStatus", status: this.status() });
+      const auctionMs = Math.min(this.minTurnMs, 700);
+      if (auctionMs > 0) await new Promise((r) => setTimeout(r, auctionMs));
+      this.livePhase = null;
+      if (gen !== this.generation) return scoreGame(this.state);
+
       this.state = stepTurn(this.state, ordersByCog, firstCommitter);
       const rec = this.state.log[this.state.log.length - 1]!;
       for (const ev of rec.events) {

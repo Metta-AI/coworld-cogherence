@@ -4,7 +4,7 @@
 import { z } from "zod";
 
 export const mineralSchema = z.enum(["C", "O", "Ge", "S"]);
-const phaseSchema = z.enum(["negotiate", "commit", "resolve", "upkeep"]);
+const phaseSchema = z.enum(["negotiate", "commit", "resolve", "auction", "upkeep"]);
 const treasurySchema = z
   .object({ C: z.number().int(), O: z.number().int(), Ge: z.number().int(), S: z.number().int() })
   .strict();

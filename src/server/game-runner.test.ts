@@ -21,6 +21,22 @@ describe("GameRunner", () => {
     expect(runner.state.turn).toBe(4); // 3 turns played
   });
 
+  it("surfaces a distinct 'auction' phase in the live turn sequence", async () => {
+    const runner = new GameRunner({
+      seed: 7,
+      agents: [greedyAgent("cog0"), peacefulAgent("cog1")],
+      maxTurns: 2,
+      deadlineMs: 50,
+    });
+    const phases: string[] = [];
+    runner.onUpdate((m) => {
+      if (m.type === "serverStatus") phases.push(m.status.phase);
+    });
+    await runner.run();
+    expect(phases).toContain("auction"); // the heart settles in its own phase
+    expect(phases).toContain("commit"); // …after commit, before the next turn
+  });
+
   it("returns a winner after auto-driving in-process agents", async () => {
     const runner = new GameRunner({
       seed: 7,

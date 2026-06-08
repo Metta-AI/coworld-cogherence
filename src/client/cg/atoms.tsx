@@ -172,6 +172,7 @@ const PHASES: { k: Phase; label: string }[] = [
   { k: "negotiate", label: "Negotiate" },
   { k: "commit", label: "Commit" },
   { k: "resolve", label: "Resolve" },
+  { k: "auction", label: "Auction" },
   { k: "upkeep", label: "Upkeep" },
 ];
 /** The four-phase strip with the current phase lit. */
