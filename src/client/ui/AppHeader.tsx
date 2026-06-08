@@ -40,9 +40,18 @@ export function AppHeader({
   cogs: { id: string; index: number }[];
 }): React.ReactElement {
   const now = useNow();
+  const paused = status?.paused ?? false;
+  // Paused → the phase countdown shows "—" and the GAME clock freezes (anchored at
+  // the pause epoch), excluding all paused time so it resumes where it left off.
   const phaseLeft =
-    status?.phaseDeadlineAt != null && !status.finished ? Math.max(0, Math.ceil((status.phaseDeadlineAt - now) / 1000)) : null;
-  const gameSecs = connected && status?.startedAt != null ? Math.max(0, Math.floor((now - status.startedAt) / 1000)) : null;
+    !paused && status?.phaseDeadlineAt != null && !status.finished
+      ? Math.max(0, Math.ceil((status.phaseDeadlineAt - now) / 1000))
+      : null;
+  const elapsedAnchor = paused ? status?.pausedAt ?? now : now;
+  const gameSecs =
+    connected && status?.startedAt != null
+      ? Math.max(0, Math.floor((elapsedAnchor - status.startedAt - (status.pausedAccumMs ?? 0)) / 1000))
+      : null;
 
   return (
     <header className="app-header">

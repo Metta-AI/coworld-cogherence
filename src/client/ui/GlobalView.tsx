@@ -23,18 +23,18 @@ export function GlobalView({
   const [hoverTile, setHoverTile] = useState<string | null>(null);
   return (
     <div className="view view-global" data-testid="global-view">
-      <div className="board-col">
-        <div className="panel board-panel">
-          <HexBoard snapshot={snapshot} highlightKey={hoverTile} />
-        </div>
-        <Roster snapshot={snapshot} history={history} />
+      <div className="panel board-panel gv-map">
+        <HexBoard snapshot={snapshot} highlightKey={hoverTile} />
       </div>
-      <aside className="side-col">
-        <ActivityTicker events={events} onHoverTile={setHoverTile} />
+      <aside className="side-col gv-roster">
+        <Roster snapshot={snapshot} history={history} />
         <div className="panel">
           <PromptsPanel actPrompts={actPrompts} />
         </div>
       </aside>
+      <div className="gv-feed">
+        <ActivityTicker events={events} onHoverTile={setHoverTile} />
+      </div>
     </div>
   );
 }

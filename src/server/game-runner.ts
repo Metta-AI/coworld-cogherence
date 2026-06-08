@@ -31,6 +31,11 @@ export class GameRunner {
    *  `resumeWaiters` are the parked loop's continuations, released on resume/reset. */
   private paused = false;
   private resumeWaiters: Array<() => void> = [];
+  /** Game-clock pause accounting: epoch the current pause began (undefined while
+   *  running) and total ms spent paused before it, so the header GAME clock can
+   *  exclude paused time and freeze while paused. */
+  private pausedAt: number | undefined;
+  private pausedAccumMs = 0;
   /** Turn-timing (polis-style): the phase the spectator sees during the loop, its
    *  wall-clock deadline, and the live coordinator (for pending/done in status). */
   private livePhase: GameState["phase"] | null = null;
@@ -69,21 +74,35 @@ export class GameRunner {
     this.livePhase = null;
     this.phaseDeadlineAt = undefined;
     this.bus?.clear();
-    this.setPaused(false); // a fresh game always plays; releases any parked stale loop
+    // A fresh game always plays from a zeroed clock; release any parked stale loop.
+    this.paused = false;
+    this.pausedAt = undefined;
+    this.pausedAccumMs = 0;
+    this.releaseWaiters();
     void this.run();
   }
 
   /** Operator pause/resume of the live turn loop. Pausing parks the loop at the
-   *  next turn boundary; resuming wakes it. Broadcasts the new state so menus update. */
+   *  next turn boundary and freezes the game clock; resuming wakes it and resumes
+   *  the clock. Broadcasts the new state so menus + clocks update. */
   setPaused(paused: boolean): void {
     if (this.paused === paused) return;
     this.paused = paused;
-    if (!paused) {
-      const waiters = this.resumeWaiters;
-      this.resumeWaiters = [];
-      for (const w of waiters) w();
+    if (paused) {
+      this.pausedAt = Date.now();
+    } else {
+      if (this.pausedAt !== undefined) this.pausedAccumMs += Date.now() - this.pausedAt;
+      this.pausedAt = undefined;
+      this.releaseWaiters();
     }
     this.emit({ type: "serverStatus", status: this.status() });
+  }
+
+  /** Wake every parked run loop (resume or reset). */
+  private releaseWaiters(): void {
+    const waiters = this.resumeWaiters;
+    this.resumeWaiters = [];
+    for (const w of waiters) w();
   }
 
   /** Park the run loop while paused; wakes on resume or when its generation goes stale. */
@@ -122,6 +141,8 @@ export class GameRunner {
       pending: this.coord?.pending() ?? [],
       done: this.coord?.done() ?? [],
       paused: this.paused,
+      pausedAccumMs: this.pausedAccumMs,
+      ...(this.pausedAt !== undefined ? { pausedAt: this.pausedAt } : {}),
       ...(this.phaseDeadlineAt !== undefined ? { phaseDeadlineAt: this.phaseDeadlineAt } : {}),
       ...(this.startedAt !== undefined ? { startedAt: this.startedAt } : {}),
       ...extra,

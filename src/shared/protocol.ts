@@ -79,6 +79,8 @@ export const serverStatusSchema = z
     pending: z.array(z.string()).default([]),
     done: z.array(z.string()).default([]),
     paused: z.boolean().optional(), // operator paused the live turn loop (older replays omit it)
+    pausedAt: z.number().optional(), // epoch ms the current pause began (freezes the GAME clock)
+    pausedAccumMs: z.number().optional(), // total ms paused so far (excluded from the GAME clock)
     phaseDeadlineAt: z.number().optional(),
     startedAt: z.number().optional(), // epoch ms the live game began — drives the header GAME clock
   })

@@ -308,9 +308,26 @@ body,
   display: grid;
   gap: 14px;
 }
-.view-global,
 .view-cog {
   grid-template-columns: minmax(0, 1.55fr) minmax(300px, 1fr);
+}
+/* Global: map + roster on top, the activity feed full-width below. */
+.view-global {
+  grid-template-columns: minmax(0, 1.55fr) minmax(300px, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "map roster"
+    "feed feed";
+}
+.gv-map {
+  grid-area: map;
+}
+.gv-roster {
+  grid-area: roster;
+}
+.gv-feed {
+  grid-area: feed;
+  min-width: 0;
 }
 .view-feed {
   grid-template-columns: 1fr;
@@ -331,9 +348,16 @@ body,
   overflow-y: auto;
 }
 @media (max-width: 900px) {
-  .view-global,
   .view-cog {
     grid-template-columns: 1fr;
+  }
+  .view-global {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+    grid-template-areas:
+      "map"
+      "roster"
+      "feed";
   }
 }
 
@@ -419,6 +443,20 @@ svg .tile-mineral {
 .ticker-list {
   max-height: 46vh;
   overflow: auto;
+}
+/* Full-width activity feed (below the map/roster): tile the per-turn cards across
+   the width instead of one narrow column. */
+.gv-feed .ticker-list {
+  max-height: 30vh;
+  display: flex;
+  flex-flow: row wrap;
+  align-content: flex-start;
+  gap: 10px;
+}
+.gv-feed .ev-group {
+  flex: 1 1 240px;
+  max-width: 380px;
+  margin-bottom: 0;
 }
 .ev-group {
   border: 1px solid var(--line);

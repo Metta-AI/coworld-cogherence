@@ -67,12 +67,16 @@ describe("GameRunner", () => {
     await new Promise((r) => setTimeout(r, 60));
     const parked = runner.state.turn;
     expect(runner.currentStatus().paused).toBe(true);
+    expect(typeof runner.currentStatus().pausedAt).toBe("number"); // game clock frozen at this epoch
 
     await new Promise((r) => setTimeout(r, 60));
     expect(runner.state.turn).toBe(parked); // no advance while paused
 
     runner.setPaused(false);
-    expect(runner.currentStatus().paused).toBe(false);
+    const resumed = runner.currentStatus();
+    expect(resumed.paused).toBe(false);
+    expect(resumed.pausedAt).toBeUndefined(); // clock running again
+    expect(resumed.pausedAccumMs ?? 0).toBeGreaterThanOrEqual(0); // paused time accumulated
     await new Promise((r) => setTimeout(r, 150)); // let the (short) game play out
     expect(runner.state.turn).toBeGreaterThan(parked); // advanced after resume
   });
