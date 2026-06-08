@@ -74,9 +74,12 @@ function TileTip({ tile, snapshot, x, y }: { tile: TileSnapshot; snapshot: GameS
 export function HexBoard({
   snapshot,
   showMinerals = false,
+  highlightKey = null,
 }: {
   snapshot: GameSnapshot;
   showMinerals?: boolean;
+  /** Externally-driven highlight (e.g. hovering an activity row): ring this `q,r` tile. */
+  highlightKey?: string | null;
 }): React.ReactElement {
   const [hover, setHover] = useState<Hover | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -114,7 +117,8 @@ export function HexBoard({
           const fill = idx === null ? "var(--neutral)" : cogColor(idx);
           const f = Math.max(0, Math.min(1, t.coherence / snapshot.coherenceMax));
           const opacity = 0.2 + 0.8 * f;
-          const hovered = hover?.tile === t;
+          const xhi = highlightKey === `${t.q},${t.r}`; // cross-highlight from the activity feed
+          const hovered = hover?.tile === t || xhi;
           const isz = mineralIconSize(t.density); // bigger gem = richer deposit
           return (
             <g
@@ -124,11 +128,12 @@ export function HexBoard({
               style={{ cursor: "pointer" }}
             >
               <polygon
+                className={xhi ? "tile-xhighlight" : undefined}
                 points={polygonPoints(hexCorners(c.x, c.y, SIZE))}
                 fill={fill}
                 fillOpacity={opacity}
                 stroke={hovered ? "#fff" : "#000"}
-                strokeWidth={hovered ? 1.4 : 0.5}
+                strokeWidth={xhi ? 2.4 : hovered ? 1.4 : 0.5}
               >
                 {showMinerals && <title>{`${t.mineral} d${t.density} coh${t.coherence}`}</title>}
               </polygon>

@@ -73,4 +73,10 @@ describe("HexBoard", () => {
     fireEvent.mouseLeave(container.querySelector(".board-wrap")!);
     expect(queryByTestId("tile-tip")).toBeNull(); // and disappears when you leave
   });
+  it("rings exactly the externally highlighted tile (cross-highlight from the feed)", () => {
+    const lit = render(<HexBoard snapshot={snap} highlightKey="0,0" />); // center tile always exists
+    expect(lit.container.querySelectorAll("polygon.tile-xhighlight")).toHaveLength(1);
+    const none = render(<HexBoard snapshot={snap} highlightKey={null} />);
+    expect(none.container.querySelectorAll("polygon.tile-xhighlight")).toHaveLength(0);
+  });
 });
