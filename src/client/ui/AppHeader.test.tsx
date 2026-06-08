@@ -14,19 +14,32 @@ describe("AppHeader", () => {
     vi.unstubAllGlobals();
   });
 
-  it("shows the reset button only when live (connected)", () => {
+  it("shows the live menu only when live (connected); replay shows a plain badge", () => {
     const replay = render(<AppHeader snapshot={snap} status={status} connected={false} {...nav} />);
-    expect(replay.queryByTestId("reset-btn")).toBeNull();
+    expect(replay.queryByTestId("live-menu")).toBeNull();
     const live = render(<AppHeader snapshot={snap} status={status} connected={true} {...nav} />);
-    expect(live.getByTestId("reset-btn")).toBeTruthy();
+    expect(live.getByTestId("live-menu")).toBeTruthy();
   });
 
-  it("POSTs /reset when the reset button is clicked", () => {
+  it("the live menu pauses and resets a running game", () => {
     const fetchMock = vi.fn(() => Promise.resolve({} as Response));
     vi.stubGlobal("fetch", fetchMock);
     const { getByTestId } = render(<AppHeader snapshot={snap} status={status} connected={true} {...nav} />);
-    fireEvent.click(getByTestId("reset-btn"));
+    fireEvent.click(getByTestId("live-menu").querySelector("button")!);
+    fireEvent.click(getByTestId("lm-pause"));
+    expect(fetchMock).toHaveBeenCalledWith("/pause", { method: "POST" });
+    fireEvent.click(getByTestId("live-menu").querySelector("button")!); // reopen (menu closes on pick)
+    fireEvent.click(getByTestId("lm-reset"));
     expect(fetchMock).toHaveBeenCalledWith("/reset", { method: "POST" });
+  });
+
+  it("the live menu's pause control resumes a paused game", () => {
+    const fetchMock = vi.fn(() => Promise.resolve({} as Response));
+    vi.stubGlobal("fetch", fetchMock);
+    const { getByTestId } = render(<AppHeader snapshot={snap} status={{ ...status, paused: true }} connected={true} {...nav} />);
+    fireEvent.click(getByTestId("live-menu").querySelector("button")!);
+    fireEvent.click(getByTestId("lm-pause"));
+    expect(fetchMock).toHaveBeenCalledWith("/resume", { method: "POST" });
   });
 
   it("renders the view-switcher dropdown showing the current view", () => {

@@ -45,6 +45,16 @@ export function createApp(
     res.json({ ok: true });
   });
 
+  // Operator: pause / resume the live turn loop (parks at the next turn boundary).
+  app.post("/pause", (_req, res) => {
+    runner.setPaused(true);
+    res.json({ ok: true });
+  });
+  app.post("/resume", (_req, res) => {
+    runner.setPaused(false);
+    res.json({ ok: true });
+  });
+
   // Operator steering (Phase D): read + edit a cog's persona / paused flag live.
   app.get("/cog/:id/steering", (req, res) => res.json(steering?.get(req.params.id) ?? { persona: "", paused: false }));
   app.post("/cog/:id/steering", (req, res) => {

@@ -6,6 +6,7 @@ import type { GameSnapshot } from "../../shared/snapshot";
 import type { ServerStatus } from "../../shared/protocol";
 import { PhaseStrip } from "./PhaseStrip";
 import { ViewSwitcher } from "./ViewSwitcher";
+import { LiveMenu } from "./LiveMenu";
 import type { View } from "./nav";
 
 /** A 500ms ticking wall-clock so the header countdowns stay current. */
@@ -39,9 +40,6 @@ export function AppHeader({
   cogs: { id: string; index: number }[];
 }): React.ReactElement {
   const now = useNow();
-  const resetGame = (): void => {
-    void fetch("/reset", { method: "POST" });
-  };
   const phaseLeft =
     status?.phaseDeadlineAt != null && !status.finished ? Math.max(0, Math.ceil((status.phaseDeadlineAt - now) / 1000)) : null;
   const gameSecs = connected && status?.startedAt != null ? Math.max(0, Math.floor((now - status.startedAt) / 1000)) : null;
@@ -80,12 +78,11 @@ export function AppHeader({
             <b>{hhmmss(gameSecs)}</b>
           </span>
         )}
-        {connected && (
-          <button type="button" className="reset-btn" data-testid="reset-btn" onClick={resetGame} title="Restart the live game from turn 1">
-            ↻ reset
-          </button>
+        {connected ? (
+          <LiveMenu paused={status?.paused ?? false} />
+        ) : (
+          <span className="conn conn-replay">▷ replay</span>
         )}
-        <span className={`conn ${connected ? "conn-live" : "conn-replay"}`}>{connected ? "● live" : "▷ replay"}</span>
       </div>
     </header>
   );

@@ -27,6 +27,10 @@ export class GameRunner {
   private recent: Array<{ turn: number; event: TurnEvent }> = [];
   /** Bumped on reset; a running loop exits once its captured generation is stale. */
   private generation = 0;
+  /** Operator pause: the run loop parks at the next turn boundary while paused.
+   *  `resumeWaiters` are the parked loop's continuations, released on resume/reset. */
+  private paused = false;
+  private resumeWaiters: Array<() => void> = [];
   /** Turn-timing (polis-style): the phase the spectator sees during the loop, its
    *  wall-clock deadline, and the live coordinator (for pending/done in status). */
   private livePhase: GameState["phase"] | null = null;
@@ -65,7 +69,28 @@ export class GameRunner {
     this.livePhase = null;
     this.phaseDeadlineAt = undefined;
     this.bus?.clear();
+    this.setPaused(false); // a fresh game always plays; releases any parked stale loop
     void this.run();
+  }
+
+  /** Operator pause/resume of the live turn loop. Pausing parks the loop at the
+   *  next turn boundary; resuming wakes it. Broadcasts the new state so menus update. */
+  setPaused(paused: boolean): void {
+    if (this.paused === paused) return;
+    this.paused = paused;
+    if (!paused) {
+      const waiters = this.resumeWaiters;
+      this.resumeWaiters = [];
+      for (const w of waiters) w();
+    }
+    this.emit({ type: "serverStatus", status: this.status() });
+  }
+
+  /** Park the run loop while paused; wakes on resume or when its generation goes stale. */
+  private async waitWhilePaused(gen: number): Promise<void> {
+    while (this.paused && gen === this.generation) {
+      await new Promise<void>((resolve) => this.resumeWaiters.push(resolve));
+    }
   }
 
   onUpdate(fn: Listener): () => void {
@@ -96,6 +121,7 @@ export class GameRunner {
       clientCount: this.clientCount,
       pending: this.coord?.pending() ?? [],
       done: this.coord?.done() ?? [],
+      paused: this.paused,
       ...(this.phaseDeadlineAt !== undefined ? { phaseDeadlineAt: this.phaseDeadlineAt } : {}),
       ...(this.startedAt !== undefined ? { startedAt: this.startedAt } : {}),
       ...extra,
@@ -109,6 +135,10 @@ export class GameRunner {
     this.emit({ type: "serverStatus", status: this.status() });
 
     while (this.state.turn <= this.maxTurns && gen === this.generation) {
+      // Operator pause parks here, at a clean turn boundary, until resume/reset.
+      await this.waitWhilePaused(gen);
+      if (gen !== this.generation) return scoreGame(this.state);
+
       const startedAt = Date.now();
       const snapshot = this.state;
 

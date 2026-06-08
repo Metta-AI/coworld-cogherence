@@ -102,6 +102,18 @@ describe("http", () => {
     expect(body).toEqual({ ok: true });
   });
 
+  it("POST /pause and /resume toggle the runner's paused state", async () => {
+    const r2 = new GameRunner({ seed: 7, agents: [greedyAgent("cog0"), greedyAgent("cog1")], maxTurns: 1, deadlineMs: 20 });
+    const srv = createApp(r2).listen(0);
+    const url = `http://127.0.0.1:${(srv.address() as { port: number }).port}`;
+    const pause = await fetch(`${url}/pause`, { method: "POST" });
+    expect(pause.status).toBe(200);
+    expect(r2.currentStatus().paused).toBe(true);
+    await fetch(`${url}/resume`, { method: "POST" });
+    expect(r2.currentStatus().paused).toBe(false);
+    srv.close();
+  });
+
   it("POST /cog/:id/steering -> 400 on an invalid patch", async () => {
     const steering = new SteeringStore();
     const srv = createApp(runner, undefined, steering).listen(0);

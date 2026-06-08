@@ -60,6 +60,23 @@ describe("GameRunner", () => {
     expect(["cog0", "cog1", null]).toContain(result.winner);
   });
 
+  it("pause parks the turn loop; resume lets it continue; status reflects it", async () => {
+    const runner = new GameRunner({ seed: 7, agents: [greedyAgent("cog0"), greedyAgent("cog1")], maxTurns: 6, deadlineMs: 10, minTurnMs: 5 });
+    runner.setPaused(true); // park before the first turn even starts
+    void runner.run();
+    await new Promise((r) => setTimeout(r, 60));
+    const parked = runner.state.turn;
+    expect(runner.currentStatus().paused).toBe(true);
+
+    await new Promise((r) => setTimeout(r, 60));
+    expect(runner.state.turn).toBe(parked); // no advance while paused
+
+    runner.setPaused(false);
+    expect(runner.currentStatus().paused).toBe(false);
+    await new Promise((r) => setTimeout(r, 150)); // let the (short) game play out
+    expect(runner.state.turn).toBeGreaterThan(parked); // advanced after resume
+  });
+
   it("runs a negotiate round: agents post to the bus, others stay silent", async () => {
     const chatty: Agent = { id: "cog0", commit: () => [], negotiate: () => [{ to: "public", text: "hello all" }] };
     const quiet: Agent = { id: "cog1", commit: () => [] };

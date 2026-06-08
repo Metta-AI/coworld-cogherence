@@ -1008,17 +1008,70 @@ svg .tile-mineral {
   color: var(--accent-2);
 }
 
-.reset-btn {
-  background: transparent;
-  color: var(--muted);
-  border: 1px solid var(--line-2);
-  border-radius: 999px;
-  padding: 4px 12px;
+/* ---- live menu (the badge doubles as the operator console) ---- */
+.live-menu {
+  position: relative;
+  flex: none;
+}
+.live-menu-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
   font: inherit;
   font-size: 12px;
+}
+.live-menu-button:hover {
+  border-color: color-mix(in srgb, var(--good) 65%, var(--line));
+}
+.live-menu-button.is-paused {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+}
+.lm-caret {
+  font-size: 9px;
+  opacity: 0.75;
+}
+.lm-menu {
+  position: absolute;
+  top: calc(100% + 5px);
+  right: 0;
+  z-index: 200;
+  min-width: 184px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.55);
+  padding: 4px 0;
+}
+.lm-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 9px;
+  padding: 9px 14px;
+  background: transparent;
+  border: 0;
+  border-left: 2px solid transparent;
+  color: var(--text-dim);
+  text-align: left;
+  font-family: var(--f-mono);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   cursor: pointer;
 }
-.reset-btn:hover {
+.lm-row:hover {
+  background: var(--panel-2);
+  color: var(--text);
+  border-left-color: var(--accent);
+}
+.lm-row.lm-danger:hover {
   color: #ff8a8a;
-  border-color: #ff8a8a;
+  border-left-color: #ff8a8a;
+}
+.lm-divider {
+  height: 1px;
+  background: var(--line);
+  margin: 4px 0;
 }
