@@ -2,6 +2,18 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "cogherence",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vite", "--port", "5173", "--strictPort"],
+      "port": 5173
+    },
+    {
+      "name": "serve-stub",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "serve", "--", "--port", "5175", "--pace", "600", "--default-live"],
+      "port": 5175
+    },
+    {
       "name": "live",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "serve:llm", "--", "--agents", "llm,llm,greedy,greedy", "--turns", "100", "--pace", "1000", "--port", "5174", "--default-live"],

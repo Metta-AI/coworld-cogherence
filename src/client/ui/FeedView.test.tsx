@@ -28,14 +28,14 @@ describe("FeedView", () => {
         ]}
       />,
     );
-    const heads = [...container.querySelectorAll(".chat-turn-head")];
+    const heads = [...container.querySelectorAll(".cg-feed-turn")];
     expect(heads.map((h) => h.textContent)).toEqual(["Turn 1", "Turn 2"]); // 2 turns -> 2 group headers
     expect(getAllByText(/^(hi|hey)$/).length).toBe(2); // both turn-1 messages under "Turn 1"
-    expect(container.querySelectorAll(".chat-group")).toHaveLength(2);
+    expect(container.querySelectorAll(".cg-feed-group")).toHaveLength(2);
   });
 
   it("shows an empty state", () => {
     const { getByText } = render(<FeedView messages={[]} />);
-    expect(getByText(/haven't spoken/)).toBeTruthy();
+    expect(getByText(/spoken/)).toBeTruthy();
   });
 });

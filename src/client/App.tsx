@@ -88,20 +88,16 @@ export function App({ replay: injected, live: liveProp }: { replay?: Replay; liv
   // events landed when the board advanced PAST their turn (event.turn < turn now
   // showing), while a turn's negotiation chat happens AT that turn (msg.turn <=).
   const turnNow = snapshot ? snapshot.turn : 0;
-  const visibleEvents = store.events.filter((e) => e.turn < turnNow); // stamped {turn, event} — the ticker groups by turn
+  const visibleEvents = store.events.filter((e) => e.turn < turnNow); // stamped {turn, event} — what produced the shown board
   const visibleMessages = store.messages.filter((m) => m.turn <= turnNow);
 
-  // Per-turn scrubber annotations: chat sent on a turn, and captures that flipped a
-  // tile on the way into it (capture events of turn T-1 produce the turn-T board).
-  const msgByTurn = new Map<number, number>();
-  for (const m of store.messages) msgByTurn.set(m.turn, (msgByTurn.get(m.turn) ?? 0) + 1);
-  const capByTurn = new Map<number, number>();
-  for (const e of store.events)
-    if (e.event.type === "capture" && e.event.to !== null) capByTurn.set(e.turn, (capByTurn.get(e.turn) ?? 0) + 1);
-  const turnAt = (i: number): number => snaps[i]?.turn ?? i + 1;
-  const marks = (i: number): { messages: number; captures: number } => {
-    const t = turnAt(i);
-    return { messages: msgByTurn.get(t) ?? 0, captures: capByTurn.get(t - 1) ?? 0 };
+  // Seek to the snapshot showing a given turn (clicking a message's turn chip).
+  const seekTurn = (turn: number): void => {
+    const i = snaps.findIndex((s) => s.turn === turn);
+    if (i >= 0) {
+      setFollow(false);
+      setIndex(i);
+    }
   };
 
   return (
@@ -120,12 +116,7 @@ export function App({ replay: injected, live: liveProp }: { replay?: Replay; liv
       ) : (
         <>
           {loc.view === "global" && (
-            <GlobalView
-              snapshot={snapshot}
-              history={snaps.slice(0, index + 1)}
-              events={visibleEvents}
-              actPrompts={store.actPrompts}
-            />
+            <GlobalView snapshot={snapshot} events={visibleEvents} messages={visibleMessages} onSeekTurn={seekTurn} />
           )}
           {loc.view === "feed" && <FeedView messages={visibleMessages} />}
           {loc.view === "cog" && loc.cogId && (
@@ -134,12 +125,15 @@ export function App({ replay: injected, live: liveProp }: { replay?: Replay; liv
               cogId={loc.cogId}
               actPrompts={store.actPrompts}
               messages={visibleMessages}
+              events={visibleEvents}
               live={liveMode}
+              onSeekTurn={seekTurn}
             />
           )}
           <Scrubber
+            snapshots={snaps}
+            events={store.events}
             index={index}
-            count={snaps.length}
             onSeek={(i) => {
               setFollow(false);
               setIndex(i);
@@ -147,8 +141,6 @@ export function App({ replay: injected, live: liveProp }: { replay?: Replay; liv
             playing={playing}
             onTogglePlay={() => setPlaying((p) => !p)}
             live={liveMode && follow}
-            turnAt={turnAt}
-            marks={marks}
           />
         </>
       )}

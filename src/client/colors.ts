@@ -1,5 +1,8 @@
 // Stable per-cog palette + display names by index; neutral tiles use a CSS var (--neutral).
-const COG_COLORS = ["#e6194b", "#3cb44b", "#4363d8", "#f58231", "#911eb4", "#42d4f4"];
+// Neon-glass observatory palette (brightened from the engine seats) so each Cog's
+// territory glows distinctly on near-black: Alice red, Bob green, Carol blue,
+// David orange, Erin violet, Frank cyan.
+const COG_COLORS = ["#ff2e63", "#36e07f", "#4d7cff", "#ff9838", "#c061ff", "#42d4f4"];
 export const cogColor = (index: number): string => COG_COLORS[index % COG_COLORS.length]!;
 
 // Friendly names for the roster, one per seat (the game seats 3-6 Cogs). The

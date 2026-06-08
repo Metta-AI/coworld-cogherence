@@ -1,39 +1,39 @@
-// The operator console: the full board + roster, an activity ticker, and the
-// act-prompt transparency for every Cog.
+// Spectator (hero broadcast): the Commons meter, then a three-column grid —
+// roster + heart auction on the left, the living lattice in the center, the
+// resolve log + public/DM channels on the right.
 import React, { useState } from "react";
 import type { GameSnapshot } from "../../shared/snapshot";
-import { HexBoard } from "../HexBoard";
+import type { Message } from "../../shared/messages";
+import type { StampedEvent } from "../net/feed";
+import type { LatticeMode } from "../HexBoard";
 import { Roster } from "../Roster";
-import { ActivityTicker } from "./ActivityTicker";
-import { PromptsPanel } from "../PromptsPanel";
-import type { ActPromptFrame, StampedEvent } from "../net/feed";
+import { CommonsStrip, AuctionPanel, ResolveLog, Channels, LatticePanel } from "../cg/panels";
 
 export function GlobalView({
   snapshot,
-  history,
   events,
-  actPrompts,
+  messages,
+  onSeekTurn,
 }: {
   snapshot: GameSnapshot;
-  history?: GameSnapshot[];
   events: StampedEvent[];
-  actPrompts: Record<string, ActPromptFrame[]>;
+  messages: Message[];
+  onSeekTurn?: (turn: number) => void;
 }): React.ReactElement {
-  // Hovering an activity row that names a cell highlights it on the board.
-  const [hoverTile, setHoverTile] = useState<string | null>(null);
+  const [mode, setMode] = useState<LatticeMode>("coherence");
   return (
-    <div className="view view-global" data-testid="global-view">
-      <div className="panel board-panel gv-map">
-        <HexBoard snapshot={snapshot} highlightKey={hoverTile} />
-      </div>
-      <aside className="side-col gv-roster">
-        <Roster snapshot={snapshot} history={history} />
-        <div className="panel">
-          <PromptsPanel actPrompts={actPrompts} />
+    <div className="cg-view cg-spectator" data-testid="global-view">
+      <CommonsStrip snapshot={snapshot} />
+      <div className="cg-grid cg-grid-spectator">
+        <div className="cg-col">
+          <Roster snapshot={snapshot} />
+          <AuctionPanel snapshot={snapshot} events={events} />
         </div>
-      </aside>
-      <div className="gv-feed">
-        <ActivityTicker events={events} onHoverTile={setHoverTile} />
+        <LatticePanel snapshot={snapshot} events={events} mode={mode} setMode={setMode} />
+        <div className="cg-col">
+          <ResolveLog snapshot={snapshot} events={events} />
+          <Channels messages={messages} onSeekTurn={onSeekTurn} />
+        </div>
       </div>
     </div>
   );

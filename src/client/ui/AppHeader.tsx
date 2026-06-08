@@ -1,10 +1,11 @@
-// Broadcast console header (polis layout): brand + view-switcher dropdown on the
-// left, the phase strip centered, and the turn readout + phase/game clocks +
-// reset + live badge on the right. One chrome shared by every view.
+// Observatory header: brand + view switcher (left), the four-phase strip (center),
+// the turn readout + phase/game clocks + the live operator menu (right). One chrome
+// shared by every view.
 import React, { useEffect, useState } from "react";
 import type { GameSnapshot } from "../../shared/snapshot";
 import type { ServerStatus } from "../../shared/protocol";
-import { PhaseStrip } from "./PhaseStrip";
+import { MAX_TURNS } from "../../shared/engine/constants";
+import { Brand, PhaseStripCG } from "../cg/atoms";
 import { ViewSwitcher } from "./ViewSwitcher";
 import { LiveMenu } from "./LiveMenu";
 import type { View } from "./nav";
@@ -41,8 +42,6 @@ export function AppHeader({
 }): React.ReactElement {
   const now = useNow();
   const paused = status?.paused ?? false;
-  // Paused → the phase countdown shows "—" and the GAME clock freezes (anchored at
-  // the pause epoch), excluding all paused time so it resumes where it left off.
   const phaseLeft =
     !paused && status?.phaseDeadlineAt != null && !status.finished
       ? Math.max(0, Math.ceil((status.phaseDeadlineAt - now) / 1000))
@@ -53,45 +52,44 @@ export function AppHeader({
       ? Math.max(0, Math.floor((elapsedAnchor - status.startedAt - (status.pausedAccumMs ?? 0)) / 1000))
       : null;
 
+  // Phase strip is driven by the live status when connected, else the snapshot.
+  const phase = connected && status && !status.finished ? status.phase : snapshot?.phase ?? "resolve";
+  const ready = connected && status?.phase === "commit" && !status.finished ? `${status.done.length}/${status.cogCount} ready` : undefined;
+  const turnNum = snapshot ? Math.min(snapshot.turn, MAX_TURNS) : 0;
+
   return (
-    <header className="app-header">
-      <div className="header-left">
-        <div className="brand">
-          <span className="brand-mark">⬡</span>
-          <span className="brand-name">Cogherence</span>
-        </div>
+    <header className="cg-header" data-testid="app-header">
+      <div className="cg-header-left">
+        <Brand />
+        <span className="cg-header-rule" />
         <ViewSwitcher view={view} cogId={cogId} live={live} cogs={cogs} />
       </div>
 
-      <div className="header-center">{status && connected && !status.finished && <PhaseStrip status={status} />}</div>
+      <div className="cg-header-center">
+        <PhaseStripCG phase={phase} ready={ready} />
+      </div>
 
-      <div className="header-stats">
-        {snapshot && (
-          <span className="hero-turn" data-testid="turn-label">
-            <em>turn</em>
-            <b>{snapshot.turn}</b>
-          </span>
-        )}
-        {!connected && status && (
-          <span className="stat phase">{status.finished ? "finished" : status.phase}</span>
-        )}
+      <div className="cg-header-right">
         {connected && !status?.finished && (
-          <span className="clock" title="time left in this phase">
+          <span className="cg-clock" title="time left in this phase">
             <em>phase</em>
             <b className={phaseLeft === null ? "muted" : ""}>{phaseLeft === null ? "—" : mmss(phaseLeft)}</b>
           </span>
         )}
         {gameSecs !== null && (
-          <span className="clock" title="elapsed game time">
+          <span className="cg-clock" title="elapsed game time">
             <em>game</em>
             <b>{hhmmss(gameSecs)}</b>
           </span>
         )}
-        {connected ? (
-          <LiveMenu paused={status?.paused ?? false} />
-        ) : (
-          <span className="conn conn-replay">▷ replay</span>
+        {snapshot && (
+          <span className="cg-turn" data-testid="turn-label">
+            <span className="cg-label" style={{ fontSize: 9 }}>turn</span>
+            <span className="cg-num" style={{ fontSize: 34 }}>{pad(turnNum)}</span>
+            <span className="cg-mono" style={{ fontSize: 12, color: "var(--muted)" }}>/{MAX_TURNS}</span>
+          </span>
         )}
+        {connected ? <LiveMenu paused={paused} /> : <span className="cg-live cg-replay">▷ REPLAY</span>}
       </div>
     </header>
   );

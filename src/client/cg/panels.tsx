@@ -1,0 +1,509 @@
+// Cogherence observatory chrome: the Commons meter, the Vickrey heart auction,
+// the Resolve log, the public/DM Channels, the tile inspector, and the LatticePanel
+// that wraps the luminous board with its mode toggle, legend, turn pulse, and
+// inspector. All read the real GameSnapshot + event/message streams.
+import React, { useState } from "react";
+import type { GameSnapshot } from "../../shared/snapshot";
+import type { Message } from "../../shared/messages";
+import type { TurnEvent } from "../../shared/engine/log";
+import type { StampedEvent } from "../net/feed";
+import { cogColor, cogName } from "../colors";
+import { HexBoard, type LatticeMode } from "../HexBoard";
+import { CGIcon, CogSigil, Mineral } from "./atoms";
+import {
+  MINERALS,
+  commonsMax,
+  auctionAt,
+  eventsAt,
+  flipTilesAt,
+  exploitTilesAt,
+  lastResolvedTurn,
+  tileMap,
+  neighbors,
+  tileStatus,
+} from "./derive";
+
+const cogIdx = (id: string): number => {
+  const n = Number(id.replace(/\D/g, ""));
+  return Number.isNaN(n) ? 0 : n;
+};
+
+// ===== Commons strip ======================================================
+export function CommonsStrip({ snapshot }: { snapshot: GameSnapshot }): React.ReactElement {
+  const max = commonsMax(snapshot);
+  const ratio = max ? snapshot.commons / max : 0;
+  const health = ratio > 0.62 ? "COHERENT" : ratio > 0.46 ? "HOLDING" : ratio > 0.3 ? "FRAYING" : "COLLAPSING";
+  const healthCol = ratio > 0.62 ? "var(--coherence)" : ratio > 0.46 ? "#9fe6c8" : ratio > 0.3 ? "var(--deal)" : "var(--exploit)";
+  return (
+    <div className="cg-commons" data-testid="commons-strip">
+      <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+        <CGIcon name="coherence" size={20} />
+        <span className="cg-label" style={{ fontSize: 10 }}>
+          The Commons
+        </span>
+      </div>
+      <div style={{ flex: 1 }}>
+        <div className="cg-meter" style={{ height: 10 }}>
+          <div className="cg-meter-fill" style={{ width: `${ratio * 100}%` }} />
+        </div>
+      </div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 5 }}>
+        <span className="cg-num cg-glow" style={{ fontSize: 22, color: "var(--coherence)" }}>
+          {snapshot.commons}
+        </span>
+        <span className="cg-mono" style={{ fontSize: 11, color: "var(--muted)" }}>
+          / {max}
+        </span>
+      </div>
+      <div style={{ minWidth: 110, textAlign: "right" }}>
+        <div className="cg-mono" style={{ fontSize: 13, fontWeight: 700, color: healthCol, letterSpacing: "0.1em" }}>
+          {health}
+        </div>
+        <div className="cg-mono" style={{ fontSize: 9, color: "var(--muted)" }}>
+          {Math.round(ratio * 100)}% of max order
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ===== Heart auction ======================================================
+export function AuctionPanel({ snapshot, events }: { snapshot: GameSnapshot; events: StampedEvent[] }): React.ReactElement {
+  const a = auctionAt(events, lastResolvedTurn(snapshot));
+  const winnerIdx = a?.winner != null ? cogIdx(a.winner) : null;
+  const sorted = a ? [...a.bids].sort((x, y) => y[1] - x[1]) : [];
+  return (
+    <div className="cg-panel" data-testid="auction-panel">
+      <div className="cg-panel-head">
+        <span className="cg-panel-title">Heart Auction</span>
+        <span className="cg-mono" style={{ fontSize: 9, color: "var(--muted)" }}>
+          Vickrey · 2nd-price
+        </span>
+      </div>
+      <div className="cg-panel-body" style={{ display: "flex", alignItems: "center", gap: 14 }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+          <CGIcon name="heart" size={34} />
+          {winnerIdx != null ? (
+            <CogSigil index={winnerIdx} size={26} />
+          ) : (
+            <span className="cg-mono" style={{ fontSize: 9, color: "var(--muted)" }}>
+              unsold
+            </span>
+          )}
+        </div>
+        <div style={{ flex: 1 }}>
+          {a && a.winner ? (
+            <>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                <span style={{ fontFamily: "var(--f-ui)", fontWeight: 700, fontSize: 15, color: cogColor(winnerIdx!) }}>
+                  {cogName(winnerIdx!)}
+                </span>
+                <span className="cg-mono" style={{ fontSize: 11, color: "var(--text-dim)" }}>
+                  takes the heart
+                </span>
+              </div>
+              <div className="cg-mono" style={{ fontSize: 10, color: "var(--muted)", marginTop: 2 }}>
+                bid <b style={{ color: "var(--text)" }}>{a.top}e</b> · pays 2nd price <b style={{ color: "var(--energy)" }}>{a.price}e</b>
+              </div>
+            </>
+          ) : (
+            <div className="cg-mono" style={{ fontSize: 11, color: "var(--muted)" }}>
+              {a ? "no bids cleared this turn" : "no auction yet"}
+            </div>
+          )}
+          <div style={{ display: "flex", gap: 4, marginTop: 7, flexWrap: "wrap" }}>
+            {sorted.map(([id, bid]) => {
+              const won = id === a?.winner;
+              return (
+                <span
+                  key={id}
+                  title={cogName(cogIdx(id))}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 3,
+                    padding: "1px 6px",
+                    borderRadius: 5,
+                    background: won ? "rgba(255,77,157,0.14)" : "var(--panel-2)",
+                    border: `1px solid ${won ? "var(--heart)" : "var(--border)"}`,
+                  }}
+                >
+                  <span style={{ width: 7, height: 7, borderRadius: 2, background: cogColor(cogIdx(id)) }} />
+                  <span className="cg-mono" style={{ fontSize: 10, fontWeight: 600, color: won ? "var(--heart)" : "var(--text-dim)" }}>
+                    {bid}
+                  </span>
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ===== Resolve log ========================================================
+const EVENT_ORDER: Record<string, number> = { exploit: 0, capture: 1, transfer: 2, auction: 3, starved: 4, firstCommit: 5, rejected: 6 };
+
+function EventTag({ e }: { e: TurnEvent }): React.ReactElement {
+  if (e.type === "capture") return <span className={`cg-verb ${e.from ? "exploit" : "align"}`}>{e.from ? "FLIP" : "ALIGN"}</span>;
+  if (e.type === "exploit") return <span className="cg-verb exploit">EXPLOIT</span>;
+  if (e.type === "transfer") return <span className="cg-verb transfer">TRANSFER</span>;
+  if (e.type === "auction") return <span className="cg-verb bid">AUCTION</span>;
+  return (
+    <span className="cg-mono" style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "var(--muted)", padding: "2px 6px", background: "var(--panel-2)", borderRadius: 5 }}>
+      {e.type === "starved" ? "STARVE" : e.type.toUpperCase()}
+    </span>
+  );
+}
+
+function actorOf(e: TurnEvent): string | null {
+  switch (e.type) {
+    case "capture":
+      return e.to;
+    case "exploit":
+    case "starved":
+    case "firstCommit":
+    case "rejected":
+      return e.cog;
+    case "transfer":
+      return e.from;
+    case "auction":
+      return e.winner;
+    default:
+      return null;
+  }
+}
+
+function eventText(e: TurnEvent): React.ReactNode {
+  switch (e.type) {
+    case "capture":
+      return e.from ? `flipped ${e.tile} from ${cogName(cogIdx(e.from))} → coherence ${e.coherence}` : `claimed ${e.tile} → coherence ${e.coherence}`;
+    case "exploit":
+      return `strip-mined ${e.tile} → +${e.minted} ${e.mineral}, land scarred`;
+    case "transfer":
+      return `${e.amount} ${e.mineral} → ${cogName(cogIdx(e.to))}`;
+    case "auction":
+      return e.winner ? `wins the heart, pays 2nd-price ${e.price}e` : "heart unsold";
+    case "starved":
+      return `${e.tile} starved → coherence ${e.coherence}`;
+    case "firstCommit":
+      return `committed first · +${e.reward} ${e.mineral}`;
+    case "rejected":
+      return `order rejected — ${e.reason}`;
+    default:
+      return e.type;
+  }
+}
+
+export function ResolveLog({ snapshot, events }: { snapshot: GameSnapshot; events: StampedEvent[] }): React.ReactElement {
+  const turn = lastResolvedTurn(snapshot);
+  const evs = [...eventsAt(events, turn)].sort((a, b) => (EVENT_ORDER[a.type] ?? 9) - (EVENT_ORDER[b.type] ?? 9));
+  return (
+    <div className="cg-panel" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }} data-testid="resolve-log">
+      <div className="cg-panel-head">
+        <span className="cg-panel-title">Resolve Log</span>
+        <span className="cg-mono" style={{ fontSize: 9, color: "var(--muted)" }}>
+          {turn >= 1 ? `T${String(turn).padStart(2, "0")} · ${evs.length}` : "awaiting first turn"}
+        </span>
+      </div>
+      <div className="cg-panel-body cg-scroll" style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 5, padding: "8px 12px" }}>
+        {evs.length === 0 && (
+          <div className="cg-mono" style={{ fontSize: 10, color: "var(--muted)" }}>
+            nothing has resolved yet.
+          </div>
+        )}
+        {evs.map((e, i) => {
+          const actor = actorOf(e);
+          const ai = actor != null ? cogIdx(actor) : null;
+          return (
+            <div key={i} style={{ display: "grid", gridTemplateColumns: "74px 1fr", gap: 8, alignItems: "start", padding: "3px 0", borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
+              <EventTag e={e} />
+              <div style={{ display: "flex", alignItems: "baseline", gap: 6, minWidth: 0 }}>
+                {ai != null && <span style={{ width: 7, height: 7, borderRadius: 2, background: cogColor(ai), flex: "0 0 auto", marginTop: 4 }} />}
+                <span className="cg-mono" style={{ fontSize: 10.5, color: e.type === "exploit" ? "var(--exploit)" : "var(--text-dim)", lineHeight: 1.4 }}>
+                  {ai != null && <b style={{ color: cogColor(ai) }}>{cogName(ai)} </b>}
+                  {eventText(e)}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ===== Channels (public + DMs) ============================================
+export function ChannelMessage({ m, onSeekTurn }: { m: Message; onSeekTurn?: (turn: number) => void }): React.ReactElement {
+  const fi = cogIdx(m.from);
+  const isPublic = m.to === "public";
+  return (
+    <div
+      style={{
+        padding: "7px 9px",
+        borderRadius: 8,
+        background: isPublic ? "var(--panel-2)" : "rgba(255,193,77,0.05)",
+        border: `1px solid ${isPublic ? "var(--border)" : "rgba(255,193,77,0.28)"}`,
+        borderLeft: `3px solid ${cogColor(fi)}`,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+        <CogSigil index={fi} size={18} glow={false} />
+        <span style={{ fontFamily: "var(--f-ui)", fontWeight: 700, fontSize: 11, color: cogColor(fi) }}>{cogName(fi)}</span>
+        {isPublic ? (
+          <span className="cg-mono" style={{ fontSize: 8.5, color: "var(--coherence)" }}>
+            PUBLIC
+          </span>
+        ) : (
+          <span className="cg-mono" style={{ fontSize: 8.5, color: "var(--deal)" }}>
+            🔒 → {cogName(cogIdx(m.to))}
+          </span>
+        )}
+        <button onClick={() => onSeekTurn?.(m.turn)} className="cg-mono cg-turnjump" style={{ marginLeft: "auto", fontSize: 8.5 }}>
+          T{String(m.turn).padStart(2, "0")}
+        </button>
+      </div>
+      <div className="cg-mono" style={{ fontSize: 11, color: "var(--text-dim)", lineHeight: 1.5 }}>
+        {m.text}
+      </div>
+    </div>
+  );
+}
+
+export function Channels({ messages, onSeekTurn }: { messages: Message[]; onSeekTurn?: (turn: number) => void }): React.ReactElement {
+  const [tab, setTab] = useState<"all" | "public" | "dm">("all");
+  let msgs = messages;
+  if (tab === "public") msgs = msgs.filter((m) => m.to === "public");
+  if (tab === "dm") msgs = msgs.filter((m) => m.to !== "public");
+  msgs = msgs.slice(-40).reverse();
+  return (
+    <div className="cg-panel" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }} data-testid="channels">
+      <div className="cg-panel-head">
+        <span className="cg-panel-title">Channels</span>
+        <div className="cg-seg">
+          {([["all", "All"], ["public", "Public"], ["dm", "DMs"]] as const).map(([k, l]) => (
+            <button key={k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>
+              {l}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="cg-panel-body cg-scroll" style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 7, padding: "10px 12px" }}>
+        {msgs.length === 0 && (
+          <div className="cg-mono" style={{ fontSize: 11, color: "var(--muted)" }}>
+            silence on the wire.
+          </div>
+        )}
+        {msgs.map((m) => (
+          <ChannelMessage key={m.seq} m={m} onSeekTurn={onSeekTurn} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ===== Tile inspector =====================================================
+export function TileInspector({ tileKey: key, snapshot, onClose }: { tileKey: string; snapshot: GameSnapshot; onClose: () => void }): React.ReactElement | null {
+  const map = tileMap(snapshot);
+  const t = map.get(key);
+  if (!t) return null;
+  const ownerIdx = t.alignment != null ? cogIdx(t.alignment) : null;
+  const ownerColor = ownerIdx != null ? cogColor(ownerIdx) : "var(--muted)";
+  const nb = neighbors(t.q, t.r, map);
+  const friendly = t.alignment ? nb.filter((n) => n.alignment === t.alignment).length : 0;
+  const nc = nb.length;
+  const status = tileStatus(t, map, snapshot.coherenceMax, ownerColor);
+  const willGain = friendly >= Math.floor(nc / 2) + 1;
+  return (
+    <div className="cg-panel" style={{ width: 248, background: "rgba(14,14,24,0.94)", backdropFilter: "blur(8px)" }} data-testid="tile-inspector">
+      <div className="cg-panel-head" style={{ padding: "8px 11px" }}>
+        <span className="cg-panel-title" style={{ fontSize: 11 }}>
+          Tile {key}
+        </span>
+        <button onClick={onClose} className="cg-x" aria-label="close">
+          ✕
+        </button>
+      </div>
+      <div className="cg-panel-body" style={{ padding: 11, display: "flex", flexDirection: "column", gap: 9 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+          {ownerIdx != null ? (
+            <CogSigil index={ownerIdx} size={26} />
+          ) : (
+            <div style={{ width: 26, height: 26, borderRadius: 6, border: "1px solid var(--border)", background: "var(--panel-2)" }} />
+          )}
+          <div style={{ flex: 1 }}>
+            <div style={{ fontFamily: "var(--f-ui)", fontWeight: 700, fontSize: 12, color: ownerColor }}>
+              {ownerIdx != null ? cogName(ownerIdx) : "Unaligned"}
+            </div>
+            <div className="cg-mono" style={{ fontSize: 9, fontWeight: 700, color: status.tone, letterSpacing: "0.06em" }}>
+              {status.label}
+            </div>
+          </div>
+        </div>
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+            <span className="cg-label" style={{ fontSize: 9 }}>
+              coherence
+            </span>
+            <span className="cg-mono" style={{ fontSize: 11, color: "var(--coherence)" }}>
+              {t.coherence}/{snapshot.coherenceMax}
+            </span>
+          </div>
+          <div className="cg-meter" style={{ height: 6 }}>
+            <div className="cg-meter-fill" style={{ width: `${(t.coherence / snapshot.coherenceMax) * 100}%` }} />
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 14 }}>
+          <div>
+            <div className="cg-label" style={{ fontSize: 9, marginBottom: 3 }}>
+              mineral
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <Mineral m={t.mineral} />
+              <span className="cg-mono" style={{ fontSize: 11, color: "var(--text-dim)" }}>
+                density {t.density}
+              </span>
+            </div>
+          </div>
+          <div>
+            <div className="cg-label" style={{ fontSize: 9, marginBottom: 3 }}>
+              neighbors
+            </div>
+            <div className="cg-mono" style={{ fontSize: 11, color: "var(--text-dim)" }}>
+              {friendly}/{nc} friendly
+            </div>
+          </div>
+        </div>
+        {t.alignment && t.coherence > 0 && (
+          <div className="cg-mono" style={{ fontSize: 9.5, color: "var(--muted)", lineHeight: 1.5, paddingTop: 7, borderTop: "1px solid var(--border)" }}>
+            mints <b style={{ color: "var(--text-dim)" }}>{((t.density * t.coherence) / 10).toFixed(1)} {t.mineral}</b>/turn ·{" "}
+            {willGain ? "gains +1 coherence at Upkeep" : "rots −1 at Upkeep"}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ===== Board overlays =====================================================
+function ModeToggle({ mode, setMode }: { mode: LatticeMode; setMode: (m: LatticeMode) => void }): React.ReactElement {
+  return (
+    <div className="cg-seg cg-glass">
+      {([["coherence", "Coherence"], ["mineral", "Minerals"], ["ownership", "Territory"]] as const).map(([k, l]) => (
+        <button key={k} className={mode === k ? "on" : ""} onClick={() => setMode(k)}>
+          {l}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function LatticeLegend({ mode }: { mode: LatticeMode }): React.ReactElement {
+  if (mode === "mineral")
+    return (
+      <div className="cg-glass" style={{ display: "flex", gap: 10, padding: "6px 10px", borderRadius: 8, border: "1px solid var(--border)" }}>
+        {MINERALS.map((m) => (
+          <Mineral key={m} m={m} label />
+        ))}
+      </div>
+    );
+  return (
+    <div className="cg-glass" style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: 8, border: "1px solid var(--border)" }}>
+      <span className="cg-mono" style={{ fontSize: 9, color: "var(--muted)" }}>
+        {mode === "ownership" ? "territory · digit = coherence" : "glow = coherence"}
+      </span>
+      {mode === "coherence" && (
+        <div style={{ display: "flex", gap: 2 }}>
+          {[1, 2, 3, 4, 5, 6].map((n) => (
+            <span key={n} style={{ width: 8, height: 12, borderRadius: 1, background: "#3ce0c0", opacity: 0.12 + (n / 6) * 0.85 }} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TurnPulse({ snapshot, events }: { snapshot: GameSnapshot; events: StampedEvent[] }): React.ReactElement | null {
+  const turn = lastResolvedTurn(snapshot);
+  const evs = eventsAt(events, turn);
+  if (turn < 1) return null;
+  const claims = evs.filter((e) => e.type === "capture" && e.from === null).length;
+  const flips = evs.filter((e) => e.type === "capture" && e.from !== null).length;
+  const exps = evs.filter((e) => e.type === "exploit").length;
+  const auc = evs.find((e) => e.type === "auction");
+  const winnerIdx = auc && auc.type === "auction" && auc.winner ? cogIdx(auc.winner) : null;
+  return (
+    <div className="cg-glass" style={{ display: "flex", alignItems: "center", gap: 12, padding: "6px 12px", borderRadius: 8, border: "1px solid var(--border)" }}>
+      <span className="cg-mono" style={{ fontSize: 10, color: "var(--align)" }}>
+        {claims} claimed
+      </span>
+      <span className="cg-mono" style={{ fontSize: 10, color: "var(--text-dim)" }}>
+        {flips} flipped
+      </span>
+      {exps > 0 && (
+        <span className="cg-mono" style={{ fontSize: 10, color: "var(--exploit)" }}>
+          ✺ {exps} exploited
+        </span>
+      )}
+      {winnerIdx != null && (
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+          <CGIcon name="heart" size={12} />
+          <span className="cg-mono" style={{ fontSize: 10, color: "var(--heart)" }}>
+            {cogName(winnerIdx)}
+          </span>
+        </span>
+      )}
+    </div>
+  );
+}
+
+// ===== Lattice panel (the framed, instrumented board) =====================
+export function LatticePanel({
+  snapshot,
+  events,
+  mode,
+  setMode,
+  highlight = null,
+}: {
+  snapshot: GameSnapshot;
+  events: StampedEvent[];
+  mode: LatticeMode;
+  setMode: (m: LatticeMode) => void;
+  highlight?: string | null;
+}): React.ReactElement {
+  const [selected, setSelected] = useState<string | null>(null);
+  const turn = lastResolvedTurn(snapshot);
+  const flips = flipTilesAt(events, turn);
+  const exploited = exploitTilesAt(events, turn);
+  return (
+    <div className="cg-panel cg-lattice" onClick={() => setSelected(null)} data-testid="lattice">
+      <div style={{ position: "absolute", inset: 0, padding: 8 }}>
+        <HexBoard
+          snapshot={snapshot}
+          mode={mode}
+          selected={selected}
+          onSelect={setSelected}
+          flips={flips}
+          exploited={exploited}
+          highlight={highlight}
+          commonsRatio={snapshot.commons / commonsMax(snapshot)}
+        />
+      </div>
+      <div style={{ position: "absolute", top: 12, left: 14 }}>
+        <TurnPulse snapshot={snapshot} events={events} />
+      </div>
+      <div style={{ position: "absolute", top: 12, right: 14 }} onClick={(e) => e.stopPropagation()}>
+        <ModeToggle mode={mode} setMode={setMode} />
+      </div>
+      <div style={{ position: "absolute", bottom: 12, right: 14 }}>
+        <LatticeLegend mode={mode} />
+      </div>
+      {selected && (
+        <div style={{ position: "absolute", bottom: 12, left: 14 }} onClick={(e) => e.stopPropagation()}>
+          <TileInspector tileKey={selected} snapshot={snapshot} onClose={() => setSelected(null)} />
+        </div>
+      )}
+    </div>
+  );
+}

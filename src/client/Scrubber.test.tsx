@@ -2,44 +2,65 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, fireEvent } from "@testing-library/react";
 import { Scrubber } from "./Scrubber";
+import type { GameSnapshot } from "../shared/snapshot";
+
+const snaps = (n: number): GameSnapshot[] =>
+  Array.from({ length: n }, (_, i) => ({
+    version: "0",
+    seed: 7,
+    turn: i + 1,
+    phase: "resolve",
+    radius: 6,
+    coherenceMax: 10,
+    tiles: [{ q: 0, r: 0, alignment: "cog0", coherence: i, mineral: "C", density: 1 }],
+    cogs: [{ id: "cog0", index: 0, hearts: i, treasury: { C: 0, O: 0, Ge: 0, S: 0 }, energy: 0 }],
+    commons: i,
+  }));
 
 const base = {
+  snapshots: snaps(10),
+  events: [],
   index: 3,
-  count: 10,
   onSeek: () => {},
   playing: false,
   onTogglePlay: () => {},
 };
 
 describe("Scrubber", () => {
-  it("shows the displayed turn via turnAt and a replay dot", () => {
-    const { getByText, container } = render(<Scrubber {...base} turnAt={(i) => i + 1} />);
-    expect(getByText("turn 4")).toBeTruthy(); // index 3 -> turn 4
-    expect(container.querySelector(".scrub-dot.is-replay")).toBeTruthy();
+  it("shows the displayed turn and a replay dot", () => {
+    const { container } = render(<Scrubber {...base} />);
+    expect(container.textContent).toContain("04"); // index 3 -> turn 4
+    expect(container.querySelector(".cg-scrub-dot.is-replay")).toBeTruthy();
   });
 
   it("renders a live dot when live", () => {
     const { container } = render(<Scrubber {...base} live />);
-    expect(container.querySelector(".scrub-dot.is-live")).toBeTruthy();
+    expect(container.querySelector(".cg-scrub-dot.is-live")).toBeTruthy();
   });
 
-  it("no overview for a short game; a full-range overview + window appear when zoomed", () => {
-    const short = render(<Scrubber {...base} count={10} index={3} />);
-    expect(short.queryByTestId("scrub-overview")).toBeNull(); // 10 turns fit — no zoom
-
-    const long = render(<Scrubber {...base} count={120} index={60} turnAt={(i) => i + 1} />);
-    expect(long.getByTestId("scrub-overview")).toBeTruthy(); // many turns → local zoom + overview
-    expect(long.container.querySelector(".scrub-ov-window")).toBeTruthy();
-    expect(long.getByText("/ 120")).toBeTruthy(); // readout shows the full-game extent
+  it("always renders the dual-band overview", () => {
+    const { getByTestId } = render(<Scrubber {...base} />);
+    expect(getByTestId("scrub-overview")).toBeTruthy();
   });
 
-  it("jump-to-start seeks index 0; step forward seeks index+1", () => {
+  it("first seeks index 0; forward seeks index+1", () => {
     const onSeek = vi.fn();
-    const { getByLabelText } = render(<Scrubber {...base} onSeek={onSeek} />);
-    fireEvent.click(getByLabelText("jump to start"));
+    const { getByLabelText, unmount } = render(<Scrubber {...base} onSeek={onSeek} />);
+    fireEvent.click(getByLabelText("First"));
     expect(onSeek).toHaveBeenCalledWith(0);
-    fireEvent.click(getByLabelText("step forward"));
+    fireEvent.click(getByLabelText("Forward"));
     expect(onSeek).toHaveBeenCalledWith(4);
+    unmount();
+  });
+
+  it("clicking a detail-rail card seeks that turn", () => {
+    const onSeek = vi.fn();
+    const { container, unmount } = render(<Scrubber {...base} onSeek={onSeek} />);
+    const cards = container.querySelectorAll(".cg-rail-card");
+    expect(cards.length).toBeGreaterThan(0);
+    fireEvent.click(cards[0]!);
+    expect(onSeek).toHaveBeenCalled();
+    unmount();
   });
 
   it("arrow keys step one turn back/forward, clamped to the range", () => {
@@ -47,14 +68,13 @@ describe("Scrubber", () => {
     const mid = render(<Scrubber {...base} onSeek={onSeek} />); // index 3
     fireEvent.keyDown(window, { key: "ArrowRight" });
     expect(onSeek).toHaveBeenLastCalledWith(4);
-    // two quick presses (no re-render between) keep stepping via the optimistic ref
     fireEvent.keyDown(window, { key: "ArrowLeft" });
     fireEvent.keyDown(window, { key: "ArrowLeft" });
-    expect(onSeek).toHaveBeenLastCalledWith(2); // 4 -> 3 -> 2
-    mid.unmount(); // drop this listener before the next mount
+    expect(onSeek).toHaveBeenLastCalledWith(2); // 4 -> 3 -> 2 via the optimistic ref
+    mid.unmount();
 
     const onSeekEnd = vi.fn();
-    const end = render(<Scrubber {...base} index={9} count={10} onSeek={onSeekEnd} />);
+    const end = render(<Scrubber {...base} index={9} onSeek={onSeekEnd} />);
     fireEvent.keyDown(window, { key: "ArrowRight" });
     expect(onSeekEnd).toHaveBeenLastCalledWith(9); // already at last → clamps
     end.unmount();
@@ -71,18 +91,10 @@ describe("Scrubber", () => {
     unmount();
   });
 
-  it("renders per-turn markers (chat dots + capture count) from marks()", () => {
-    const marks = (i: number) => (i === 2 ? { messages: 3, captures: 2 } : { messages: 0, captures: 0 });
-    const { container } = render(<Scrubber {...base} marks={marks} />);
-    expect(container.querySelectorAll(".scrub-mark")).toHaveLength(1);
-    expect(container.querySelectorAll(".scrub-mark-dot")).toHaveLength(3);
-    expect(container.querySelector(".scrub-mark-cap")!.textContent).toBe("⬡2");
-  });
-
   it("toggles play/pause label", () => {
     const { getByLabelText, rerender } = render(<Scrubber {...base} playing={false} />);
-    expect(getByLabelText("play")).toBeTruthy();
+    expect(getByLabelText("Play")).toBeTruthy();
     rerender(<Scrubber {...base} playing />);
-    expect(getByLabelText("pause")).toBeTruthy();
+    expect(getByLabelText("Pause")).toBeTruthy();
   });
 });

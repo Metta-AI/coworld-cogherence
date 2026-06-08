@@ -2,9 +2,9 @@ import { test, expect } from "@playwright/test";
 
 test("renders the lattice and scrubs", async ({ page }) => {
   await page.goto("/");
-  await expect(page.locator("polygon")).toHaveCount(127);
+  await expect(page.locator("g.cg-tile")).toHaveCount(127);
   const before = await page.getByTestId("turn-label").textContent();
-  await page.getByLabel("step forward").click();
+  await page.getByLabel("Forward").click();
   await expect(page.getByTestId("turn-label")).not.toHaveText(before ?? "");
 });
 
@@ -23,6 +23,6 @@ test("the per-cog replay route loads the replay (route-stable fetch, not stuck l
   // this nested route and never parsed, so the cog view hung on "Loading replay…".
   await page.goto("/cog/cog0");
   await expect(page.getByTestId("cog-view")).toBeVisible();
-  await expect(page.locator("polygon")).toHaveCount(127); // board actually rendered
-  await expect(page.getByTestId("inbox")).toBeVisible();
+  await expect(page.locator("g.cg-tile")).toHaveCount(127); // board actually rendered
+  await expect(page.getByTestId("cog-channels")).toBeVisible();
 });
