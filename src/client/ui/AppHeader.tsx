@@ -65,11 +65,6 @@ export function AppHeader({
             <b>{snapshot.turn}</b>
           </span>
         )}
-        {snapshot && (
-          <span className="stat">
-            <em>commons</em> {snapshot.commons}
-          </span>
-        )}
         {!connected && status && (
           <span className="stat phase">{status.finished ? "finished" : status.phase}</span>
         )}
