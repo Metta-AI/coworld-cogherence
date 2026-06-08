@@ -42,6 +42,35 @@ describe("Scrubber", () => {
     expect(onSeek).toHaveBeenCalledWith(4);
   });
 
+  it("arrow keys step one turn back/forward, clamped to the range", () => {
+    const onSeek = vi.fn();
+    const mid = render(<Scrubber {...base} onSeek={onSeek} />); // index 3
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+    expect(onSeek).toHaveBeenLastCalledWith(4);
+    // two quick presses (no re-render between) keep stepping via the optimistic ref
+    fireEvent.keyDown(window, { key: "ArrowLeft" });
+    fireEvent.keyDown(window, { key: "ArrowLeft" });
+    expect(onSeek).toHaveBeenLastCalledWith(2); // 4 -> 3 -> 2
+    mid.unmount(); // drop this listener before the next mount
+
+    const onSeekEnd = vi.fn();
+    const end = render(<Scrubber {...base} index={9} count={10} onSeek={onSeekEnd} />);
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+    expect(onSeekEnd).toHaveBeenLastCalledWith(9); // already at last → clamps
+    end.unmount();
+  });
+
+  it("arrow keys are ignored while typing in a field", () => {
+    const onSeek = vi.fn();
+    const { unmount } = render(<Scrubber {...base} onSeek={onSeek} />);
+    const input = document.body.appendChild(document.createElement("input"));
+    input.focus();
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+    expect(onSeek).not.toHaveBeenCalled();
+    input.remove();
+    unmount();
+  });
+
   it("renders per-turn markers (chat dots + capture count) from marks()", () => {
     const marks = (i: number) => (i === 2 ? { messages: 3, captures: 2 } : { messages: 0, captures: 0 });
     const { container } = render(<Scrubber {...base} marks={marks} />);

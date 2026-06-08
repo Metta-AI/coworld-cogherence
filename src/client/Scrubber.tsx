@@ -3,8 +3,8 @@
 // slice of turns around the playhead (so individual turns stay readable/clickable
 // even in a long game), wheel to zoom in/out. A full-range overview bar above it
 // spans turn 1 → now; click it to jump anywhere. Per-turn markers (chat dots +
-// capture count), a live/replay dot, and a turn readout.
-import React, { useState } from "react";
+// capture count), a live/replay dot, and a turn readout. ←/→ step one turn.
+import React, { useEffect, useRef, useState } from "react";
 
 export interface TurnMark {
   messages: number;
@@ -40,6 +40,26 @@ export function Scrubber({
   const [winSize, setWinSize] = useState(30); // turns visible in the zoom window
   const turn = (i: number): number => (turnAt ? turnAt(i) : i + 1);
   const go = (i: number): void => onSeek(clamp(Math.round(i), 0, last));
+
+  // ←/→ step one turn back/forward. Register once and read the latest state via a
+  // ref (the parent re-renders often and hands a fresh onSeek each time). Ignored
+  // while typing in a field so it doesn't fight text entry / caret movement.
+  const stepRef = useRef({ index, last, onSeek });
+  stepRef.current = { index, last, onSeek };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      const el = document.activeElement as HTMLElement | null;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+      e.preventDefault();
+      const s = stepRef.current;
+      const next = clamp(s.index + (e.key === "ArrowLeft" ? -1 : 1), 0, s.last);
+      s.index = next; // optimistic: a held/rapid repeat keeps stepping before the re-render lands
+      s.onSeek(next);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   // The local-zoom window [lo..hi], centered on the playhead and clamped to range.
   const win = Math.min(winSize, n);
