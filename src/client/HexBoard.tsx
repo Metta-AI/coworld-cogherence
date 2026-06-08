@@ -14,6 +14,12 @@ import { MINERAL_COLOR, tileKey } from "./cg/derive";
 export type LatticeMode = "coherence" | "mineral" | "ownership";
 
 const SIZE = 26;
+const BASE = import.meta.env.BASE_URL;
+// Each tile carries a luminous neon-glass mineral gem (its deposit), sized by
+// density — the at-a-glance resource indicator. In mineral mode the fill already
+// encodes the mineral, so the gem is omitted there.
+const mineralIcon = (m: string): string => `${BASE}icons/transparent/mineral-${m.toLowerCase()}.png`;
+const gemSize = (density: number): number => SIZE * (0.52 + (Math.min(3, density) - 1) * 0.22);
 const corners = (cx: number, cy: number): string => polygonPoints(hexCorners(cx, cy, SIZE));
 /** A hex's corners pulled `f` of the way toward its center — the inner fortress sheen. */
 const innerCorners = (cx: number, cy: number, f: number): string =>
@@ -187,6 +193,30 @@ export function HexBoard({
           </g>
         );
       })}
+
+      {/* Mineral gems — the per-tile resource indicator. A crisp top layer (no tile
+          glow), shown in coherence mode where the fill encodes coherence not mineral. */}
+      {mode === "coherence" &&
+        snapshot.tiles.map((t, i) => {
+          const k = tileKey(t.q, t.r);
+          if (t.density <= 0 || expSet.has(k)) return null; // husks have no deposit; don't mask the exploit reveal
+          const c = centers[i]!;
+          const gz = gemSize(t.density);
+          const dim = highlight && t.alignment !== highlight ? 0.45 : 0.92;
+          return (
+            <image
+              key={`gem-${k}`}
+              href={mineralIcon(t.mineral)}
+              x={c.x - gz / 2}
+              y={c.y - gz / 2}
+              width={gz}
+              height={gz}
+              opacity={dim}
+              preserveAspectRatio="xMidYMid meet"
+              pointerEvents="none"
+            />
+          );
+        })}
     </svg>
   );
 }
