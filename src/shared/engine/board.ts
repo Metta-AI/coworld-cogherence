@@ -27,9 +27,10 @@ export function generateBoard(seed: number, numCogs: number): GameState {
   const tiles: Record<string, Tile> = {};
   for (const hex of hexes) {
     const mineral = MINERALS[randInt(rng, MINERALS.length)]!;
-    // Weighted density: most deposits are thin, rich ones are rare. 60/30/10.
+    // Weighted density: 20% barren (no deposit), and across the rest most
+    // deposits are thin while rich ones stay rare — 20/48/24/8 over 0/1/2/3.
     const roll = rng();
-    const density = roll < 0.6 ? 1 : roll < 0.9 ? 2 : 3;
+    const density = roll < 0.2 ? 0 : roll < 0.68 ? 1 : roll < 0.92 ? 2 : 3;
     tiles[key(hex)] = { hex, alignment: null, coherence: 0, mineral, density };
   }
 

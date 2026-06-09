@@ -148,7 +148,7 @@ export function tileStatus(t: TileSnapshot, map: TileMap, coherenceMax: number, 
   const nb = neighbors(t.q, t.r, map);
   const friendly = t.alignment ? nb.filter((n) => n.alignment === t.alignment).length : 0;
   const threshold = Math.floor(nb.length / 2) + 1;
-  if (!t.alignment) return { label: t.density === 0 ? "SCARRED HUSK" : "NEUTRAL", tone: "var(--muted)" };
+  if (!t.alignment) return { label: t.density === 0 ? "BARREN" : "NEUTRAL", tone: "var(--muted)" };
   if (t.coherence >= coherenceMax) return { label: "FORTRESS", tone: ownerColor };
   if (t.coherence === 0) return { label: "HUSK · rotted", tone: "var(--exploit)" };
   if (friendly < threshold) return { label: "ROTTING SALIENT", tone: "var(--exploit)" };
