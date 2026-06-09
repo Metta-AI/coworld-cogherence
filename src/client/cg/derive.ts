@@ -106,6 +106,20 @@ export function auctionAt(events: StampedEvent[], turn: number): AuctionInfo | n
   }
   return null;
 }
+/** Cumulative energy paid for hearts up to and including `turn` (Vickrey clearing
+ *  prices actually charged), total and per winning cog. */
+export function heartSpend(events: StampedEvent[], turn: number): { total: number; byCog: Map<string, number> } {
+  const byCog = new Map<string, number>();
+  let total = 0;
+  for (const e of events) {
+    if (e.turn <= turn && e.event.type === "auction" && e.event.winner) {
+      total += e.event.price;
+      byCog.set(e.event.winner, (byCog.get(e.event.winner) ?? 0) + e.event.price);
+    }
+  }
+  return { total, byCog };
+}
+
 /** Resolve-log events of `turn`, mint frames dropped (mint is implicit upkeep noise). */
 export const eventsAt = (events: StampedEvent[], turn: number): TurnEvent[] =>
   events.filter((e) => e.turn === turn && e.event.type !== "mint").map((e) => e.event);

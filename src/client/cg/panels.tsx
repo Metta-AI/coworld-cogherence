@@ -14,6 +14,7 @@ import {
   MINERALS,
   commonsMax,
   auctionAt,
+  heartSpend,
   eventsAt,
   flipTilesAt,
   exploitTilesAt,
@@ -30,9 +31,13 @@ const cogIdx = (id: string): number => {
 
 // ===== Heart auction ======================================================
 export function AuctionPanel({ snapshot, events }: { snapshot: GameSnapshot; events: StampedEvent[] }): React.ReactElement {
-  const a = auctionAt(events, lastResolvedTurn(snapshot));
+  const turn = lastResolvedTurn(snapshot);
+  const a = auctionAt(events, turn);
   const winnerIdx = a?.winner != null ? cogIdx(a.winner) : null;
   const sorted = a ? [...a.bids].sort((x, y) => y[1] - x[1]) : [];
+  // Cumulative energy sunk into hearts so far (follows the scrubber), per cog.
+  const spend = heartSpend(events, turn);
+  const spendRows = [...spend.byCog.entries()].sort((x, y) => y[1] - x[1]);
   return (
     <div className="cg-panel" data-testid="auction-panel">
       <div className="cg-panel-head">
@@ -97,6 +102,24 @@ export function AuctionPanel({ snapshot, events }: { snapshot: GameSnapshot; eve
               );
             })}
           </div>
+          {spend.total > 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 9, paddingTop: 8, borderTop: "1px solid var(--border)" }} data-testid="heart-spend">
+              <CGIcon name="energy" size={13} />
+              <span className="cg-mono" style={{ fontSize: 9.5, color: "var(--muted)" }}>
+                spent on hearts
+              </span>
+              <span className="cg-mono" style={{ fontSize: 12, fontWeight: 700, color: "var(--energy)" }}>
+                {spend.total}e
+              </span>
+              <span style={{ flex: 1 }} />
+              {spendRows.map(([id, amt]) => (
+                <span key={id} title={`${cogName(cogIdx(id))} · ${amt}e on hearts`} style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: 2, background: cogColor(cogIdx(id)) }} />
+                  <span className="cg-mono" style={{ fontSize: 10, color: "var(--text-dim)" }}>{amt}</span>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
