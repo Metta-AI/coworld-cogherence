@@ -303,16 +303,7 @@ button:focus-visible {
   }
 }
 
-/* ===== commons meter ==================================== */
-.cg-commons {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 9px 20px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-2);
-}
+/* ===== meter (commons / tile inspector) ================= */
 .cg-meter {
   position: relative;
   height: 8px;
@@ -471,17 +462,32 @@ button:focus-visible {
   flex: 1;
   min-height: 0;
 }
-.cg-grid-spectator {
-  grid-template-columns: 300px 1fr 332px;
-}
-.cg-grid-cog {
-  grid-template-columns: 340px 1fr 320px;
-}
 .cg-col {
   display: flex;
   flex-direction: column;
   gap: 12px;
   min-height: 0;
+}
+/* draggable divider between a side panel and the center lattice */
+.cg-gutter {
+  cursor: col-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;
+}
+.cg-gutter::after {
+  content: "";
+  width: 2px;
+  height: 34px;
+  border-radius: 2px;
+  background: var(--border-2);
+  transition: background 0.15s, height 0.15s;
+}
+.cg-gutter:hover::after {
+  background: var(--coherence);
+  height: 60px;
+  box-shadow: 0 0 10px var(--coherence);
 }
 .cg-lattice {
   position: relative;

@@ -28,45 +28,6 @@ const cogIdx = (id: string): number => {
   return Number.isNaN(n) ? 0 : n;
 };
 
-// ===== Commons strip ======================================================
-export function CommonsStrip({ snapshot }: { snapshot: GameSnapshot }): React.ReactElement {
-  const max = commonsMax(snapshot);
-  const ratio = max ? snapshot.commons / max : 0;
-  const health = ratio > 0.62 ? "COHERENT" : ratio > 0.46 ? "HOLDING" : ratio > 0.3 ? "FRAYING" : "COLLAPSING";
-  const healthCol = ratio > 0.62 ? "var(--coherence)" : ratio > 0.46 ? "#9fe6c8" : ratio > 0.3 ? "var(--deal)" : "var(--exploit)";
-  return (
-    <div className="cg-commons" data-testid="commons-strip">
-      <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-        <CGIcon name="coherence" size={20} />
-        <span className="cg-label" style={{ fontSize: 10 }}>
-          The Commons
-        </span>
-      </div>
-      <div style={{ flex: 1 }}>
-        <div className="cg-meter" style={{ height: 10 }}>
-          <div className="cg-meter-fill" style={{ width: `${ratio * 100}%` }} />
-        </div>
-      </div>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 5 }}>
-        <span className="cg-num cg-glow" style={{ fontSize: 22, color: "var(--coherence)" }}>
-          {snapshot.commons}
-        </span>
-        <span className="cg-mono" style={{ fontSize: 11, color: "var(--muted)" }}>
-          / {max}
-        </span>
-      </div>
-      <div style={{ minWidth: 110, textAlign: "right" }}>
-        <div className="cg-mono" style={{ fontSize: 13, fontWeight: 700, color: healthCol, letterSpacing: "0.1em" }}>
-          {health}
-        </div>
-        <div className="cg-mono" style={{ fontSize: 9, color: "var(--muted)" }}>
-          {Math.round(ratio * 100)}% of max order
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ===== Heart auction ======================================================
 export function AuctionPanel({ snapshot, events }: { snapshot: GameSnapshot; events: StampedEvent[] }): React.ReactElement {
   const a = auctionAt(events, lastResolvedTurn(snapshot));

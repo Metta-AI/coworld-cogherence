@@ -9,6 +9,7 @@ import type { LatticeMode } from "../HexBoard";
 import { cogColor, cogName } from "../colors";
 import { CGIcon, CogSigil, Mineral } from "../cg/atoms";
 import { LatticePanel, ChannelMessage } from "../cg/panels";
+import { ResizableColumns } from "../cg/ResizableColumns";
 import {
   MINERALS,
   MINERAL_NAME,
@@ -202,18 +203,23 @@ export function CogView({
   const mine: Record<string, ActPromptFrame[]> = actPrompts[cogId] ? { [cogId]: actPrompts[cogId]! } : {};
   return (
     <div className="cg-view cg-cog" data-testid="cog-view">
-      <div className="cg-grid cg-grid-cog">
-        <div className="cg-col cg-scroll" style={{ overflowY: "auto" }}>
-          <Identity snapshot={snapshot} cogId={cogId} />
-          <Orders snapshot={snapshot} cogId={cogId} events={events} />
-          {live && <SteeringPanel cogId={cogId} />}
-          <div className="cg-panel">
-            <PromptsPanel actPrompts={mine} />
+      <ResizableColumns
+        storageKey="cg.cols.cog"
+        defaultLeft={340}
+        defaultRight={320}
+        left={
+          <div className="cg-col cg-scroll" style={{ overflowY: "auto" }}>
+            <Identity snapshot={snapshot} cogId={cogId} />
+            <Orders snapshot={snapshot} cogId={cogId} events={events} />
+            {live && <SteeringPanel cogId={cogId} />}
+            <div className="cg-panel">
+              <PromptsPanel actPrompts={mine} />
+            </div>
           </div>
-        </div>
-        <LatticePanel snapshot={snapshot} events={events} mode={mode} setMode={setMode} highlight={cogId} />
-        <CogChannels snapshot={snapshot} cogId={cogId} messages={messages} onSeekTurn={onSeekTurn} />
-      </div>
+        }
+        center={<LatticePanel snapshot={snapshot} events={events} mode={mode} setMode={setMode} highlight={cogId} />}
+        right={<CogChannels snapshot={snapshot} cogId={cogId} messages={messages} onSeekTurn={onSeekTurn} />}
+      />
     </div>
   );
 }
