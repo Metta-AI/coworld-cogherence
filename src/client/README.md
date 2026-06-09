@@ -29,7 +29,6 @@ The engine records a game as a `ServerMessage[]` stream — the **same** discrim
 | `colors.ts` | Stable per-cog color palette + display names (Alice, Bob, …) by index |
 | `HexBoard.tsx` | SVG lattice: one polygon per tile, fill = cog color, opacity = coherence |
 | `Scrubber.tsx` | Play / pause / step / slider over the snapshot list |
-| `Hud.tsx` | Turn + commons readout; per-cog hearts / energy (by name) |
 | `Roster.tsx` | The players panel: color swatch + name + territory (tiles held) per Cog |
 | `App.tsx` | Loads the replay (or an injected one for tests) and wires it together |
 

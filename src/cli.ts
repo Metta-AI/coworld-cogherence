@@ -1,5 +1,5 @@
 // A thin CLI that runs a full Cogherence game with scripted stub agents and
-// prints a per-turn summary (sampled turns: turn, commons, per-cog hearts) plus
+// prints a per-turn summary (sampled turns: turn, per-cog hearts) plus
 // the final winner/standings, optionally dumping the full turn log to JSON. The
 // logic is factored into testable exports (parseArgs, buildAgents, playGame,
 // summarize); main() only runs when this file is the entry point, so importing
@@ -99,7 +99,7 @@ export function summarize(result: Awaited<ReturnType<typeof playGame>>, every = 
   for (const rec of result.state.log) {
     if (rec.turn === 1 || rec.turn % every === 0) {
       const hearts = ids.map((id) => `${id}:${rec.hearts[id] ?? 0}`).join(" ");
-      lines.push(`turn ${String(rec.turn).padStart(3)}  commons ${String(rec.commons).padStart(4)}  ${hearts}`);
+      lines.push(`turn ${String(rec.turn).padStart(3)}  ${hearts}`);
     }
   }
   lines.push(`winner: ${result.winner}  final ${result.standings.map((s) => `${s.cog}:${s.hearts}`).join(" ")}`);

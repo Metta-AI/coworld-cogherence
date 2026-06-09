@@ -14,13 +14,6 @@ import { upkeep } from "./upkeep";
 import { maxEnergy } from "./energy";
 import { MAX_TURNS, FIRST_COMMIT_REWARD } from "./constants";
 
-/** Total Coherence across the lattice — the visible "Commons" meter. */
-export function commons(state: GameState): number {
-  let sum = 0;
-  for (const t of Object.values(state.tiles)) sum += t.coherence;
-  return sum;
-}
-
 /** A fresh game at turn 1. */
 export function newGame(seed: number, numCogs: number): GameState {
   return generateBoard(seed, numCogs);
@@ -62,7 +55,6 @@ export function stepTurn(
   const record: TurnRecord = {
     turn: state.turn,
     events: [...r.events, ...u.events, ...(award.event ? [award.event] : [])],
-    commons: commons(u.state),
     hearts,
   };
   return { ...u.state, cogs: award.cogs, turn: state.turn + 1, phase: "negotiate", log: [...u.state.log, record] };

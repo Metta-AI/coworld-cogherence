@@ -16,8 +16,8 @@ npm run typecheck   # tsc --noEmit (strict)
 Example output:
 ```
 Cogherence — seed 7, agents [greedy, peaceful, random, greedy]
-turn   1  commons   16  cog0:0  cog1:0 cog2:0 cog3:0
-turn 100  commons  677  cog0:62 cog1:0 cog2:0 cog3:37
+turn   1  cog0:0  cog1:0 cog2:0 cog3:0
+turn 100  cog0:62 cog1:0 cog2:0 cog3:37
 winner: cog0  final cog0:62 cog3:37 cog1:0 cog2:0
 ```
 
@@ -38,7 +38,7 @@ CLI flags: `--seed <n>` · `--agents greedy,peaceful,random,...` (overrides `--c
 | `resolve.ts` | Resolve phase: budget → auction → charge → exploit → tug-of-war |
 | `upkeep.ts` | Upkeep phase: drift → upkeep cost → mint |
 | `game.ts` | `newGame` / `stepTurn` / `runGame` / `scoreGame` + the turn loop |
-| `log.ts` | `TurnRecord` (events + commons + hearts), for replay |
+| `log.ts` | `TurnRecord` (events + hearts), for replay |
 | `../../agents/` | `Agent` interface + stub policies (peaceful / greedy / random) |
 
 ## Core rules
@@ -46,7 +46,7 @@ CLI flags: `--seed <n>` · `--agents greedy,peaceful,random,...` (overrides `--c
 - **Coherence = margin of dominance.** A tile gains coherence when a strict majority of its in-board neighbors share its alignment, loses it otherwise. A tile can only be flipped once its coherence hits 0; an Align is a tug-of-war where the winner's new coherence = its force minus the runner-up's.
 - **Economy.** Aligned tiles mint `density × coherence` minerals each Upkeep; a full **C + O + Ge + S** set converts to 10 energy vs 1 for a single, so balanced trade is efficient. Affordability is monotonic (`maxEnergy ≥ need`).
 - **Hearts.** One heart is auctioned each turn (sealed second-price, paid in energy). Most hearts at turn 100 wins.
-- **Exploit.** Strip-mine an owned tile for a `2 × coherence × density` windfall — but it goes neutral, its density permanently halves, and the commons frays.
+- **Exploit.** Strip-mine an owned tile for a `2 × coherence × density` windfall — but it goes neutral and its density permanently halves.
 
 ## Invariants
 

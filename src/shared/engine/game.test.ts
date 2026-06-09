@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { newGame, stepTurn, runGame, scoreGame, commons } from "./game";
+import { newGame, stepTurn, runGame, scoreGame } from "./game";
 import type { Agent } from "../../agents/types";
 import type { CogId, Treasury } from "./types";
 import { FIRST_COMMIT_REWARD } from "./constants";
@@ -15,17 +15,12 @@ describe("game", () => {
     expect(g.cogOrder).toEqual(["cog0", "cog1", "cog2", "cog3"]);
   });
 
-  it("commons sums coherence across the board (4 homes at COHERENCE_MAX = 40)", () => {
-    expect(commons(newGame(7, 4))).toBe(40);
-  });
-
   it("stepTurn advances the turn, returns to negotiate, and appends one TurnRecord", () => {
     const g2 = stepTurn(newGame(7, 4), {});
     expect(g2.turn).toBe(2);
     expect(g2.phase).toBe("negotiate");
     expect(g2.log).toHaveLength(1);
     expect(g2.log[0]!.turn).toBe(1);
-    expect(typeof g2.log[0]!.commons).toBe("number");
     expect(g2.log[0]!.hearts).toHaveProperty("cog0");
   });
 

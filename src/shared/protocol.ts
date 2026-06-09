@@ -39,7 +39,6 @@ export const gameSnapshotSchema = z
     coherenceMax: z.number().int(),
     tiles: z.array(tileSnapshotSchema),
     cogs: z.array(cogSnapshotSchema),
-    commons: z.number().int(),
   })
   .strict();
 

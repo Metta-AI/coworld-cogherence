@@ -19,12 +19,11 @@ describe("toSnapshot", () => {
     expect(s.cogs.map((c) => c.index)).toEqual([0, 1, 2, 3]);
     for (const c of s.cogs) expect(c.energy).toBeGreaterThanOrEqual(0);
   });
-  it("stamps meta (seed, radius, coherenceMax, commons)", () => {
+  it("stamps meta (seed, radius, coherenceMax)", () => {
     const s = toSnapshot(newGame(7, 4));
     expect(s.seed).toBe(7);
     expect(s.radius).toBe(BOARD_RADIUS);
     expect(s.coherenceMax).toBe(COHERENCE_MAX);
-    expect(s.commons).toBe(s.tiles.reduce((a, t) => a + t.coherence, 0));
   });
   it("is deterministic for a seed", () =>
     expect(toSnapshot(newGame(7, 4))).toEqual(toSnapshot(newGame(7, 4))));

@@ -16,7 +16,7 @@ It is a **mixed-motive (general-sum)** game: each Cog races for private victory,
 
 **Three pillars**
 1. **Territory** — a hex lattice of influence, contested by *Aligning*.
-2. **The Commons** — a single, visible Coherence that everyone shares and can wreck.
+2. **Shared Coherence** — every tile's Coherence feeds the same economy everyone draws on, and anyone can wreck it.
 3. **Politics** — public theater + private betrayal, non-binding, resolved simultaneously.
 
 **Theme:** *a polis of minds.* Coherence = collective alignment; entropy = the drift toward noise. The four minerals — **C, O, Ge, S** — spell **COGS**: the agents run on the very elements that spell their name.
@@ -28,7 +28,7 @@ It is a **mixed-motive (general-sum)** game: each Cog races for private victory,
 - **3–6 Cogs**, each an LLM agent.
 - **Objective:** hold the **most hearts** at the end of **turn 100**.
 - Hearts are bought, one per turn, in a sealed-bid second-price auction (§7).
-- There is **no explicit collective gate**: the commons-collapse penalty is *emergent* — wreck Coherence and mineral output starves, so nobody can afford hearts, including the wrecker (§8).
+- There is **no explicit collective gate**: the collapse penalty is *emergent* — wreck Coherence and mineral output starves, so nobody can afford hearts, including the wrecker (§8).
 
 ---
 
@@ -82,7 +82,7 @@ This single rule produces enormous depth, all emergent:
 
 "Entropy" is just this decay (plus upkeep, §6) — emergent, no separate front.
 
-**The Commons** is the **sum of Coherence across all aligned tiles** — the total organized order on the board. The board-wide readout (§11) shows it against its theoretical max (the Σ of every tile's cap), so a single meter answers "is the collective mind holding together?" Consolidation and clean borders push it up; war, overextension, and Exploit push it down. There is no threshold rule — collapse is purely emergent (§8).
+Total board Coherence is the board's organized order: consolidation and clean borders push it up; war, overextension, and Exploit push it down. There is no threshold rule — collapse is purely emergent (§8).
 
 ---
 
@@ -103,7 +103,7 @@ Examples:
 - A's tile at Coherence 4, B attacks with 5 → challenger 5 beats incumbent 4, **flips to B at 1** (5−4).
 - Reinforcing your **own** uncontested tile climbs its Coherence to `min(standing + committed, cap)`.
 
-Align also keeps the Commons alive: adding Coherence *is* restoring the commons (Commons = total Coherence).
+Align is also what keeps the shared economy alive: adding Coherence *is* restoring the board's order.
 
 ### Exploit — the defection verb (scorched earth)
 On a tile you hold:
@@ -112,7 +112,7 @@ On a tile you hold:
 - Mint **2 × Coherence × Density** of its mineral as a windfall (uses Coherence *before* the drop).
 - **Permanently reduce its Density.**
 
-A huge one-time burst that abandons the tile and **scars the land forever**. Good for cashing a frontier you're about to lose, scorched-earth retreats, or a war chest before an auction. Repeated Exploiting is an **irreversible death spiral** for the commons. Exploit pays for itself (it mints), so it is the cheap emergency liquidity move.
+A huge one-time burst that abandons the tile and **scars the land forever**. Good for cashing a frontier you're about to lose, scorched-earth retreats, or a war chest before an auction. Repeated Exploiting is an **irreversible death spiral** for the board. Exploit pays for itself (it mints), so it is the cheap emergency liquidity move.
 
 ### Deal — politics (free) + Transfer (1 energy)
 - **Talk** is free and non-binding (§9).
@@ -142,8 +142,8 @@ Four phases — the first three are the Diplomacy heartbeat; the fourth is the w
 
 1. **Negotiate** *(timed, social)* — agents talk freely. **Public** channel (declarations, alliances, accusations; whole board sees) and **private** DMs (secret deals, lies, side payments). Nothing is binding.
 2. **Commit** *(secret, timed)* — each Cog privately locks its orders: Align(s), Exploit(s), Transfer(s), and a **sealed heart bid** (energy). No one sees others' orders. The phase runs on a **deadline** (a hung Cog defaults to no orders), and the **first Cog to lock its Commit earns a tempo bonus** — exactly `FIRST_COMMIT_REWARD` energy, paid as units of its most abundant mineral so the marginal value is precisely that — rewarding decisiveness without warping the mineral economy. (A live mechanic: scripted replays opt out, so a deterministic instant-first doesn't dominate.)
-3. **Resolve** *(simultaneous)* — all orders reveal and execute at once, in a fixed order (Exploit → Align → Transfer → auction; **§14**). Contested Aligns clash via tug-of-war (§5); the **heart auction** settles (§8). *This* is where betrayal lands — you reinforced the commons on faith while they Exploited behind your back, and the whole board sees it together.
-4. **Upkeep** *(the world breathes)* — tiles mint minerals (§6); Coherence drifts ±1 by the neighbor rule (§4); upkeep is skimmed; the global **Commons** readout updates.
+3. **Resolve** *(simultaneous)* — all orders reveal and execute at once, in a fixed order (Exploit → Align → Transfer → auction; **§14**). Contested Aligns clash via tug-of-war (§5); the **heart auction** settles (§8). *This* is where betrayal lands — you reinforced the board on faith while they Exploited behind your back, and everyone sees it together.
+4. **Upkeep** *(the world breathes)* — tiles mint minerals (§6); Coherence drifts ±1 by the neighbor rule (§4); upkeep is skimmed.
 
 ---
 
@@ -156,9 +156,9 @@ Why it works:
 - **Slots into the turn structure** — the bid is just another secret Commit order.
 - **Perfect stage for cheap-talk collusion** — "I take this one, you take the next, neither bids high," then someone secretly outbids. The reveal does the rest.
 - **Self-balancing** — a runaway leader keeps paying the runner-up's second-price tax, quietly funding everyone else's comeback.
-- **Hearts compete with the world** — energy spent on a heart is energy not spent on upkeep, Aligning, or the commons. And energy comes from minerals come from Coherence, so **buying victory drains the world's stability.**
+- **Hearts compete with the world** — energy spent on a heart is energy not spent on upkeep or Aligning. And energy comes from minerals come from Coherence, so **buying victory drains the world's stability.**
 
-**Emergent commons gate (no explicit rule):** if everyone Exploits and frays the lattice, Coherence craters → mineral output starves → nobody can afford hearts. The tragedy enforces itself. The open strategic question — *is there a last-turn defection equilibrium where someone strip-mines the board to fund a final heart grab?* — is exactly the politics the game is about.
+**Emergent collapse gate (no explicit rule):** if everyone Exploits and frays the lattice, Coherence craters → mineral output starves → nobody can afford hearts. The tragedy enforces itself. The open strategic question — *is there a last-turn defection equilibrium where someone strip-mines the board to fund a final heart grab?* — is exactly the politics the game is about.
 
 ---
 
@@ -174,7 +174,7 @@ Why it works:
 
 - **Two board verbs** (Align, Exploit) + **Deal/Transfer.** The whole game is one recurring question: *build Coherence, or cash it out?*
 - **One emergent rule** (majority-neighbor ±1) generates fortresses, rotting salients, encirclement, turbulent frontiers, and the value of negotiated borders — none of it hard-coded.
-- **One number — Coherence — means everything at once:** influence, defensibility, mineral output, and the health of the commons. Every action moves it; every Cog reads it.
+- **One number — Coherence — means everything at once:** influence, defensibility, and mineral output. Every action moves it; every Cog reads it.
 - **One market — the heart auction — turns 100 turns into 100 collude-or-defect decisions.**
 
 ---
@@ -185,7 +185,7 @@ Built for spectating LLM politics; "visually appealing" is a first-class goal.
 
 - **The lattice as a living mind:** hexes glow by Coherence, tinted by Cog color; neutral tiles are dim. Borders shimmer/erode; consolidated blobs are solid and bright.
 - **The reveal moment:** the Resolve animation snaps all committed orders into place at once — captures flip, Exploited tiles flash and go dark/husked, the heart drops to its winner.
-- **Commons readout:** a single board-wide Coherence meter / ambient glow (Commons = total Coherence, §4) — "is the collective mind holding together?"
+- **Ambient glow:** the lattice's background glow breathes with the board's total Coherence (§4).
 - **The two feeds:** a live **public** transcript; **private** DMs hidden in-game, revealable in the **post-mortem** for the full duplicity reveal.
 - **Mineral overlay:** toggle to see C/O/Ge/S and Density — the diplomatic map.
 
@@ -210,7 +210,7 @@ Built for spectating LLM politics; "visually appealing" is a first-class goal.
 
 ## 13. Implementation note
 
-This design lives in the **`cogame-cogherence`** repo. Implementation could either start fresh here or extend the existing **`cogame-polis`** world (Cogs, datacenters, research, commons UI) — to be decided in a separate planning conversation.
+This design lives in the **`cogame-cogherence`** repo. Implementation could either start fresh here or extend the existing **`cogame-polis`** world (Cogs, datacenters, research, world UI) — to be decided in a separate planning conversation.
 
 ---
 
@@ -224,7 +224,6 @@ Each Cog's observation is **public state** + **its own private state** — never
 **Public (identical for all Cogs):**
 - `turn`, `phase`, `players`: ids, colors, **heart counts**, alive/eliminated.
 - `board`: per tile — `id`, `coords` (axial `q,r`), `neighbors` (ids), `alignment`, `coherence`, `mineral`, `density`.
-- `commons`: current total Coherence and its max (§4).
 - `market`: hearts remaining; last auction's winner + **price paid** (the second price). Individual bids stay secret — only the clearing result is public.
 - `public_log`: the Negotiate-phase public-channel transcript.
 
@@ -267,7 +266,7 @@ Steps 1–4 are **Resolve** (phase 3); step 5 is **Upkeep** (phase 4):
 2. **Align** — tug-of-war on every contested tile, all simultaneously (§5).
 3. **Transfer** — move minerals between treasuries.
 4. **Heart auction** — Vickrey settle (§8); winner pays the second price. **Bid ties break deterministically** (e.g. lowest `cog_id`).
-5. **Upkeep** — mint minerals (§6), apply the ±1 neighbor drift (§4), skim per-tile upkeep, refresh the Commons readout.
+5. **Upkeep** — mint minerals (§6), apply the ±1 neighbor drift (§4), skim per-tile upkeep.
 
 ### 14.5 Time & token budget (LLM-specific)
 Negotiate is **timed**: a fixed wall-clock or token budget per Cog per round, plus a bounded number of message exchanges (default: a few public + DM rounds). Exceeding the budget ends that Cog's Negotiate turn; it can still Commit. This keeps a 100-turn game tractable and stops one slow agent from stalling the match.
@@ -321,7 +320,7 @@ t1 is A's frontier O-tile (B eyes it); t2 is unclaimed **S** that A badly needs;
 - **Mint** (Density × Coherence → owner, for *next* turn): t1 → 2 O to B; t2 → **6 S to A** (A finally has S income); t3 (neutral) → nothing.
 - **Drift (±1, §4):** t2 sits inside A's cluster (4 of 6 neighbors A) → majority → **+1 → 3.** t1 is now a lone **B** salient ringed by A → minority → **−1 → 0.** *B's prize is already rotting; A can retake the husk next turn for a trickle.*
 - **Upkeep skim:** 1 energy per owned tile; a Cog that can't pay loses Coherence instead.
-- **Commons:** across these tiles, aligned Coherence went 4 + 2 = **6 → 0 + 3 = 3.** War + Exploit **frayed the Commons** even though the tiles only changed hands.
+- **Total Coherence:** across these tiles, aligned Coherence went 4 + 2 = **6 → 0 + 3 = 3.** War + Exploit **frayed the board** even though the tiles only changed hands.
 
 ### What this turn demonstrates
 - **Tug-of-war is king:** a winning Align flips t1 in one turn — no grind-to-0 required (§4/§5).

@@ -12,7 +12,7 @@ Cogs *Align* tiles on a hex lattice — a tug-of-war where **Coherence = margin 
 
 - **Two board verbs** — *Align* (build) and *Exploit* (cash out) — plus *Deal*. Every round is one question: **build Coherence, or burn it?**
 - **One emergent rule** — a tile gains Coherence when its neighbors agree with it, loses it when they don't — generates fortresses, rotting salients, encirclement, turbulent frontiers, and the value of negotiated borders, none of it hard-coded.
-- **One number** — Coherence — is influence, defensibility, income, *and* the health of the commons at once.
+- **One number** — Coherence — is influence, defensibility, *and* income at once.
 - **One market** — a heart every turn — turns 100 turns into 100 collude-or-defect decisions.
 
 ## Status

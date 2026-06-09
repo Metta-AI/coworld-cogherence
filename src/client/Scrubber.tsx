@@ -7,8 +7,7 @@ import type { GameSnapshot } from "../shared/snapshot";
 import type { StampedEvent } from "./net/feed";
 import { MAX_TURNS } from "../shared/engine/constants";
 import { cogColor } from "./colors";
-import { commonsMax, leaderIndex } from "./cg/derive";
-import { CGIcon } from "./cg/atoms";
+import { leaderIndex } from "./cg/derive";
 
 const WIN = 12;
 const ACCENT = "#3ce0c0";
@@ -19,7 +18,6 @@ const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.m
 
 interface Meta {
   turn: number;
-  commons: number;
   leader: number;
   exploits: number;
   intensity: number;
@@ -46,7 +44,6 @@ export function Scrubber({
 }): React.ReactElement {
   const N = Math.max(1, snapshots.length);
   const last = N - 1;
-  const max = snapshots.length ? commonsMax(snapshots[0]!) : 1;
 
   // Per-turn event weight + exploit count, keyed by the resolved turn (turn-1
   // produced the board at turn). Recomputed each render — the live FeedStore
@@ -62,7 +59,6 @@ export function Scrubber({
     const resolved = s.turn - 1;
     return {
       turn: s.turn,
-      commons: s.commons,
       leader: leaderIndex(s),
       exploits: exploitsByTurn.get(resolved) ?? 0,
       intensity: weightByTurn.get(resolved) ?? 0,
@@ -200,9 +196,6 @@ export function Scrubber({
                 <span className="cg-num" style={{ fontSize: 18, color: isNow ? "var(--text)" : "var(--text-dim)", lineHeight: 0.8 }}>{String(m.turn).padStart(2, "0")}</span>
                 {m.key && <span style={{ fontSize: 8, color: "#ff5a2c" }}>◆</span>}
               </div>
-              <div style={{ height: 4, borderRadius: 2, background: "var(--panel-3)", overflow: "hidden" }}>
-                <div style={{ width: `${(m.commons / max) * 100}%`, height: "100%", background: ACCENT, boxShadow: `0 0 6px ${ACCENT}` }} />
-              </div>
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                 <span style={{ width: 8, height: 8, borderRadius: 2, background: cogColor(m.leader), boxShadow: `0 0 5px ${cogColor(m.leader)}` }} />
                 <span style={{ flex: 1 }} />
@@ -229,13 +222,6 @@ export function Scrubber({
         )}
         <div style={{ flex: 1 }} />
         <span className={`cg-scrub-dot ${live ? "is-live" : "is-replay"}`} title={live ? "live" : "replay"} />
-        {cur && (
-          <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-            <CGIcon name="coherence" size={15} />
-            <span className="cg-mono" style={{ fontSize: 12, color: "var(--coherence)" }}>{cur.commons}</span>
-            <span className="cg-mono" style={{ fontSize: 10, color: "var(--muted)" }}>commons</span>
-          </div>
-        )}
         {cur && (
           <div style={{ display: "flex", alignItems: "baseline", gap: 3, marginLeft: 6 }}>
             <span className="cg-mono" style={{ fontSize: 9, color: "var(--muted)", letterSpacing: "0.12em" }}>TURN</span>

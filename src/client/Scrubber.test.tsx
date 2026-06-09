@@ -14,7 +14,6 @@ const snaps = (n: number): GameSnapshot[] =>
     coherenceMax: 10,
     tiles: [{ q: 0, r: 0, alignment: "cog0", coherence: i, mineral: "C", density: 1 }],
     cogs: [{ id: "cog0", index: 0, hearts: i, treasury: { C: 0, O: 0, Ge: 0, S: 0 }, energy: 0 }],
-    commons: i,
   }));
 
 const base = {
