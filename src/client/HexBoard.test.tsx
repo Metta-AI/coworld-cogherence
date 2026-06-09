@@ -55,7 +55,7 @@ describe("HexBoard", () => {
     const fit = svg.getAttribute("viewBox")!;
     const width = (vb: string): number => Number(vb.split(" ")[2]);
 
-    fireEvent.wheel(svg, { deltaY: -400 }); // wheel up → zoom in
+    fireEvent.wheel(svg, { deltaY: 400 }); // wheel/swipe down → zoom in
     const zoomed = svg.getAttribute("viewBox")!;
     expect(width(zoomed)).toBeLessThan(width(fit));
 

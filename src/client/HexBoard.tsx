@@ -99,7 +99,7 @@ export function HexBoard({
       e.preventDefault();
       const b = baseRef.current;
       const cur = viewRef.current ?? b;
-      const f = Math.exp(e.deltaY * 0.0015);
+      const f = Math.exp(-e.deltaY * 0.0015); // wheel/swipe down = zoom in
       const newW = clampN(cur.w * f, b.w / MAX_ZOOM, b.w);
       if (newW === cur.w) return;
       // Zoom toward the cursor: keep the SVG point under it fixed. Falls back to
