@@ -10,16 +10,17 @@ export const BOARD_RADIUS = 6;
 /** Number of turns in a full game. */
 export const MAX_TURNS = 100;
 
-/** Base energy owed per aligned tile each Upkeep; the rate grows with empire size. */
-export const UPKEEP_BASE = 2;
-
-/** Per-tile upkeep rate for a Cog holding `aligned` tiles: bigger empires pay a
- *  progressively higher rate per tile. */
-export const upkeepPerTile = (aligned: number): number => UPKEEP_BASE + Math.floor(Math.sqrt(aligned) / 3);
-
-/** Energy drained per tile that GAINS +1 Coherence at drift — order isn't free.
- *  A Cog that can't pay forfeits the gain (strongest tiles are funded first). */
-export const DRIFT_GAIN_COST = 1;
+/** Per-tile upkeep, per turn: a CALM tile (a strict majority of its in-board
+ *  neighbors share its alignment) pays the calm rate; contested or isolated
+ *  tiles pay the full rate. Every non-neutral (aligned) neighbor adds a
+ *  surcharge — crowded ground is expensive ground. Coherence is then purely
+ *  economic: an unpaid tile loses 1 (neutral at 0); a tile paid DOUBLE gains 1
+ *  (capped at COHERENCE_MAX). */
+export const UPKEEP_CALM = 1;
+export const UPKEEP_CONTESTED = 3;
+export const UPKEEP_PER_ALIGNED_NEIGHBOR = 1;
+export const tileUpkeepCost = (friendly: number, aligned: number, inBoard: number): number =>
+  (friendly * 2 > inBoard ? UPKEEP_CALM : UPKEEP_CONTESTED) + aligned * UPKEEP_PER_ALIGNED_NEIGHBOR;
 
 /** Mineral minted per Upkeep = density × coherence / MINT_DIVISOR, stochastically
  *  rounded: a raw 2.3 mints 2, plus 1 with probability 0.3. With COHERENCE_MAX 10

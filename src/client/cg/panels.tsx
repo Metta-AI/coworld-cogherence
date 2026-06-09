@@ -8,7 +8,7 @@ import type { Message } from "../../shared/messages";
 import type { TurnEvent } from "../../shared/engine/log";
 import type { StampedEvent } from "../net/feed";
 import { cogColor, cogName } from "../colors";
-import { TRANSFER_FEE, upkeepPerTile } from "../../shared/engine/constants";
+import { TRANSFER_FEE } from "../../shared/engine/constants";
 import { HexBoard, type LatticeMode } from "../HexBoard";
 import { CGIcon, CogSigil, CogText, Mineral } from "./atoms";
 import {
@@ -23,6 +23,7 @@ import {
   tileMap,
   neighbors,
   tileStatus,
+  tileCost,
 } from "./derive";
 
 const cogIdx = (id: string): number => {
@@ -177,7 +178,7 @@ function eventText(e: TurnEvent): React.ReactNode {
     case "auction":
       return e.winner ? `wins the heart, pays 2nd-price ${e.price}e` : "heart unsold";
     case "lost":
-      return `lost ${e.tile} — ${e.cause === "rot" ? "rotted to neutral" : "starved out"}`;
+      return `lost ${e.tile} — upkeep unpaid, rotted to neutral`;
     case "starved":
       return `${e.tile} starved → coherence ${e.coherence}`;
     case "firstCommit":
@@ -310,9 +311,7 @@ export function TileInspector({ tileKey: key, snapshot }: { tileKey: string; sna
   const friendly = t.alignment ? nb.filter((n) => n.alignment === t.alignment).length : 0;
   const nc = nb.length;
   const status = tileStatus(t, map, snapshot.coherenceMax, ownerColor);
-  const willGain = friendly >= Math.floor(nc / 2) + 1;
-  const ownerTiles = t.alignment ? snapshot.tiles.filter((x) => x.alignment === t.alignment).length : 0;
-  const rate = t.alignment ? upkeepPerTile(ownerTiles) : 0;
+  const rate = t.alignment ? tileCost(t, map) : 0;
   const scarred = t.density < t.density0; // an exploit halved the deposit
   const mint = (t.density * t.coherence) / 10; // expected mineral/turn
   const row = (label: string, value: React.ReactNode): React.ReactElement => (
@@ -346,18 +345,7 @@ export function TileInspector({ tileKey: key, snapshot }: { tileKey: string; sna
         </div>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <tbody>
-            {row(
-              "coherence",
-              <span>
-                <span style={{ color: "var(--coherence)" }}>{t.coherence}/{snapshot.coherenceMax}</span>
-                {t.alignment && willGain && t.coherence < snapshot.coherenceMax && (
-                  <span data-tip="gains +1 coherence at Upkeep (drains 1e)" style={{ color: "var(--align)" }}> (+1)</span>
-                )}
-                {t.alignment && !willGain && t.coherence > 0 && (
-                  <span data-tip="rots −1 coherence at Upkeep (minority-friendly neighborhood)" style={{ color: "var(--exploit)" }}> (−1)</span>
-                )}
-              </span>,
-            )}
+            {row("coherence", <span style={{ color: "var(--coherence)" }}>{t.coherence}/{snapshot.coherenceMax}</span>)}
             {row(
               "mining",
               <span style={{ display: "inline-flex", alignItems: "center", gap: 5, justifyContent: "flex-end" }}>
@@ -376,8 +364,8 @@ export function TileInspector({ tileKey: key, snapshot }: { tileKey: string; sna
             {row(
               "energy",
               t.alignment ? (
-                <span style={{ color: "var(--exploit)" }}>
-                  −{rate}e/turn{willGain && t.coherence < snapshot.coherenceMax ? " − 1e gain" : ""}
+                <span data-tip="this tile's upkeep bill — unpaid it rots −1; pay double to grow +1" style={{ color: "var(--exploit)" }}>
+                  −{rate}e/turn · 2× grows
                 </span>
               ) : (
                 "—"

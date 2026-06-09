@@ -38,4 +38,4 @@ See **[src/shared/engine/README.md](src/shared/engine/README.md)** (engine) and 
 
 ## Round structure
 
-**Negotiate** (public + private cheap talk) → **Commit** (secret orders + sealed heart bid) → **Resolve** (board orders reveal and execute at once — where betrayal lands) → **Auction** (the turn's heart settles by sealed-bid Vickrey second-price) → **Upkeep** (the world mints, drifts, and frays).
+**Negotiate** (public + private cheap talk) → **Commit** (secret orders + sealed heart bid) → **Resolve** (board orders reveal and execute at once — where betrayal lands) → **Auction** (the turn's heart settles by sealed-bid Vickrey second-price) → **Upkeep** (every tile bills upkeep — unpaid ground rots, double-paid ground grows — then mints).

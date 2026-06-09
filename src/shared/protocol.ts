@@ -61,7 +61,7 @@ export const turnEventSchema = z.discriminatedUnion("type", [
     })
     .strict(),
   z.object({ type: z.literal("starved"), cog: z.string(), tile: z.string(), coherence: z.number().int() }).strict(),
-  z.object({ type: z.literal("lost"), cog: z.string(), tile: z.string(), cause: z.enum(["rot", "starved"]) }).strict(),
+  z.object({ type: z.literal("lost"), cog: z.string(), tile: z.string() }).strict(),
   z.object({ type: z.literal("mint"), cog: z.string(), gained: treasurySchema }).strict(),
   z.object({ type: z.literal("firstCommit"), cog: z.string(), reward: z.number().int() }).strict(),
 ]);

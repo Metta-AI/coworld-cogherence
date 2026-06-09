@@ -1,29 +1,8 @@
-// The emergent neighbor-drift rule at the heart of Cogherence, applied each
-// Upkeep. From this one majority check fall out fortress-interiors,
-// rotting salients, and the value of clean borders. Pure and order-independent.
+// The Align tug-of-war — the pure math of the Resolve phase. (Coherence change
+// over time is economic and lives in upkeep.ts: pay-or-rot, overpay-to-grow.)
 
 import type { CogId, GameState, Tile } from "./types";
-import { neighbors, key } from "./hex";
 import { COHERENCE_MAX } from "./constants";
-
-/**
- * The neighbor rule for one ALIGNED tile — the emergent "entropy" direction,
- * computed each Upkeep from a pre-drift snapshot. A strict majority of in-board
- * neighbors sharing the tile's alignment drifts it +1, otherwise −1. Whether a
- * gain is AFFORDED (gains drain energy) and the cap/floor/go-neutral mechanics
- * are upkeep's business; this is just the direction.
- */
-export function driftDirection(state: GameState, tile: Tile): 1 | -1 {
-  let inBoard = 0;
-  let same = 0;
-  for (const n of neighbors(tile.hex)) {
-    const nt = state.tiles[key(n)];
-    if (!nt) continue;
-    inBoard++;
-    if (nt.alignment === tile.alignment) same++;
-  }
-  return same * 2 > inBoard ? 1 : -1; // strict majority of in-board neighbors
-}
 
 /**
  * Align tug-of-war for a single tile (the pure math of the Resolve phase).

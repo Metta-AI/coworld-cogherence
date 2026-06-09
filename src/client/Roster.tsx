@@ -5,8 +5,7 @@ import React from "react";
 import type { GameSnapshot } from "../shared/snapshot";
 import { cogColor, cogName } from "./colors";
 import { CGIcon, CogSigil, Wallet } from "./cg/atoms";
-import { rankedByHearts, territory } from "./cg/derive";
-import { upkeepPerTile } from "../shared/engine/constants";
+import { rankedByHearts, territory, upkeepBy } from "./cg/derive";
 
 export function Roster({
   snapshot,
@@ -23,6 +22,7 @@ export function Roster({
 }): React.ReactElement {
   const ranked = rankedByHearts(snapshot.cogs);
   const terr = territory(snapshot);
+  const upkeep = upkeepBy(snapshot);
   return (
     <div className="cg-panel" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }} data-testid="roster">
       <div className="cg-panel-head">
@@ -94,7 +94,7 @@ export function Roster({
                   </span>
                 </div>
               </div>
-              <Wallet treasury={c.treasury} energy={c.energy} upkeep={tiles * upkeepPerTile(tiles)} />
+              <Wallet treasury={c.treasury} energy={c.energy} upkeep={upkeep.get(c.id) ?? 0} />
             </button>
           );
         })}

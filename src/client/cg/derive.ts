@@ -8,6 +8,7 @@
 import type { GameSnapshot, TileSnapshot } from "../../shared/snapshot";
 import type { TurnEvent } from "../../shared/engine/log";
 import type { StampedEvent } from "../net/feed";
+import { tileUpkeepCost } from "../../shared/engine/constants";
 
 export const MINERALS = ["C", "O", "Ge", "S"] as const;
 export type Mineral = (typeof MINERALS)[number];
@@ -140,6 +141,27 @@ export function claimTilesAt(events: StampedEvent[], turn: number): string[] {
 export function exploitTilesAt(events: StampedEvent[], turn: number): string[] {
   const out: string[] = [];
   for (const e of events) if (e.turn === turn && e.event.type === "exploit") out.push(e.event.tile);
+  return out;
+}
+
+/** A tile's upkeep bill, mirroring the engine: calm vs contested base + a
+ *  surcharge per non-neutral neighbor. */
+export function tileCost(t: TileSnapshot, map: TileMap): number {
+  const nb = neighbors(t.q, t.r, map);
+  const aligned = nb.filter((n) => n.alignment !== null).length;
+  const friendly = nb.filter((n) => n.alignment === t.alignment).length;
+  return tileUpkeepCost(friendly, aligned, nb.length);
+}
+
+/** Total upkeep owed per cog this turn (sum of its tiles' bills). */
+export function upkeepBy(snap: GameSnapshot): Map<string, number> {
+  const map = tileMap(snap);
+  const out = new Map<string, number>();
+  for (const c of snap.cogs) out.set(c.id, 0);
+  for (const t of snap.tiles) {
+    if (!t.alignment) continue;
+    out.set(t.alignment, (out.get(t.alignment) ?? 0) + tileCost(t, map));
+  }
   return out;
 }
 
