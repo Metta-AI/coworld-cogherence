@@ -49,6 +49,28 @@ describe("HexBoard", () => {
     expect(fills.every((f) => mineralColors.has(f ?? "") || f === "#15151f")).toBe(true); // mineral hue, or a scarred husk
   });
 
+  it("zooms with the wheel, pans by dragging, and resets on double-click", () => {
+    const { container } = render(<HexBoard snapshot={snap} />);
+    const svg = container.querySelector("svg")!;
+    const fit = svg.getAttribute("viewBox")!;
+    const width = (vb: string): number => Number(vb.split(" ")[2]);
+
+    fireEvent.wheel(svg, { deltaY: -400 }); // wheel up → zoom in
+    const zoomed = svg.getAttribute("viewBox")!;
+    expect(width(zoomed)).toBeLessThan(width(fit));
+
+    // jsdom has no PointerEvent — drive the pointer listeners with MouseEvents.
+    fireEvent(svg, new MouseEvent("pointerdown", { bubbles: true, button: 0, clientX: 100, clientY: 100 }));
+    fireEvent(window, new MouseEvent("pointermove", { clientX: 60, clientY: 100 })); // drag left → view shifts right
+    fireEvent(window, new MouseEvent("pointerup", {}));
+    const panned = svg.getAttribute("viewBox")!;
+    expect(panned).not.toBe(zoomed);
+    expect(width(panned)).toBe(width(zoomed)); // panning keeps the zoom level
+
+    fireEvent.doubleClick(svg);
+    expect(svg.getAttribute("viewBox")).toBe(fit);
+  });
+
   it("reports the hovered tile with cursor coords, and null on leave", () => {
     const onHover = vi.fn();
     const { container } = render(<HexBoard snapshot={snap} onHoverTile={onHover} />);

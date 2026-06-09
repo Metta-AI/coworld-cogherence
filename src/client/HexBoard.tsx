@@ -4,12 +4,24 @@
 //   mineral   — fill = mineral hue by density; owner shown as a ring.
 //   ownership — flat territory map; coherence printed on strong tiles.
 // Reveal overlays: flips (white capture rings), exploited (orange husk flash).
-// A focus `highlight` dims everyone but one Cog; clicking a tile selects it.
-import React from "react";
+// A focus `highlight` dims everyone but one Cog; hovering a tile reports it.
+// Navigation: scroll wheel zooms toward the cursor (1×–8×, via the viewBox),
+// dragging pans while zoomed, double-click resets to fit.
+import React, { useEffect, useRef, useState } from "react";
 import type { GameSnapshot, TileSnapshot } from "../shared/snapshot";
 import { axialToPixel, hexCorners, polygonPoints } from "./hex-layout";
 import { cogColor } from "./colors";
 import { MINERAL_COLOR, tileKey } from "./cg/derive";
+
+/** A viewBox rectangle in SVG user units. */
+interface Box {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+const MAX_ZOOM = 8;
+const clampN = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v));
 
 export type LatticeMode = "coherence" | "mineral" | "ownership";
 
@@ -63,17 +75,100 @@ export function HexBoard({
   const cx = (minX + maxX) / 2;
   const cy = (minY + maxY) / 2;
 
+  // --- zoom + pan (viewBox navigation) ------------------------------------
+  // `view` is the current viewBox while zoomed; null = fit the whole board.
+  // Refs mirror the latest values for the natively-attached wheel listener
+  // (React's root-delegated onWheel is passive, so preventDefault needs this).
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [view, setView] = useState<Box | null>(null);
+  const base: Box = { x: minX, y: minY, w, h };
+  const baseRef = useRef(base);
+  baseRef.current = base;
+  const viewRef = useRef(view);
+  viewRef.current = view;
+  const draggingRef = useRef(false);
+
+  /** The on-screen scale (CSS px per SVG unit) of the current view, for converting
+   *  pointer deltas; preserveAspectRatio="meet" letterboxes, hence the min(). */
+  const screenScale = (rect: DOMRect, v: Box): number => Math.min(rect.width / v.w, rect.height / v.h) || 1;
+
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const onWheel = (e: WheelEvent): void => {
+      e.preventDefault();
+      const b = baseRef.current;
+      const cur = viewRef.current ?? b;
+      const f = Math.exp(e.deltaY * 0.0015);
+      const newW = clampN(cur.w * f, b.w / MAX_ZOOM, b.w);
+      if (newW === cur.w) return;
+      // Zoom toward the cursor: keep the SVG point under it fixed. Falls back to
+      // the view's center when layout isn't measurable (degenerate rect).
+      const rect = svg.getBoundingClientRect();
+      let fx = 0.5;
+      let fy = 0.5;
+      if (rect.width && rect.height) {
+        const s = screenScale(rect, cur);
+        const padX = (rect.width - cur.w * s) / 2;
+        const padY = (rect.height - cur.h * s) / 2;
+        fx = clampN((e.clientX - rect.left - padX) / s / cur.w, 0, 1);
+        fy = clampN((e.clientY - rect.top - padY) / s / cur.h, 0, 1);
+      }
+      const newH = cur.h * (newW / cur.w);
+      const x = clampN(cur.x + fx * (cur.w - newW), b.x, b.x + b.w - newW);
+      const y = clampN(cur.y + fy * (cur.h - newH), b.y, b.y + b.h - newH);
+      setView(newW >= b.w ? null : { x, y, w: newW, h: newH });
+    };
+    svg.addEventListener("wheel", onWheel, { passive: false });
+    return () => svg.removeEventListener("wheel", onWheel);
+  }, []);
+
+  const onPointerDown = (e: React.PointerEvent<SVGSVGElement>): void => {
+    const start = viewRef.current;
+    if (e.button !== 0 || !start) return; // nothing to pan at full fit
+    e.preventDefault();
+    const b = baseRef.current;
+    const s = screenScale(svgRef.current!.getBoundingClientRect(), start);
+    const sx = e.clientX;
+    const sy = e.clientY;
+    const move = (ev: PointerEvent): void => {
+      if (!draggingRef.current && Math.hypot(ev.clientX - sx, ev.clientY - sy) < 3) return;
+      if (!draggingRef.current) {
+        draggingRef.current = true;
+        document.body.style.cursor = "grabbing";
+        onHoverTile?.(null); // the inspector hides while panning
+      }
+      setView({
+        ...start,
+        x: clampN(start.x - (ev.clientX - sx) / s, b.x, b.x + b.w - start.w),
+        y: clampN(start.y - (ev.clientY - sy) / s, b.y, b.y + b.h - start.h),
+      });
+    };
+    const up = (): void => {
+      draggingRef.current = false;
+      document.body.style.cursor = "";
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+
+  const vb = view ?? base;
   const flipSet = new Set(flips);
   const expSet = new Set(exploited);
 
   return (
     <svg
-      viewBox={`${minX} ${minY} ${w} ${h}`}
+      ref={svgRef}
+      viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`}
       width="100%"
       height="100%"
       preserveAspectRatio="xMidYMid meet"
-      style={{ display: "block", overflow: "visible" }}
+      style={{ display: "block", overflow: "visible", cursor: view ? "grab" : "default", touchAction: "none" }}
       onMouseLeave={() => onHoverTile?.(null)}
+      onPointerDown={onPointerDown}
+      onDoubleClick={() => setView(null)}
     >
       <defs>
         <radialGradient id="cg-core" cx="50%" cy="50%" r="60%">
@@ -158,7 +253,9 @@ export function HexBoard({
             className="cg-tile"
             data-tile={k}
             style={{ filter: filt }}
-            onMouseEnter={(e) => onHoverTile?.(k, { x: e.clientX, y: e.clientY })}
+            onMouseEnter={(e) => {
+              if (!draggingRef.current) onHoverTile?.(k, { x: e.clientX, y: e.clientY });
+            }}
           >
             <polygon points={cn} fill={fill} fillOpacity={fillOp} stroke={stroke} strokeWidth={strokeW} strokeLinejoin="round" />
             {sheen && (

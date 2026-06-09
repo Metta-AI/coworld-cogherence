@@ -476,6 +476,11 @@ export function LatticePanel({
       <div style={{ position: "absolute", bottom: 12, right: 14 }}>
         <LatticeLegend mode={mode} />
       </div>
+      <div className="cg-glass" style={{ position: "absolute", bottom: 12, left: 14, padding: "5px 9px", borderRadius: 8, border: "1px solid var(--border)", opacity: 0.75 }}>
+        <span className="cg-mono" style={{ fontSize: 9, color: "var(--muted)" }}>
+          scroll zoom · drag pan · 2×click reset
+        </span>
+      </div>
       {hover && (
         <div style={{ position: "absolute", left: hover.x, top: hover.y, pointerEvents: "none", zIndex: 5 }}>
           <TileInspector tileKey={hover.key} snapshot={snapshot} />
