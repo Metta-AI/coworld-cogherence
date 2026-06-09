@@ -1,8 +1,7 @@
-// The Cogherence scrubber — a 100-turn dual band. The overview traces the Commons
-// trajectory (is the collective mind holding together?) as a teal skyline over an
-// event-density wash, with a per-turn leader ribbon and ◆ key turns (exploits). A
-// draggable lens explodes into a detailed ~12-turn rail of cards. Transport (play /
-// step / first / last) and ←/→ keys drive the shared playhead in App.
+// The Cogherence scrubber — a 100-turn dual band. The overview is an event-
+// density wash with a per-turn leader ribbon and ◆ key turns (exploits). A
+// draggable lens explodes into a detailed ~12-turn rail of cards. Transport
+// (play / step / first / last) and ←/→ keys drive the shared playhead in App.
 import React, { useEffect, useRef, useState } from "react";
 import type { GameSnapshot } from "../shared/snapshot";
 import type { StampedEvent } from "./net/feed";
@@ -102,7 +101,6 @@ export function Scrubber({
 
   const ovRef = useRef<HTMLDivElement>(null);
   const xi = (i: number): number => (last === 0 ? 0 : (i / last) * W);
-  const cy = (v: number): number => H - 8 - (v / max) * (H - 12);
   const winX0 = xi(winStart);
   const winX1 = xi(Math.min(winStart + WIN - 1, last));
 
@@ -132,8 +130,6 @@ export function Scrubber({
     setWinStart(clampWin(index - WIN + 3));
   };
 
-  const commonsPts = meta.map((m, i) => `${xi(i)},${cy(m.commons)}`).join(" ");
-  const areaPts = `${xi(0)},${H} ${commonsPts} ${xi(last)},${H}`;
   const winCells: number[] = [];
   for (let i = winStart; i < winStart + WIN && i <= last; i++) winCells.push(i);
 
@@ -149,7 +145,7 @@ export function Scrubber({
       <div style={{ padding: "9px 16px 0" }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
           <span className="cg-label" style={{ fontSize: 9 }}>full game · {MAX_TURNS} turns</span>
-          <span className="cg-mono" style={{ fontSize: 9, color: "var(--muted)" }}>commons trajectory · ◆ exploits · leader</span>
+          <span className="cg-mono" style={{ fontSize: 9, color: "var(--muted)" }}>event density · ◆ exploits · leader</span>
         </div>
         <div ref={ovRef} onClick={onOvClick} className="cg-ov" data-testid="scrub-overview">
           <svg width="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ display: "block", height: H }}>
@@ -160,8 +156,6 @@ export function Scrubber({
               const bh = 3 + m.intensity * 30;
               return <rect key={`d${i}`} x={xi(i) - 3} y={H - 6 - bh} width={6} height={bh} fill={m.exploits ? "rgba(255,90,44,0.32)" : "rgba(120,130,160,0.16)"} />;
             })}
-            <polygon points={areaPts} fill="rgba(60,224,192,0.10)" />
-            <polyline points={commonsPts} fill="none" stroke={ACCENT} strokeWidth="1.6" style={{ filter: "drop-shadow(0 0 3px #3ce0c0)" }} />
             {meta.map((m, i) => (
               <rect key={`l${i}`} x={xi(i) - 3.2} y={H - 5} width={6.4} height={5} fill={cogColor(m.leader)} opacity={0.9} />
             ))}
