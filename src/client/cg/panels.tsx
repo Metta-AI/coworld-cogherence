@@ -1,5 +1,5 @@
-// Cogherence observatory chrome: the Commons meter, the Vickrey heart auction,
-// the Resolve log, the public/DM Channels, the tile inspector, and the LatticePanel
+// Cogherence observatory chrome: the Vickrey heart auction, the Resolve log,
+// the public/DM Channels, the tile inspector, and the LatticePanel
 // that wraps the luminous board with its mode toggle, legend, turn pulse, and
 // inspector. All read the real GameSnapshot + event/message streams.
 import React, { useCallback, useRef, useState } from "react";
@@ -12,10 +12,10 @@ import { HexBoard, type LatticeMode } from "../HexBoard";
 import { CGIcon, CogSigil, CogText, Mineral } from "./atoms";
 import {
   MINERALS,
-  commonsMax,
   auctionAt,
   heartSpend,
   eventsAt,
+  claimTilesAt,
   flipTilesAt,
   exploitTilesAt,
   lastResolvedTurn,
@@ -405,7 +405,18 @@ function LatticeLegend({ mode }: { mode: LatticeMode }): React.ReactElement {
   );
 }
 
-function TurnPulse({ snapshot, events }: { snapshot: GameSnapshot; events: StampedEvent[] }): React.ReactElement | null {
+/** Which turn-pulse stat is being hovered — highlights its tiles on the board. */
+export type PulseGroup = "claimed" | "flipped" | "exploited";
+
+function TurnPulse({
+  snapshot,
+  events,
+  onHoverGroup,
+}: {
+  snapshot: GameSnapshot;
+  events: StampedEvent[];
+  onHoverGroup?: (g: PulseGroup | null) => void;
+}): React.ReactElement | null {
   const turn = lastResolvedTurn(snapshot);
   const evs = eventsAt(events, turn);
   if (turn < 1) return null;
@@ -414,16 +425,21 @@ function TurnPulse({ snapshot, events }: { snapshot: GameSnapshot; events: Stamp
   const exps = evs.filter((e) => e.type === "exploit").length;
   const auc = evs.find((e) => e.type === "auction");
   const winnerIdx = auc && auc.type === "auction" && auc.winner ? cogIdx(auc.winner) : null;
+  const hover = (g: PulseGroup) => ({
+    onMouseEnter: () => onHoverGroup?.(g),
+    onMouseLeave: () => onHoverGroup?.(null),
+    style: { cursor: "default" } as const,
+  });
   return (
     <div className="cg-glass" style={{ display: "flex", alignItems: "center", gap: 12, padding: "6px 12px", borderRadius: 8, border: "1px solid var(--border)" }}>
-      <span className="cg-mono" style={{ fontSize: 10, color: "var(--align)" }}>
+      <span className="cg-mono" {...hover("claimed")} style={{ fontSize: 10, color: "var(--align)" }}>
         {claims} claimed
       </span>
-      <span className="cg-mono" style={{ fontSize: 10, color: "var(--text-dim)" }}>
+      <span className="cg-mono" {...hover("flipped")} style={{ fontSize: 10, color: "var(--text-dim)" }}>
         {flips} flipped
       </span>
       {exps > 0 && (
-        <span className="cg-mono" style={{ fontSize: 10, color: "var(--exploit)" }}>
+        <span className="cg-mono" {...hover("exploited")} style={{ fontSize: 10, color: "var(--exploit)" }}>
           ✺ {exps} exploited
         </span>
       )}
@@ -477,6 +493,9 @@ export function LatticePanel({
   const turn = lastResolvedTurn(snapshot);
   const flips = flipTilesAt(events, turn);
   const exploited = exploitTilesAt(events, turn);
+  // Hovering a turn-pulse stat rings the tiles it mentions.
+  const [pulse, setPulse] = useState<PulseGroup | null>(null);
+  const emphasis = pulse === "claimed" ? claimTilesAt(events, turn) : pulse === "flipped" ? flips : pulse === "exploited" ? exploited : [];
   return (
     <div className="cg-panel cg-lattice" ref={wrapRef} data-testid="lattice">
       <div style={{ position: "absolute", inset: 0, padding: 8 }}>
@@ -486,12 +505,12 @@ export function LatticePanel({
           onHoverTile={handleHover}
           flips={flips}
           exploited={exploited}
+          emphasis={emphasis}
           highlight={highlight}
-          commonsRatio={snapshot.commons / commonsMax(snapshot)}
         />
       </div>
       <div style={{ position: "absolute", top: 12, left: 14 }}>
-        <TurnPulse snapshot={snapshot} events={events} />
+        <TurnPulse snapshot={snapshot} events={events} onHoverGroup={setPulse} />
       </div>
       <div style={{ position: "absolute", top: 12, right: 14 }}>
         <ModeToggle mode={mode} setMode={setMode} />

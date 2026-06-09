@@ -53,9 +53,6 @@ export function neighbors(q: number, r: number, map: TileMap): TileSnapshot[] {
   return out;
 }
 
-/** The board's theoretical max Commons: every tile owned at COHERENCE_MAX. */
-export const commonsMax = (snap: GameSnapshot): number => snap.tiles.length * snap.coherenceMax;
-
 export const setsOf = (t: { C: number; O: number; Ge: number; S: number }): number =>
   Math.min(t.C, t.O, t.Ge, t.S);
 
@@ -130,6 +127,13 @@ export function flipTilesAt(events: StampedEvent[], turn: number): string[] {
   const out: string[] = [];
   for (const e of events)
     if (e.turn === turn && e.event.type === "capture" && e.event.from !== null && e.event.to !== null) out.push(e.event.tile);
+  return out;
+}
+/** Tiles claimed from neutral on `turn` (capture with no prior owner). */
+export function claimTilesAt(events: StampedEvent[], turn: number): string[] {
+  const out: string[] = [];
+  for (const e of events)
+    if (e.turn === turn && e.event.type === "capture" && e.event.from === null && e.event.to !== null) out.push(e.event.tile);
   return out;
 }
 /** Tiles strip-mined on `turn` — the orange husk-flash reveal. */

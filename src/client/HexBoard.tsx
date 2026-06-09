@@ -55,8 +55,8 @@ export function HexBoard({
   onHoverTile,
   flips = [],
   exploited = [],
+  emphasis = [],
   highlight = null,
-  commonsRatio = 1,
 }: {
   snapshot: GameSnapshot;
   mode?: LatticeMode;
@@ -65,10 +65,10 @@ export function HexBoard({
   onHoverTile?: (key: string | null, at?: { x: number; y: number }) => void;
   flips?: string[];
   exploited?: string[];
+  /** Tiles to ring brightly (e.g. hovering a turn-pulse stat that mentions them). */
+  emphasis?: string[];
   /** Focus one Cog's territory (per-cog HUD): dim everyone else. */
   highlight?: string | null;
-  /** 0..1 health of the Commons — scales the ambient core glow behind the lattice. */
-  commonsRatio?: number;
 }): React.ReactElement {
   const cohMax = snapshot.coherenceMax;
   const indexById = new Map(snapshot.cogs.map((c) => [c.id, c.index]));
@@ -169,6 +169,7 @@ export function HexBoard({
   const vb = view ?? base;
   const flipSet = new Set(flips);
   const expSet = new Set(exploited);
+  const emphSet = new Set(emphasis);
   // Owner by hex key, for per-edge border classification in coherence mode.
   const ownerByKey = new Map(snapshot.tiles.map((t) => [tileKey(t.q, t.r), t.alignment]));
 
@@ -186,7 +187,7 @@ export function HexBoard({
     >
       <defs>
         <radialGradient id="cg-core" cx="50%" cy="50%" r="60%">
-          <stop offset="0%" stopColor="#3ce0c0" stopOpacity={0.1 + commonsRatio * 0.16} />
+          <stop offset="0%" stopColor="#3ce0c0" stopOpacity={0.18} />
           <stop offset="55%" stopColor="#1a8f9e" stopOpacity={0.04} />
           <stop offset="100%" stopColor="#07070c" stopOpacity="0" />
         </radialGradient>
@@ -323,6 +324,9 @@ export function HexBoard({
             )}
             {flipSet.has(k) && (
               <polygon points={cn} fill="none" stroke="#fff" strokeWidth="2" strokeDasharray="3 3" style={{ filter: `drop-shadow(0 0 7px ${col ?? "#fff"})` }} />
+            )}
+            {emphSet.has(k) && (
+              <polygon points={cn} fill="#fff" fillOpacity="0.1" stroke="#fff" strokeWidth="2.4" style={{ filter: "drop-shadow(0 0 8px #fff)" }} />
             )}
           </g>
         );
