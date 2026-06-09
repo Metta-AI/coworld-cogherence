@@ -220,8 +220,8 @@ export function Scrubber({
                   <Heart color={cogColor(m.leader)} />
                 </span>
                 {(() => {
-                  // one stacked bar: this turn's territory by cog color; the dark
-                  // remainder is neutral ground
+                  // one stacked bar: this turn's aligned territory by cog color,
+                  // normalized to owned tiles only (relative share, not board share)
                   const snap = snapshots[i]!;
                   const counts = new Map<number, number>();
                   const idxById = new Map(snap.cogs.map((c) => [c.id, c.index]));
@@ -232,13 +232,12 @@ export function Scrubber({
                     counts.set(ci, (counts.get(ci) ?? 0) + 1);
                     owned++;
                   }
-                  const total = snap.tiles.length || 1;
                   const parts = [...counts.entries()].sort((a, b) => a[0] - b[0]);
-                  const tip = `territory — ${parts.map(([ci, n]) => `${cogName(ci)} ${n}`).join(" · ")} · ${total - owned} neutral`;
+                  const tip = owned ? `territory — ${parts.map(([ci, n]) => `${cogName(ci)} ${n}`).join(" · ")}` : "no territory held";
                   return (
                     <div data-tip={tip} style={{ display: "flex", flex: 1, height: 5, borderRadius: 2, overflow: "hidden", background: "var(--panel-3)" }}>
                       {parts.map(([ci, n]) => (
-                        <div key={ci} style={{ width: `${(n / total) * 100}%`, background: cogColor(ci) }} />
+                        <div key={ci} style={{ width: `${(n / Math.max(1, owned)) * 100}%`, background: cogColor(ci) }} />
                       ))}
                     </div>
                   );
