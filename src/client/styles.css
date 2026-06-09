@@ -172,6 +172,26 @@ button:focus-visible {
   outline: 1px solid var(--border-2);
   outline-offset: -1px;
 }
+.cg-addcog {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  cursor: pointer;
+  background: var(--panel-2);
+  border: 1px solid var(--border-2);
+  color: var(--coherence);
+  font-family: var(--f-ui);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.cg-addcog:hover {
+  border-color: var(--coherence);
+  box-shadow: 0 0 8px rgba(60, 224, 192, 0.4);
+}
 
 /* ===== header =========================================== */
 .cg-header {

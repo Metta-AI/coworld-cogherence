@@ -15,11 +15,13 @@ export function GlobalView({
   events,
   messages,
   onSeekTurn,
+  live = false,
 }: {
   snapshot: GameSnapshot;
   events: StampedEvent[];
   messages: Message[];
   onSeekTurn?: (turn: number) => void;
+  live?: boolean;
 }): React.ReactElement {
   const [mode, setMode] = useState<LatticeMode>("coherence");
   // Clicking a roster cog spotlights its territory on the lattice (toggle).
@@ -33,7 +35,7 @@ export function GlobalView({
         defaultRight={332}
         left={
           <div className="cg-col">
-            <Roster snapshot={snapshot} focus={focus} onToggleFocus={toggleFocus} />
+            <Roster snapshot={snapshot} focus={focus} onToggleFocus={toggleFocus} live={live} />
             <AuctionPanel snapshot={snapshot} events={events} />
           </div>
         }

@@ -15,6 +15,19 @@ const startingTreasury = (): Treasury => {
   return { C: each, O: each, Ge: each, S: each };
 };
 
+/** The six corner hexes in rotational order — the board's home sites. */
+const boardCorners = (): Array<{ q: number; r: number }> => {
+  const R = BOARD_RADIUS;
+  return [
+    { q: R, r: 0 },
+    { q: R, r: -R },
+    { q: 0, r: -R },
+    { q: -R, r: 0 },
+    { q: -R, r: R },
+    { q: 0, r: R },
+  ];
+};
+
 /**
  * Generate the initial GameState: a radius-BOARD_RADIUS hex board with random
  * mineral + density per tile (seeded), and one home tile per Cog placed at the
@@ -35,15 +48,7 @@ export function generateBoard(seed: number, numCogs: number): GameState {
   }
 
   // The six corners of the hex board, in rotational order; spread cogs across them.
-  const R = BOARD_RADIUS;
-  const corners = [
-    { q: R, r: 0 },
-    { q: R, r: -R },
-    { q: 0, r: -R },
-    { q: -R, r: 0 },
-    { q: -R, r: R },
-    { q: 0, r: R },
-  ];
+  const corners = boardCorners();
 
   // Strategic landmarks — the six corners and the center — are always rich (density 3).
   for (const hex of [...corners, { q: 0, r: 0 }]) tiles[key(hex)]!.density = 3;
@@ -61,4 +66,27 @@ export function generateBoard(seed: number, numCogs: number): GameState {
   }
 
   return { turn: 1, phase: "negotiate", seed, tiles, cogs, cogOrder, log: [] };
+}
+
+/**
+ * Seat one new Cog mid-game: the next seat index (`cog${n}`), the standard
+ * starting wallet, and a home tile at the first UNOWNED corner at full
+ * coherence. Pure; throws when the board is out of seats or free corners.
+ */
+export function addCog(state: GameState): GameState {
+  const index = state.cogOrder.length;
+  if (index >= 6) throw new Error("addCog: the board seats at most 6 cogs");
+  const id: CogId = `cog${index}`;
+  const home = boardCorners().find((h) => state.tiles[key(h)]!.alignment === null);
+  if (!home) throw new Error("addCog: no free corner to seat a new cog");
+  const homeKey = key(home);
+  const tiles = {
+    ...state.tiles,
+    [homeKey]: { ...state.tiles[homeKey]!, alignment: id, coherence: COHERENCE_MAX },
+  };
+  const cogs: Record<CogId, CogState> = {
+    ...state.cogs,
+    [id]: { id, index, treasury: startingTreasury(), hearts: 0 },
+  };
+  return { ...state, tiles, cogs, cogOrder: [...state.cogOrder, id] };
 }

@@ -11,11 +11,14 @@ export function Roster({
   snapshot,
   focus = null,
   onToggleFocus,
+  live = false,
 }: {
   snapshot: GameSnapshot;
   /** The currently spotlighted cog id (its territory is highlighted on the board). */
   focus?: string | null;
   onToggleFocus?: (cogId: string) => void;
+  /** Live game: show the + control that seats a new cog. */
+  live?: boolean;
 }): React.ReactElement {
   const ranked = rankedByHearts(snapshot.cogs);
   const terr = territory(snapshot);
@@ -23,9 +26,21 @@ export function Roster({
     <div className="cg-panel" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }} data-testid="roster">
       <div className="cg-panel-head">
         <span className="cg-panel-title">Cogs</span>
-        <span className="cg-mono" style={{ fontSize: 9, color: "var(--muted)" }}>
-          {focus ? "click to clear" : "by hearts"}
-        </span>
+        {live ? (
+          <button
+            type="button"
+            className="cg-addcog"
+            data-testid="add-cog"
+            title="Add a new cog — seats at a free corner"
+            onClick={() => void fetch("/cogs/add", { method: "POST" })}
+          >
+            +
+          </button>
+        ) : (
+          <span className="cg-mono" style={{ fontSize: 9, color: "var(--muted)" }}>
+            by hearts
+          </span>
+        )}
       </div>
       <div className="cg-panel-body cg-scroll" style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 7, padding: "10px 12px" }}>
         {ranked.map((c, i) => {

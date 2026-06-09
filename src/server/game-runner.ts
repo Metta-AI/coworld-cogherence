@@ -6,6 +6,7 @@ import type { Order } from "../shared/engine/orders";
 import type { Agent } from "../agents/types";
 import type { ServerMessage, ServerStatus } from "../shared/protocol";
 import { newGame, stepTurn, scoreGame } from "../shared/engine/game";
+import { addCog } from "../shared/engine/board";
 import { toSnapshot } from "../shared/snapshot";
 import { PhaseCoordinator } from "./phase-coordinator";
 import type { MessageBus } from "./message-bus";
@@ -110,6 +111,19 @@ export class GameRunner {
     while (this.paused && gen === this.generation) {
       await new Promise<void>((resolve) => this.resumeWaiters.push(resolve));
     }
+  }
+
+  /** Operator: seat a new Cog mid-game at a free corner. Applies immediately —
+   *  the in-flight turn just treats it as holding (no orders collected yet) —
+   *  and broadcasts the new board. Returns the seated cog's id; throws when the
+   *  board is out of seats/corners (the HTTP layer surfaces that as an error). */
+  addCog(makeAgent: (id: CogId) => Agent): CogId {
+    const id: CogId = `cog${this.state.cogOrder.length}`;
+    this.state = addCog(this.state);
+    this.agents.push(makeAgent(id));
+    this.emit({ type: "snapshot", snapshot: toSnapshot(this.state) });
+    this.emit({ type: "serverStatus", status: this.status() });
+    return id;
   }
 
   onUpdate(fn: Listener): () => void {

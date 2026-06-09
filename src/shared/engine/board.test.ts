@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { generateBoard } from "./board";
+import { generateBoard, addCog } from "./board";
 import { key } from "./hex";
 import { maxEnergy } from "./energy";
 import { BOARD_RADIUS } from "./constants";
@@ -45,6 +45,18 @@ describe("generateBoard", () => {
     expect(counts[3]! / n).toBeCloseTo(0.08, 1);
     expect(counts[1]!).toBeGreaterThan(counts[2]!);
     expect(counts[2]!).toBeGreaterThan(counts[3]!);
+  });
+
+  it("addCog seats the next cog at a free corner; throws when out of seats", () => {
+    let g = generateBoard(7, 4);
+    g = addCog(g);
+    expect(g.cogOrder).toEqual(["cog0", "cog1", "cog2", "cog3", "cog4"]);
+    const home = Object.values(g.tiles).find((t) => t.alignment === "cog4")!;
+    expect(home.coherence).toBeGreaterThan(0);
+    expect(maxEnergy(g.cogs.cog4!.treasury)).toBe(100);
+    g = addCog(g); // the sixth and final seat
+    expect(g.cogOrder).toHaveLength(6);
+    expect(() => addCog(g)).toThrow(/at most 6/);
   });
 
   it("starts each cog with 100 energy (a balanced wallet)", () => {
