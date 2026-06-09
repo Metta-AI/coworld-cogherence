@@ -27,8 +27,10 @@ export const SET_ENERGY = 10;
 export const STARTING_ENERGY = 100;
 
 /** First-mover tempo bonus (from cogame-polis): the first Cog to lock its Commit
- *  each turn gets this many units of its scarcest mineral — rewarding decisiveness
- *  and nudging toward the balanced wallet that forms efficient COGS sets. */
+ *  each turn earns exactly this much ENERGY — paid as units of its most abundant
+ *  mineral, whose marginal value is precisely +1 energy each (adding to the max
+ *  never completes a COGS set) — rewarding decisiveness without warping the
+ *  mineral economy. */
 export const FIRST_COMMIT_REWARD = 2;
 
 /** Energy yielded by a single leftover mineral. */

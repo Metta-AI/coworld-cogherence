@@ -26,20 +26,23 @@ export function newGame(seed: number, numCogs: number): GameState {
   return generateBoard(seed, numCogs);
 }
 
-/** Award the first-mover its tempo bonus: FIRST_COMMIT_REWARD units of its scarcest
- *  mineral (next-turn money). WHO committed first is decided by the IO layer (timing
- *  lives there); the engine just applies the named bonus, so it stays deterministic. */
+/** Award the first-mover its tempo bonus: exactly FIRST_COMMIT_REWARD energy
+ *  (next-turn money). Energy is derived, not stored, so the bonus is paid as
+ *  FIRST_COMMIT_REWARD units of the cog's MOST ABUNDANT mineral — adding to the
+ *  max can never complete a COGS set, so the marginal value is precisely +reward
+ *  singles = +reward energy. WHO committed first is decided by the IO layer
+ *  (timing lives there); the engine just applies the bonus deterministically. */
 function awardFirstCommit(
   cogs: GameState["cogs"],
   firstCommitter: CogId | undefined,
 ): { cogs: GameState["cogs"]; event: TurnEvent | null } {
   const cog = firstCommitter ? cogs[firstCommitter] : undefined;
   if (!cog) return { cogs, event: null };
-  const mineral: Mineral = MINERALS.reduce((a, b) => (cog.treasury[a] <= cog.treasury[b] ? a : b));
+  const mineral: Mineral = MINERALS.reduce((a, b) => (cog.treasury[a] >= cog.treasury[b] ? a : b));
   const treasury = { ...cog.treasury, [mineral]: cog.treasury[mineral] + FIRST_COMMIT_REWARD };
   return {
     cogs: { ...cogs, [cog.id]: { ...cog, treasury } },
-    event: { type: "firstCommit", cog: cog.id, mineral, reward: FIRST_COMMIT_REWARD },
+    event: { type: "firstCommit", cog: cog.id, reward: FIRST_COMMIT_REWARD },
   };
 }
 

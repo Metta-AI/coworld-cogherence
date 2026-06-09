@@ -172,7 +172,7 @@ function eventText(e: TurnEvent): React.ReactNode {
     case "starved":
       return `${e.tile} starved → coherence ${e.coherence}`;
     case "firstCommit":
-      return `committed first · +${e.reward} ${e.mineral}`;
+      return `committed first · +${e.reward}⚡`;
     case "rejected":
       return `order rejected — ${e.reason}`;
     default:
