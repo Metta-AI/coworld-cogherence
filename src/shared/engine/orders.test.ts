@@ -5,7 +5,7 @@ import { emptyTreasury } from "./types";
 import { key } from "./hex";
 
 const tile = (q: number, r: number, alignment: CogId | null): Tile =>
-  ({ hex: { q, r }, alignment, coherence: 0, mineral: "C", density: 1 });
+  ({ hex: { q, r }, alignment, coherence: 0, mineral: "C", density: 1, density0: 1 });
 
 // A owns (0,0); (1,0) is neutral but adjacent to A; (3,0) is far/neutral.
 const stateWith = (tiles: Tile[]): GameState => {

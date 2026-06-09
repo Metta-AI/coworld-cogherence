@@ -12,6 +12,7 @@ export interface TileSnapshot {
   coherence: number;
   mineral: Mineral;
   density: number;
+  density0: number;
 }
 export interface CogSnapshot {
   id: CogId;
@@ -40,6 +41,7 @@ export function toSnapshot(state: GameState): GameSnapshot {
     coherence: t.coherence,
     mineral: t.mineral,
     density: t.density,
+    density0: t.density0,
   }));
   const cogs: CogSnapshot[] = state.cogOrder.map((id) => {
     const c = state.cogs[id]!;

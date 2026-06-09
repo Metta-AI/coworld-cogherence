@@ -26,6 +26,9 @@ export interface Tile {
   coherence: number;
   mineral: Mineral;
   density: number;
+  /** The deposit as generated — exploits halve `density` but never this, so views
+   *  can show what a scarred tile used to be worth. */
+  density0: number;
 }
 
 /** Per-Cog mutable state: identity, turn-order index, treasury, and hearts. */

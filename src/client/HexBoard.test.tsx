@@ -53,9 +53,9 @@ describe("HexBoard", () => {
     const pair: typeof snap = {
       ...snap,
       tiles: [
-        { q: 0, r: 0, alignment: "cog0", coherence: 5, mineral: "C", density: 1 },
-        { q: 1, r: 0, alignment: "cog0", coherence: 5, mineral: "C", density: 1 }, // east neighbor, same owner
-        { q: 0, r: 1, alignment: "cog1", coherence: 5, mineral: "C", density: 1 }, // southeast neighbor, enemy
+        { q: 0, r: 0, alignment: "cog0", coherence: 5, mineral: "C", density: 1, density0: 1 },
+        { q: 1, r: 0, alignment: "cog0", coherence: 5, mineral: "C", density: 1, density0: 1 }, // east neighbor, same owner
+        { q: 0, r: 1, alignment: "cog1", coherence: 5, mineral: "C", density: 1, density0: 1 }, // southeast neighbor, enemy
       ],
     };
     const { container } = render(<HexBoard snapshot={pair} mode="coherence" />);

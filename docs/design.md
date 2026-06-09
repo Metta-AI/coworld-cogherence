@@ -130,7 +130,7 @@ A huge one-time burst that abandons the tile and **scars the land forever**. Goo
 
 That 10-vs-1 gap is the political economy in one line: a balanced portfolio is **2.5× more efficient per mineral**. Since almost no Cog's land yields all four, **trade is survival, not flavor** — the mineral map *is* the diplomatic map.
 
-**Upkeep:** each aligned tile costs **1 energy/turn**. Can't pay → the tile **loses Coherence.** Empire size has a metabolic cost; overextension is punished *twice* (salients rot via §4 *and* bleed Coherence when unfunded).
+**Upkeep:** each aligned tile costs **2 energy/turn + ⌊√(your tiles)/3⌋** — the per-tile rate climbs with empire size. Can't pay → the tile **loses Coherence.** And rising order isn't free either: every tile that **gains** +1 Coherence at drift drains **1 energy** (unaffordable gains are forfeited, strongest tiles first). Empire size has a metabolic cost; overextension is punished *twice* (salients rot via §4 *and* bleed Coherence when unfunded).
 
 **Timing (one-turn lag):** minerals minted in Upkeep land in the treasury for *next* turn — you always Commit against last turn's production. Energy itself is never banked: it's recomputed from the treasury the moment it's needed, and any unconverted potential simply stays as minerals. The full execution order (Exploit → Align → Transfer → auction → Upkeep) is fixed in **§14**.
 
@@ -143,7 +143,7 @@ Four phases — the first three are the Diplomacy heartbeat; the fourth is the w
 1. **Negotiate** *(timed, social)* — agents talk freely. **Public** channel (declarations, alliances, accusations; whole board sees) and **private** DMs (secret deals, lies, side payments). Nothing is binding.
 2. **Commit** *(secret, timed)* — each Cog privately locks its orders: Align(s), Exploit(s), Transfer(s), and a **sealed heart bid** (energy). No one sees others' orders. The phase runs on a **deadline** (a hung Cog defaults to no orders), and the **first Cog to lock its Commit earns a tempo bonus** — exactly `FIRST_COMMIT_REWARD` energy, paid as units of its most abundant mineral so the marginal value is precisely that — rewarding decisiveness without warping the mineral economy. (A live mechanic: scripted replays opt out, so a deterministic instant-first doesn't dominate.)
 3. **Resolve** *(simultaneous)* — all orders reveal and execute at once, in a fixed order (Exploit → Align → Transfer → auction; **§14**). Contested Aligns clash via tug-of-war (§5); the **heart auction** settles (§8). *This* is where betrayal lands — you reinforced the board on faith while they Exploited behind your back, and everyone sees it together.
-4. **Upkeep** *(the world breathes)* — tiles mint minerals (§6); Coherence drifts ±1 by the neighbor rule (§4); upkeep is skimmed.
+4. **Upkeep** *(the world breathes)* — Coherence drifts ±1 by the neighbor rule (§4), each gain draining 1 energy; the empire-scaled upkeep is skimmed; tiles mint minerals (§6).
 
 ---
 
@@ -257,7 +257,7 @@ All four keys optional; omit or use `[]` / `0` for none. `align.energy ≥ 1`, `
 ### 14.3 Validation & failure (deterministic, engine-enforced)
 - **Legal targets:** Align any tile; Exploit only tiles the Cog currently owns; Transfer only minerals it holds. Illegal entries are **dropped and logged**, never errored.
 - **Energy budget (Commit):** committed energy = Σ `align.energy` + (1 per transfer) + `bid`, drawn from the treasury converted on demand (§6). **Exploit resolves first and *mints* energy** (§5), so it can fund the rest and never fails for cost. If commitments still exceed available energy at Resolve, they are paid in priority order — **transfers → aligns (submitted order) → bid** — and anything unaffordable is **dropped** (a dropped or partial bid counts as **0**). A bid only needs to be *covered* at commit — only the **winner** actually pays, and only the **second price** (§8); losers and the winner's overage are refunded.
-- **Upkeep** is separate (step 5 below): each owned tile costs 1 energy; any shortfall is paid in **Coherence loss**, not order failure (§6).
+- **Upkeep** is separate (step 5 below): each owned tile costs 2 + ⌊√(tiles)/3⌋ energy; any shortfall is paid in **Coherence loss**, not order failure (§6).
 - **Malformed / missing output** (timeout, invalid JSON, unknown tile id): the Cog is treated as **no orders, bid 0** for the turn, and it's logged. The game never stalls on one agent.
 
 ### 14.4 Execution order (canonical — resolves the §6/§12 ambiguity)
@@ -266,7 +266,7 @@ Steps 1–4 are **Resolve** (phase 3); step 5 is **Upkeep** (phase 4):
 2. **Align** — tug-of-war on every contested tile, all simultaneously (§5).
 3. **Transfer** — move minerals between treasuries.
 4. **Heart auction** — Vickrey settle (§8); winner pays the second price. **Bid ties break deterministically** (e.g. lowest `cog_id`).
-5. **Upkeep** — mint minerals (§6), apply the ±1 neighbor drift (§4), skim per-tile upkeep.
+5. **Upkeep** — apply the ±1 neighbor drift (§4, gains drain 1 energy each), skim the empire-scaled per-tile upkeep, mint minerals (§6).
 
 ### 14.5 Time & token budget (LLM-specific)
 Negotiate is **timed**: a fixed wall-clock or token budget per Cog per round, plus a bounded number of message exchanges (default: a few public + DM rounds). Exceeding the budget ends that Cog's Negotiate turn; it can still Commit. This keeps a 100-turn game tractable and stops one slow agent from stalling the match.
@@ -319,7 +319,7 @@ t1 is A's frontier O-tile (B eyes it); t2 is unclaimed **S** that A badly needs;
 ### 4. Upkeep — the world breathes (§14.5)
 - **Mint** (Density × Coherence → owner, for *next* turn): t1 → 2 O to B; t2 → **6 S to A** (A finally has S income); t3 (neutral) → nothing.
 - **Drift (±1, §4):** t2 sits inside A's cluster (4 of 6 neighbors A) → majority → **+1 → 3.** t1 is now a lone **B** salient ringed by A → minority → **−1 → 0.** *B's prize is already rotting; A can retake the husk next turn for a trickle.*
-- **Upkeep skim:** 1 energy per owned tile; a Cog that can't pay loses Coherence instead.
+- **Upkeep skim:** 2 + ⌊√(tiles)/3⌋ energy per owned tile; a Cog that can't pay loses Coherence instead.
 - **Total Coherence:** across these tiles, aligned Coherence went 4 + 2 = **6 → 0 + 3 = 3.** War + Exploit **frayed the board** even though the tiles only changed hands.
 
 ### What this turn demonstrates

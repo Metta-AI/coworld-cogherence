@@ -18,6 +18,7 @@ const tileSnapshotSchema = z
     coherence: z.number().int(),
     mineral: mineralSchema,
     density: z.number(),
+    density0: z.number(),
   })
   .strict();
 const cogSnapshotSchema = z
@@ -49,7 +50,7 @@ export const turnEventSchema = z.discriminatedUnion("type", [
     .strict(),
   z.object({ type: z.literal("exploit"), cog: z.string(), tile: z.string(), mineral: mineralSchema, minted: z.number() }).strict(),
   z
-    .object({ type: z.literal("capture"), tile: z.string(), from: cogIdNullable, to: cogIdNullable, coherence: z.number().int() })
+    .object({ type: z.literal("capture"), tile: z.string(), from: cogIdNullable, to: cogIdNullable, coherence: z.number().int(), spent: z.number().int() })
     .strict(),
   z
     .object({

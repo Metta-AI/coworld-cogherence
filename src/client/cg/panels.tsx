@@ -8,6 +8,7 @@ import type { Message } from "../../shared/messages";
 import type { TurnEvent } from "../../shared/engine/log";
 import type { StampedEvent } from "../net/feed";
 import { cogColor, cogName } from "../colors";
+import { TRANSFER_FEE, upkeepPerTile } from "../../shared/engine/constants";
 import { HexBoard, type LatticeMode } from "../HexBoard";
 import { CGIcon, CogSigil, CogText, Mineral } from "./atoms";
 import {
@@ -161,12 +162,16 @@ function actorOf(e: TurnEvent): string | null {
 
 function eventText(e: TurnEvent): React.ReactNode {
   switch (e.type) {
-    case "capture":
-      return e.from ? `flipped ${e.tile} from ${cogName(cogIdx(e.from))} → coherence ${e.coherence}` : `claimed ${e.tile} → coherence ${e.coherence}`;
+    case "capture": {
+      const cost = e.to && e.spent > 0 ? ` · −${e.spent}e` : "";
+      return e.from
+        ? `flipped ${e.tile} from ${cogName(cogIdx(e.from))} → coherence ${e.coherence}${cost}`
+        : `claimed ${e.tile} → coherence ${e.coherence}${cost}`;
+    }
     case "exploit":
       return `strip-mined ${e.tile} → +${e.minted} ${e.mineral}, land scarred`;
     case "transfer":
-      return `${e.amount} ${e.mineral} → ${cogName(cogIdx(e.to))}`;
+      return `${e.amount} ${e.mineral} → ${cogName(cogIdx(e.to))} · −${TRANSFER_FEE}e fee`;
     case "auction":
       return e.winner ? `wins the heart, pays 2nd-price ${e.price}e` : "heart unsold";
     case "starved":
@@ -182,7 +187,10 @@ function eventText(e: TurnEvent): React.ReactNode {
 
 export function ResolveLog({ snapshot, events }: { snapshot: GameSnapshot; events: StampedEvent[] }): React.ReactElement {
   const turn = lastResolvedTurn(snapshot);
-  const evs = [...eventsAt(events, turn)].sort((a, b) => (EVENT_ORDER[a.type] ?? 9) - (EVENT_ORDER[b.type] ?? 9));
+  // Starve rows are upkeep noise at scale — the board shows rot directly.
+  const evs = eventsAt(events, turn)
+    .filter((e) => e.type !== "starved")
+    .sort((a, b) => (EVENT_ORDER[a.type] ?? 9) - (EVENT_ORDER[b.type] ?? 9));
   return (
     <div className="cg-panel" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }} data-testid="resolve-log">
       <div className="cg-panel-head">
@@ -299,6 +307,15 @@ export function TileInspector({ tileKey: key, snapshot }: { tileKey: string; sna
   const nc = nb.length;
   const status = tileStatus(t, map, snapshot.coherenceMax, ownerColor);
   const willGain = friendly >= Math.floor(nc / 2) + 1;
+  const ownerTiles = t.alignment ? snapshot.tiles.filter((x) => x.alignment === t.alignment).length : 0;
+  const rate = t.alignment ? upkeepPerTile(ownerTiles) : 0;
+  const scarred = t.density < t.density0; // an exploit halved the deposit
+  const row = (label: string, value: React.ReactNode): React.ReactElement => (
+    <tr key={label}>
+      <td className="cg-label" style={{ fontSize: 9, padding: "3px 0" }}>{label}</td>
+      <td className="cg-mono" style={{ fontSize: 11, color: "var(--text-dim)", textAlign: "right", padding: "3px 0" }}>{value}</td>
+    </tr>
+  );
   return (
     <div className="cg-panel" style={{ width: 248, background: "rgba(14,14,24,0.94)", backdropFilter: "blur(8px)" }} data-testid="tile-inspector">
       <div className="cg-panel-head" style={{ padding: "8px 11px" }}>
@@ -322,40 +339,35 @@ export function TileInspector({ tileKey: key, snapshot }: { tileKey: string; sna
             </div>
           </div>
         </div>
-        <div>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
-            <span className="cg-label" style={{ fontSize: 9 }}>
-              coherence
-            </span>
-            <span className="cg-mono" style={{ fontSize: 11, color: "var(--coherence)" }}>
-              {t.coherence}/{snapshot.coherenceMax}
-            </span>
-          </div>
-          <div className="cg-meter" style={{ height: 6 }}>
-            <div className="cg-meter-fill" style={{ width: `${(t.coherence / snapshot.coherenceMax) * 100}%` }} />
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: 14 }}>
-          <div>
-            <div className="cg-label" style={{ fontSize: 9, marginBottom: 3 }}>
-              mineral
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-              <Mineral m={t.mineral} />
-              <span className="cg-mono" style={{ fontSize: 11, color: "var(--text-dim)" }}>
-                density {t.density}
-              </span>
-            </div>
-          </div>
-          <div>
-            <div className="cg-label" style={{ fontSize: 9, marginBottom: 3 }}>
-              neighbors
-            </div>
-            <div className="cg-mono" style={{ fontSize: 11, color: "var(--text-dim)" }}>
-              {friendly}/{nc} friendly
-            </div>
-          </div>
-        </div>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <tbody>
+            {row("coherence", <span style={{ color: "var(--coherence)" }}>{t.coherence}/{snapshot.coherenceMax}</span>)}
+            {row("mineral", <Mineral m={t.mineral} label />)}
+            {row(
+              "energy",
+              t.alignment ? (
+                <span style={{ color: "var(--exploit)" }}>
+                  −{rate}e/turn{willGain && t.coherence < snapshot.coherenceMax ? " − 1e gain" : ""}
+                </span>
+              ) : (
+                "—"
+              ),
+            )}
+            {row("neighbors", `${friendly}/${nc} friendly`)}
+            {row(
+              "density",
+              scarred ? (
+                <span>
+                  <s style={{ color: "var(--muted-2)" }}>{t.density0}</s>
+                  <span style={{ color: "var(--exploit)" }}> {t.density}</span>
+                  <span className="cg-mono" style={{ fontSize: 8.5, color: "var(--muted)" }}> scarred</span>
+                </span>
+              ) : (
+                t.density
+              ),
+            )}
+          </tbody>
+        </table>
         {t.alignment && t.coherence > 0 && (
           <div className="cg-mono" style={{ fontSize: 9.5, color: "var(--muted)", lineHeight: 1.5, paddingTop: 7, borderTop: "1px solid var(--border)" }}>
             mints <b style={{ color: "var(--text-dim)" }}>{((t.density * t.coherence) / 10).toFixed(1)} {t.mineral}</b>/turn ·{" "}

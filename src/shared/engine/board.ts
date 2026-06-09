@@ -44,14 +44,17 @@ export function generateBoard(seed: number, numCogs: number): GameState {
     // deposits are thin while rich ones stay rare — 20/48/24/8 over 0/1/2/3.
     const roll = rng();
     const density = roll < 0.2 ? 0 : roll < 0.68 ? 1 : roll < 0.92 ? 2 : 3;
-    tiles[key(hex)] = { hex, alignment: null, coherence: 0, mineral, density };
+    tiles[key(hex)] = { hex, alignment: null, coherence: 0, mineral, density, density0: density };
   }
 
   // The six corners of the hex board, in rotational order; spread cogs across them.
   const corners = boardCorners();
 
   // Strategic landmarks — the six corners and the center — are always rich (density 3).
-  for (const hex of [...corners, { q: 0, r: 0 }]) tiles[key(hex)]!.density = 3;
+  for (const hex of [...corners, { q: 0, r: 0 }]) {
+    tiles[key(hex)]!.density = 3;
+    tiles[key(hex)]!.density0 = 3;
+  }
 
   const cogs: Record<CogId, CogState> = {};
   const cogOrder: CogId[] = [];

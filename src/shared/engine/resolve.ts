@@ -22,7 +22,7 @@ export type ResolveEvent =
   | { type: "rejected"; cog: CogId; reason: string }
   | { type: "transfer"; from: CogId; to: CogId; mineral: Mineral; amount: number }
   | { type: "exploit"; cog: CogId; tile: HexKey; mineral: Mineral; minted: number }
-  | { type: "capture"; tile: HexKey; from: CogId | null; to: CogId | null; coherence: number }
+  | { type: "capture"; tile: HexKey; from: CogId | null; to: CogId | null; coherence: number; spent: number }
   | { type: "auction"; winner: CogId | null; price: number; bids: Array<[CogId, number]> };
 
 const emptyT = (): Treasury => ({ C: 0, O: 0, Ge: 0, S: 0 });
@@ -192,8 +192,11 @@ export function resolve(
     const t = tiles[tk];
     if (!t) continue;
     const res = resolveTile(t.alignment, t.coherence, aligns);
-    if (res.alignment !== t.alignment)
-      events.push({ type: "capture", tile: tk, from: t.alignment, to: res.alignment, coherence: res.coherence });
+    if (res.alignment !== t.alignment) {
+      // the energy the new owner committed to this tile (0 on mutual annihilation)
+      const spent = aligns.filter(([id]) => id === res.alignment).reduce((s, [, e]) => s + e, 0);
+      events.push({ type: "capture", tile: tk, from: t.alignment, to: res.alignment, coherence: res.coherence, spent });
+    }
     tiles[tk] = { ...t, alignment: res.alignment, coherence: res.coherence };
   }
 

@@ -2,9 +2,10 @@ import { describe, it, expect } from "vitest";
 import { upkeep } from "./upkeep";
 import type { GameState, Tile, CogId, Mineral, Treasury, CogState } from "./types";
 import { key } from "./hex";
+import { COHERENCE_MAX, upkeepPerTile } from "./constants";
 
 const tile = (q: number, r: number, alignment: CogId | null, coherence: number, mineral: Mineral = "C", density = 1): Tile =>
-  ({ hex: { q, r }, alignment, coherence, mineral, density });
+  ({ hex: { q, r }, alignment, coherence, mineral, density, density0: density });
 const T = (C = 0, O = 0, Ge = 0, S = 0): Treasury => ({ C, O, Ge, S });
 
 const makeState = (opts: { tiles: Tile[]; cogOrder: CogId[]; treasuries?: Record<CogId, Treasury> }): GameState => {
@@ -24,32 +25,34 @@ const FLOOR = () => 0.999999; // rng never below any fractional part -> mint = f
 const CEIL = () => 0; // rng below every positive fractional part -> mint = ceil(raw)
 
 describe("upkeep", () => {
-  it("applies drift, charges upkeep, then mints floor(density*coherence/10)", () => {
-    // single isolated tile: drift -1 (no friendly neighbors), funded, then mints
-    const s = makeState({ tiles: [tile(0, 0, "A", 8, "Ge", 3)], cogOrder: ["A"], treasuries: { A: T(1, 1, 1, 1) } });
+  it("applies drift, charges upkeep at the empire rate, then mints floor(density*coherence/10)", () => {
+    // single isolated tile: drift -1 (a free loss), funded at rate 2 (1 tile), then mints
+    const s = makeState({ tiles: [tile(0, 0, "A", 8, "Ge", 3)], cogOrder: ["A"], treasuries: { A: T(5, 0, 0, 0) } });
     const { state } = upkeep(s, FLOOR);
     expect(at(state, 0, 0).coherence).toBe(7);        // 8 -> drift -> 7 (funded, no extra loss)
-    expect(tre(state, "A")).toEqual(T(0, 1, 3, 1));    // charge 1 (one C) -> T(0,1,1,1); mint floor(3*7/10)=2 Ge -> Ge 1+2=3
+    expect(tre(state, "A")).toEqual(T(3, 0, 2, 0));    // charge 2 -> T(3,0,0,0); mint floor(3*7/10)=2 Ge
   });
 
   it("mints density*coherence/10, stochastically rounded by its fractional part", () => {
-    // funded isolated tile, post-drift coherence 7, density 3 -> raw mint 3*7/10 = 2.1
-    const s = makeState({ tiles: [tile(0, 0, "A", 8, "C", 3)], cogOrder: ["A"], treasuries: { A: T(1, 0, 0, 0) } });
-    expect(tre(upkeep(s, FLOOR).state, "A")).toEqual(T(2, 0, 0, 0)); // 2.1 -> floor -> 2 C
-    expect(tre(upkeep(s, CEIL).state, "A")).toEqual(T(3, 0, 0, 0));  // 2.1 -> +1 (prob 0.1) -> 3 C
+    // funded isolated tile (rate 2 paid exactly), post-drift coherence 7, density 3 -> raw mint 3*7/10 = 2.1
+    const s = makeState({ tiles: [tile(0, 0, "A", 8, "C", 3)], cogOrder: ["A"], treasuries: { A: T(2, 0, 0, 0) } });
+    expect(tre(upkeep(s, FLOOR).state, "A")).toEqual(T(2, 0, 0, 0)); // charge 2 -> 0; 2.1 -> floor -> 2 C
+    expect(tre(upkeep(s, CEIL).state, "A")).toEqual(T(3, 0, 0, 0));  // charge 2 -> 0; 2.1 -> +1 (prob 0.1) -> 3 C
   });
 
   it("starvation rots the frontier first (lowest coherence), floored at 0", () => {
-    // three isolated A tiles; treasury affords only 1 upkeep. NOTE: drift (-1, isolated) runs BEFORE upkeep cost.
+    // three isolated A tiles; the wallet funds only the strongest at rate 2.
+    // NOTE: drift (-1, isolated, free) runs BEFORE upkeep cost; the weakest tile
+    // erodes to 0 at drift and goes neutral before upkeep is even owed on it.
     const s = makeState({
       tiles: [tile(0, 0, "A", 5), tile(3, 0, "A", 3), tile(6, 0, "A", 1)],
-      cogOrder: ["A"], treasuries: { A: T(1, 0, 0, 0) }, // maxEnergy 1
+      cogOrder: ["A"], treasuries: { A: T(2, 0, 0, 0) }, // maxEnergy 2 -> funds exactly 1 tile at rate 2
     });
     const { state, events } = upkeep(s, FLOOR);
     expect(at(state, 0, 0).coherence).toBe(4); // 5 -> drift 4 -> funded (highest) -> 4
     expect(at(state, 3, 0).coherence).toBe(1); // 3 -> drift 2 -> starved -> 1
-    expect(at(state, 6, 0).coherence).toBe(0); // 1 -> drift 0 -> starved -> 0 (floored)
-    expect(tre(state, "A")).toEqual(T(0, 0, 0, 0)); // charge 1 C -> T(0,0,0,0); mints floor(1*4/10)=floor(1*1/10)=0 C
+    expect(at(state, 6, 0)).toMatchObject({ coherence: 0, alignment: null }); // 1 -> drift 0 -> neutral husk
+    expect(tre(state, "A")).toEqual(T(0, 0, 0, 0)); // charge 2 C; mints floor(1*4/10)=floor(1*1/10)=0 C
     expect(events.some((e) => e.type === "starved" && e.tile === "3,0")).toBe(true);
   });
 
@@ -73,14 +76,14 @@ describe("upkeep", () => {
     // A is rich (funds both its tiles); B is broke (starves both). All tiles isolated -> drift -1 each.
     const s = makeState({
       tiles: [tile(0, 0, "A", 4), tile(10, 0, "A", 4), tile(20, 0, "B", 3), tile(30, 0, "B", 3)],
-      cogOrder: ["A", "B"], treasuries: { A: T(2, 2, 2, 2), B: T() },
+      cogOrder: ["A", "B"], treasuries: { A: T(4, 0, 0, 0), B: T() },
     });
     const { state } = upkeep(s, FLOOR);
     expect(at(state, 0, 0).coherence).toBe(3);  // A: drift 4->3, funded
     expect(at(state, 10, 0).coherence).toBe(3); // A: drift 4->3, funded
     expect(at(state, 20, 0).coherence).toBe(1); // B: drift 3->2, starved -> 1
     expect(at(state, 30, 0).coherence).toBe(1); // B: drift 3->2, starved -> 1
-    expect(tre(state, "A")).toEqual(T(1, 1, 2, 2)); // charge 2 (two singles) -> T(1,1,2,2); mint floor(1*3/10)=0 C
+    expect(tre(state, "A")).toEqual(T(0, 0, 0, 0)); // charge 2 tiles x rate 2 = 4; mint floor(1*3/10)=0 C
     expect(tre(state, "B")).toEqual(T(0, 0, 0, 0)); // no charge; mint floor(1*1/10)=0 C
   });
 
@@ -91,6 +94,50 @@ describe("upkeep", () => {
     const { state } = upkeep(s, FLOOR);
     expect(at(state, 0, 0).coherence).toBe(2);     // drift 4->3, starved -> 2
     expect(tre(state, "A")).toEqual(T(0, 1, 0, 0)); // mint floor(5 (density) * 2 (coherence) / 10) = 1 O, NOT floor(5*4/10)=2
+  });
+
+  it("a +1 drift gain drains 1e per tile; unaffordable gains are forfeited, strongest first", () => {
+    // A friendly pair: each is the other's only in-board neighbor -> both point +1.
+    // Wallet affords ONE gain: the stronger tile (0,0) gains, (1,0) forfeits.
+    const s = makeState({
+      tiles: [tile(0, 0, "A", 3), tile(1, 0, "A", 2)],
+      cogOrder: ["A"], treasuries: { A: T(1, 0, 0, 0) },
+    });
+    const { state } = upkeep(s, FLOOR);
+    // gains: (0,0) 3->4 (-1e), (1,0) forfeited at 2; upkeep rate(2)=2 with 0e -> both starve -1
+    expect(at(state, 0, 0).coherence).toBe(3);
+    expect(at(state, 1, 0).coherence).toBe(1);
+    expect(tre(state, "A")).toEqual(T(0, 0, 0, 0));
+  });
+
+  it("a rich pair pays for both gains AND the upkeep rate", () => {
+    const s = makeState({
+      tiles: [tile(0, 0, "A", 3), tile(1, 0, "A", 2)],
+      cogOrder: ["A"], treasuries: { A: T(6, 0, 0, 0) },
+    });
+    const { state } = upkeep(s, FLOOR);
+    expect(at(state, 0, 0).coherence).toBe(4); // +1 gain, funded upkeep
+    expect(at(state, 1, 0).coherence).toBe(3);
+    expect(tre(state, "A")).toEqual(T(0, 0, 0, 0)); // 2 gains (2e) + 2 tiles x rate 2 (4e)
+  });
+
+  it("tiles already at COHERENCE_MAX pay nothing at drift (no gain to buy)", () => {
+    const s = makeState({
+      tiles: [tile(0, 0, "A", COHERENCE_MAX), tile(1, 0, "A", COHERENCE_MAX)],
+      cogOrder: ["A"], treasuries: { A: T(4, 0, 0, 0) },
+    });
+    const { state } = upkeep(s, FLOOR);
+    expect(at(state, 0, 0).coherence).toBe(COHERENCE_MAX);
+    // only the 2 x rate-2 upkeep, no gain charges; each maxed d1 tile mints 1*10/10 = 1 C
+    expect(tre(state, "A")).toEqual(T(2, 0, 0, 0));
+  });
+
+  it("upkeepPerTile scales with empire size: 2e under 9 tiles, then +1 per sqrt step", () => {
+    expect(upkeepPerTile(1)).toBe(2);
+    expect(upkeepPerTile(8)).toBe(2);
+    expect(upkeepPerTile(9)).toBe(3);
+    expect(upkeepPerTile(35)).toBe(3);
+    expect(upkeepPerTile(36)).toBe(4);
   });
 
   it("a tile starved to Coherence 0 goes neutral", () => {

@@ -5,7 +5,7 @@ import { key } from "./hex";
 import type { Order } from "./orders";
 
 const tile = (q: number, r: number, alignment: CogId | null, coherence: number, mineral: Mineral = "C", density = 1): Tile =>
-  ({ hex: { q, r }, alignment, coherence, mineral, density });
+  ({ hex: { q, r }, alignment, coherence, mineral, density, density0: density });
 const T = (C = 0, O = 0, Ge = 0, S = 0): Treasury => ({ C, O, Ge, S });
 
 const makeState = (opts: {

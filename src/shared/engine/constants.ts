@@ -10,8 +10,16 @@ export const BOARD_RADIUS = 6;
 /** Number of turns in a full game. */
 export const MAX_TURNS = 100;
 
-/** Energy owed per aligned tile each Upkeep. */
-export const UPKEEP_PER_TILE = 1;
+/** Base energy owed per aligned tile each Upkeep; the rate grows with empire size. */
+export const UPKEEP_BASE = 2;
+
+/** Per-tile upkeep rate for a Cog holding `aligned` tiles: bigger empires pay a
+ *  progressively higher rate per tile. */
+export const upkeepPerTile = (aligned: number): number => UPKEEP_BASE + Math.floor(Math.sqrt(aligned) / 3);
+
+/** Energy drained per tile that GAINS +1 Coherence at drift — order isn't free.
+ *  A Cog that can't pay forfeits the gain (strongest tiles are funded first). */
+export const DRIFT_GAIN_COST = 1;
 
 /** Mineral minted per Upkeep = density × coherence / MINT_DIVISOR, stochastically
  *  rounded: a raw 2.3 mints 2, plus 1 with probability 0.3. With COHERENCE_MAX 10

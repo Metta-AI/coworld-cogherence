@@ -126,8 +126,9 @@ export function CogSigil({ index, size = 30, glow = true }: { index: number; siz
   );
 }
 
-/** A compact COGS wallet: the four mineral counts + the derived energy (sets ×10). */
-export function Wallet({ treasury, energy }: { treasury: Treasury; energy: number }): React.ReactElement {
+/** A compact COGS wallet: the four mineral counts + the derived energy (sets ×10),
+ *  with the per-turn upkeep drain beside it when provided. */
+export function Wallet({ treasury, energy, upkeep }: { treasury: Treasury; energy: number; upkeep?: number }): React.ReactElement {
   const sets = setsOf(treasury);
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -156,6 +157,11 @@ export function Wallet({ treasury, energy }: { treasury: Treasury; energy: numbe
         {sets > 0 && (
           <span className="cg-mono" style={{ fontSize: 9, color: "var(--muted)" }}>
             ·{sets}×set
+          </span>
+        )}
+        {upkeep != null && upkeep > 0 && (
+          <span className="cg-mono" title="upkeep owed next turn" style={{ fontSize: 10, color: "var(--exploit)", marginLeft: 4 }}>
+            −{upkeep}e/turn
           </span>
         )}
       </span>

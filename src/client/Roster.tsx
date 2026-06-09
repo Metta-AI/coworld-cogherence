@@ -6,6 +6,7 @@ import type { GameSnapshot } from "../shared/snapshot";
 import { cogColor, cogName } from "./colors";
 import { CGIcon, CogSigil, Wallet } from "./cg/atoms";
 import { rankedByHearts, territory } from "./cg/derive";
+import { upkeepPerTile } from "../shared/engine/constants";
 
 export function Roster({
   snapshot,
@@ -93,7 +94,7 @@ export function Roster({
                   </span>
                 </div>
               </div>
-              <Wallet treasury={c.treasury} energy={c.energy} />
+              <Wallet treasury={c.treasury} energy={c.energy} upkeep={tiles * upkeepPerTile(tiles)} />
             </button>
           );
         })}

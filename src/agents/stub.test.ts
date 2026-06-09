@@ -7,7 +7,7 @@ import type { GameState, Tile, CogId, Treasury, CogState } from "../shared/engin
 import { key } from "../shared/engine/hex";
 
 const tile = (q: number, r: number, alignment: CogId | null, coherence: number, mineral: any = "C", density = 1): Tile =>
-  ({ hex: { q, r }, alignment, coherence, mineral, density });
+  ({ hex: { q, r }, alignment, coherence, mineral, density, density0: density });
 const T = (C = 0, O = 0, Ge = 0, S = 0): Treasury => ({ C, O, Ge, S });
 const stateWith = (tiles: Tile[], cogOrder: CogId[], treasuries: Record<CogId, Treasury> = {}): GameState => {
   const map: Record<string, Tile> = {};
