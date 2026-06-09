@@ -52,7 +52,7 @@ export function ViewSwitcher({
         style={{ color: labelColor }}
         aria-haspopup="menu"
         aria-expanded={open}
-        title="switch view"
+        data-tip="switch view"
         onClick={() => setOpen((o) => !o)}
       >
         <span className="vs-current">{label}</span>

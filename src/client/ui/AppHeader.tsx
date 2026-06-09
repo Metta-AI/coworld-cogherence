@@ -71,13 +71,13 @@ export function AppHeader({
 
       <div className="cg-header-right">
         {connected && !status?.finished && (
-          <span className="cg-clock" title="time left in this phase">
+          <span className="cg-clock" data-tip="time left in this phase">
             <em>phase</em>
             <b className={phaseLeft === null ? "muted" : ""}>{phaseLeft === null ? "—" : mmss(phaseLeft)}</b>
           </span>
         )}
         {gameSecs !== null && (
-          <span className="cg-clock" title="elapsed game time">
+          <span className="cg-clock" data-tip="elapsed game time">
             <em>game</em>
             <b>{hhmmss(gameSecs)}</b>
           </span>

@@ -32,7 +32,7 @@ export function Roster({
             type="button"
             className="cg-addcog"
             data-testid="add-cog"
-            title="Add a new cog — seats at a free corner"
+            data-tip="Add a new cog — seats at a free corner"
             onClick={() => void fetch("/cogs/add", { method: "POST" })}
           >
             +
@@ -56,7 +56,7 @@ export function Roster({
               className="cg-roster-card"
               data-testid={`roster-${c.id}`}
               aria-pressed={active}
-              title={`Spotlight ${cogName(c.index)}’s territory`}
+              data-tip={`Spotlight ${cogName(c.index)}’s territory`}
               onClick={() => onToggleFocus?.(c.id)}
               style={{
                 appearance: "none",
@@ -75,7 +75,7 @@ export function Roster({
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 7 }}>
-                <span className="cg-num" title={`hearts rank #${i + 1} of ${ranked.length}`} style={{ fontSize: 13, color: i === 0 ? color : "var(--muted)", width: 16 }}>
+                <span className="cg-num" data-tip={`hearts rank #${i + 1} of ${ranked.length}`} style={{ fontSize: 13, color: i === 0 ? color : "var(--muted)", width: 16 }}>
                   {i + 1}
                 </span>
                 <CogSigil index={c.index} size={28} />
@@ -83,11 +83,11 @@ export function Roster({
                   <div style={{ fontFamily: "var(--f-ui)", fontWeight: 700, fontSize: 13, color: "var(--text)", letterSpacing: "0.03em" }}>
                     {cogName(c.index)}
                   </div>
-                  <div className="cg-mono" title="tiles currently aligned to this cog" style={{ fontSize: 8.5, color: "var(--muted)" }}>
+                  <div className="cg-mono" data-tip="tiles currently aligned to this cog" style={{ fontSize: 8.5, color: "var(--muted)" }}>
                     {tiles} tiles
                   </div>
                 </div>
-                <div title={`${c.hearts} hearts — most hearts at turn 100 wins`} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <div data-tip={`${c.hearts} hearts — most hearts at turn 100 wins`} style={{ display: "flex", alignItems: "center", gap: 4 }}>
                   <CGIcon name="heart" size={16} />
                   <span className="cg-num cg-glow" style={{ fontSize: 22, color: "var(--heart)", lineHeight: 1 }}>
                     {c.hearts}

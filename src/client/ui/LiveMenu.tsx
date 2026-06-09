@@ -28,7 +28,7 @@ export function LiveMenu({ paused }: { paused: boolean }): React.ReactElement {
         className={`conn conn-live live-menu-button ${paused ? "is-paused" : ""}`}
         aria-haspopup="menu"
         aria-expanded={open}
-        title="game controls"
+        data-tip="game controls"
         onClick={() => setOpen((o) => !o)}
       >
         {paused ? "❚❚ paused" : "● live"} <span className="lm-caret">▾</span>

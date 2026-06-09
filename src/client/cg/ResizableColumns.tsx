@@ -90,7 +90,7 @@ export function ResizableColumns({
         role="separator"
         aria-orientation="vertical"
         aria-label="Resize left panel"
-        title="Drag to resize · double-click to reset"
+        data-tip="Drag to resize · double-click to reset"
       />
       {center}
       <div
@@ -100,7 +100,7 @@ export function ResizableColumns({
         role="separator"
         aria-orientation="vertical"
         aria-label="Resize right panel"
-        title="Drag to resize · double-click to reset"
+        data-tip="Drag to resize · double-click to reset"
       />
       {right}
     </div>

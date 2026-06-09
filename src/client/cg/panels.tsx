@@ -84,7 +84,7 @@ export function AuctionPanel({ snapshot, events }: { snapshot: GameSnapshot; eve
               return (
                 <span
                   key={id}
-                  title={cogName(cogIdx(id))}
+                  data-tip={`${cogName(cogIdx(id))} bid ${bid}e${won ? " — won, pays the 2nd price" : ""}`}
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
@@ -114,7 +114,7 @@ export function AuctionPanel({ snapshot, events }: { snapshot: GameSnapshot; eve
               </span>
               <span style={{ flex: 1 }} />
               {spendRows.map(([id, amt]) => (
-                <span key={id} title={`${cogName(cogIdx(id))} · ${amt}e on hearts`} style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+                <span key={id} data-tip={`${cogName(cogIdx(id))} · ${amt}e on hearts`} style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
                   <span style={{ width: 7, height: 7, borderRadius: 2, background: cogColor(cogIdx(id)) }} />
                   <span className="cg-mono" style={{ fontSize: 10, color: "var(--text-dim)" }}>{amt}</span>
                 </span>

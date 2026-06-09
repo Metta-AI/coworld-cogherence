@@ -10,6 +10,7 @@ import { applyFrame, connectLiveFeed, type FeedStore } from "./net/feed";
 import { makeWorldSocket } from "./net/world-socket";
 import { parseLocation } from "./ui/nav";
 import { AppHeader } from "./ui/AppHeader";
+import { TooltipLayer } from "./cg/Tooltip";
 import { GlobalView } from "./ui/GlobalView";
 import { FeedView } from "./ui/FeedView";
 import { CogView } from "./ui/CogView";
@@ -102,6 +103,7 @@ export function App({ replay: injected, live: liveProp }: { replay?: Replay; liv
 
   return (
     <div className="app">
+      <TooltipLayer />
       <AppHeader
         snapshot={snapshot}
         status={store.status}

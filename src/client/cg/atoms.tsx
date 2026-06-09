@@ -28,13 +28,13 @@ export function CogText({ text }: { text: string }): React.ReactElement {
 
 /** A real neon-glass game icon (heart / energy / coherence / logo / verbs). */
 export function CGIcon({ name, size = 16, title }: { name: IconName; size?: number; title?: string }): React.ReactElement {
-  return <Icon name={name} size={size} title={title} />;
+  return <Icon name={name} size={size} data-tip={title} />;
 }
 
 /** A mineral chip — a glowing rounded square stamped with its letter (C/O/Ge/S). */
 export function Mineral({ m, label }: { m: string; label?: boolean }): React.ReactElement {
   return (
-    <span title={`${MINERAL_NAME[m]} — one of the four COGS minerals`} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+    <span data-tip={`${MINERAL_NAME[m]} — one of the four COGS minerals`} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
       <span className={`cg-min ${minClass(m)}`}>{m}</span>
       {label && (
         <span className="cg-mono" style={{ fontSize: 9, color: "var(--muted)" }}>
@@ -133,7 +133,7 @@ export function Wallet({ treasury, energy, upkeep }: { treasury: Treasury; energ
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
       {MINERALS.map((m) => (
-        <span key={m} title={`${MINERAL_NAME[m]} in treasury: ${treasury[m]}`} style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+        <span key={m} data-tip={`${MINERAL_NAME[m]} in treasury: ${treasury[m]}`} style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
           <span className={`cg-min ${minClass(m)}`}>{m}</span>
           <span className="cg-mono" style={{ fontSize: 12, fontWeight: 600, color: treasury[m] ? "var(--text)" : "var(--muted-2)" }}>
             {treasury[m]}
@@ -141,7 +141,7 @@ export function Wallet({ treasury, energy, upkeep }: { treasury: Treasury; energ
         </span>
       ))}
       <span
-        title="energy derived from the treasury — a full C+O+Ge+S set is worth 10e, leftover singles 1e each"
+        data-tip="energy derived from the treasury — a full C+O+Ge+S set is worth 10e, leftover singles 1e each"
         style={{
           display: "inline-flex",
           alignItems: "center",
@@ -156,12 +156,12 @@ export function Wallet({ treasury, energy, upkeep }: { treasury: Treasury; energ
           {energy}
         </span>
         {sets > 0 && (
-          <span className="cg-mono" title={`${sets} complete COGS set${sets > 1 ? "s" : ""} (10e each)`} style={{ fontSize: 9, color: "var(--muted)" }}>
+          <span className="cg-mono" data-tip={`${sets} complete COGS set${sets > 1 ? "s" : ""} (10e each)`} style={{ fontSize: 9, color: "var(--muted)" }}>
             ·{sets}×set
           </span>
         )}
         {upkeep != null && upkeep > 0 && (
-          <span className="cg-mono" title="tile upkeep drained each turn — the per-tile rate scales with empire size" style={{ fontSize: 10, color: "var(--exploit)", marginLeft: 4 }}>
+          <span className="cg-mono" data-tip="tile upkeep drained each turn — the per-tile rate scales with empire size" style={{ fontSize: 10, color: "var(--exploit)", marginLeft: 4 }}>
             −{upkeep}e/turn
           </span>
         )}
