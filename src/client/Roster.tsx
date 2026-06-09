@@ -75,7 +75,7 @@ export function Roster({
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 7 }}>
-                <span className="cg-num" style={{ fontSize: 13, color: i === 0 ? color : "var(--muted)", width: 16 }}>
+                <span className="cg-num" title={`hearts rank #${i + 1} of ${ranked.length}`} style={{ fontSize: 13, color: i === 0 ? color : "var(--muted)", width: 16 }}>
                   {i + 1}
                 </span>
                 <CogSigil index={c.index} size={28} />
@@ -83,11 +83,11 @@ export function Roster({
                   <div style={{ fontFamily: "var(--f-ui)", fontWeight: 700, fontSize: 13, color: "var(--text)", letterSpacing: "0.03em" }}>
                     {cogName(c.index)}
                   </div>
-                  <div className="cg-mono" style={{ fontSize: 8.5, color: "var(--muted)" }}>
+                  <div className="cg-mono" title="tiles currently aligned to this cog" style={{ fontSize: 8.5, color: "var(--muted)" }}>
                     {tiles} tiles
                   </div>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <div title={`${c.hearts} hearts — most hearts at turn 100 wins`} style={{ display: "flex", alignItems: "center", gap: 4 }}>
                   <CGIcon name="heart" size={16} />
                   <span className="cg-num cg-glow" style={{ fontSize: 22, color: "var(--heart)", lineHeight: 1 }}>
                     {c.hearts}

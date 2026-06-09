@@ -6,7 +6,7 @@ import React, { useEffect, useRef, useState } from "react";
 import type { GameSnapshot } from "../shared/snapshot";
 import type { StampedEvent } from "./net/feed";
 import { MAX_TURNS } from "../shared/engine/constants";
-import { cogColor } from "./colors";
+import { cogColor, cogName } from "./colors";
 import { leaderIndex } from "./cg/derive";
 
 const WIN = 12;
@@ -19,6 +19,7 @@ const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.m
 interface Meta {
   turn: number;
   leader: number;
+  events: number;
   exploits: number;
   intensity: number;
   key: boolean;
@@ -50,9 +51,11 @@ export function Scrubber({
   // mutates `snapshots`/`events` in place, so a reference-keyed memo would go
   // stale as they grow (and the work here is trivial for ≤101 turns).
   const weightByTurn = new Map<number, number>();
+  const countByTurn = new Map<number, number>();
   const exploitsByTurn = new Map<number, number>();
   for (const { turn, event } of events) {
     weightByTurn.set(turn, (weightByTurn.get(turn) ?? 0) + (EVENT_W[event.type] ?? 1));
+    if (event.type !== "mint") countByTurn.set(turn, (countByTurn.get(turn) ?? 0) + 1);
     if (event.type === "exploit") exploitsByTurn.set(turn, (exploitsByTurn.get(turn) ?? 0) + 1);
   }
   const meta: Meta[] = snapshots.map((s): Meta => {
@@ -60,6 +63,7 @@ export function Scrubber({
     return {
       turn: s.turn,
       leader: leaderIndex(s),
+      events: countByTurn.get(resolved) ?? 0,
       exploits: exploitsByTurn.get(resolved) ?? 0,
       intensity: weightByTurn.get(resolved) ?? 0,
       key: (exploitsByTurn.get(resolved) ?? 0) > 0,
@@ -143,23 +147,31 @@ export function Scrubber({
           <span className="cg-label" style={{ fontSize: 9 }}>full game · {MAX_TURNS} turns</span>
           <span className="cg-mono" style={{ fontSize: 9, color: "var(--muted)" }}>event density · ◆ exploits · leader</span>
         </div>
-        <div ref={ovRef} onClick={onOvClick} className="cg-ov" data-testid="scrub-overview">
+        <div ref={ovRef} onClick={onOvClick} className="cg-ov" data-testid="scrub-overview" title="the whole game at a glance — click to jump to a turn">
           <svg width="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ display: "block", height: H }}>
             {[0.25, 0.5, 0.75].map((g) => (
               <line key={g} x1={g * W} y1={0} x2={g * W} y2={H - 6} stroke="var(--border)" strokeDasharray="2 4" />
             ))}
             {meta.map((m, i) => {
               const bh = 3 + m.intensity * 30;
-              return <rect key={`d${i}`} x={xi(i) - 3} y={H - 6 - bh} width={6} height={bh} fill={m.exploits ? "rgba(255,90,44,0.32)" : "rgba(120,130,160,0.16)"} />;
+              return (
+                <rect key={`d${i}`} x={xi(i) - 3} y={H - 6 - bh} width={6} height={bh} fill={m.exploits ? "rgba(255,90,44,0.32)" : "rgba(120,130,160,0.16)"}>
+                  <title>{`turn ${m.turn} — ${m.events} event${m.events === 1 ? "" : "s"} resolved (bar height = activity)`}</title>
+                </rect>
+              );
             })}
             {meta.map((m, i) => (
-              <rect key={`l${i}`} x={xi(i) - 3.2} y={H - 5} width={6.4} height={5} fill={cogColor(m.leader)} opacity={0.9} />
+              <rect key={`l${i}`} x={xi(i) - 3.2} y={H - 5} width={6.4} height={5} fill={cogColor(m.leader)} opacity={0.9}>
+                <title>{`turn ${m.turn} — hearts leader: ${cogName(m.leader)}`}</title>
+              </rect>
             ))}
             {meta.map((m, i) =>
               m.key ? (
                 <g key={`b${i}`}>
                   <line x1={xi(i)} y1={2} x2={xi(i)} y2={H - 6} stroke="#ff5a2c" strokeWidth="1" opacity="0.4" />
-                  <path d={`M ${xi(i)} 0 l 3 3.5 l -3 3.5 l -3 -3.5 z`} fill="#ff5a2c" />
+                  <path d={`M ${xi(i)} 0 l 3 3.5 l -3 3.5 l -3 -3.5 z`} fill="#ff5a2c">
+                    <title>{`turn ${m.turn} — key turn: ${m.exploits} exploit${m.exploits === 1 ? "" : "s"} scarred the board`}</title>
+                  </path>
                 </g>
               ) : null,
             )}
@@ -189,17 +201,18 @@ export function Scrubber({
               key={i}
               onClick={() => onSeek(i)}
               className={`cg-rail-card${isNow ? " on" : ""}`}
+              title={`jump to turn ${m.turn}`}
               style={{ boxShadow: isNow ? `0 0 14px ${ACCENT}44` : "none" }}
             >
               <div style={{ height: 3, borderRadius: 2, background: m.key ? "#ff5a2c" : "transparent" }} />
               <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
                 <span className="cg-num" style={{ fontSize: 18, color: isNow ? "var(--text)" : "var(--text-dim)", lineHeight: 0.8 }}>{String(m.turn).padStart(2, "0")}</span>
-                {m.key && <span style={{ fontSize: 8, color: "#ff5a2c" }}>◆</span>}
+                {m.key && <span title={`key turn — ${m.exploits} exploit${m.exploits === 1 ? "" : "s"}`} style={{ fontSize: 8, color: "#ff5a2c" }}>◆</span>}
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <span style={{ width: 8, height: 8, borderRadius: 2, background: cogColor(m.leader), boxShadow: `0 0 5px ${cogColor(m.leader)}` }} />
+                <span title={`hearts leader: ${cogName(m.leader)}`} style={{ width: 8, height: 8, borderRadius: 2, background: cogColor(m.leader), boxShadow: `0 0 5px ${cogColor(m.leader)}` }} />
                 <span style={{ flex: 1 }} />
-                {m.exploits > 0 && <span style={{ fontSize: 9, color: "var(--exploit)" }}>✺{m.exploits}</span>}
+                {m.exploits > 0 && <span title={`${m.exploits} exploit${m.exploits === 1 ? "" : "s"} scarred the board this turn`} style={{ fontSize: 9, color: "var(--exploit)" }}>✺{m.exploits}</span>}
               </div>
             </button>
           );
@@ -223,7 +236,7 @@ export function Scrubber({
         <div style={{ flex: 1 }} />
         <span className={`cg-scrub-dot ${live ? "is-live" : "is-replay"}`} title={live ? "live" : "replay"} />
         {cur && (
-          <div style={{ display: "flex", alignItems: "baseline", gap: 3, marginLeft: 6 }}>
+          <div title="the turn the board is showing / total game length" style={{ display: "flex", alignItems: "baseline", gap: 3, marginLeft: 6 }}>
             <span className="cg-mono" style={{ fontSize: 9, color: "var(--muted)", letterSpacing: "0.12em" }}>TURN</span>
             <span className="cg-num" style={{ fontSize: 26, color: "var(--text)", lineHeight: 0.8, marginLeft: 4 }}>{String(Math.min(cur.turn, MAX_TURNS)).padStart(2, "0")}</span>
             <span className="cg-mono" style={{ fontSize: 12, color: "var(--muted)" }}>/{MAX_TURNS}</span>
