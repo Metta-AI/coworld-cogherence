@@ -11,8 +11,11 @@ import { neighbors, key } from "./hex";
 
 /** A heart-auction bid (energy). 0 means "no bid". */
 const BidOrder = z.object({ type: z.literal("bid"), energy: z.number().int().nonnegative() });
-/** Pour energy into a tile (expand / capture / reinforce). */
-const AlignOrder = z.object({ type: z.literal("align"), tile: z.string(), energy: z.number().int().positive() });
+/** Pour COHERENCE into a tile (expand / capture / reinforce). The committed
+ *  coherence is transferred OUT of the cog's other tiles, largest first; a donor
+ *  tile never drops below 1, and a set whose Aligns exceed the available pool is
+ *  rejected wholesale. */
+const AlignOrder = z.object({ type: z.literal("align"), tile: z.string(), coherence: z.number().int().positive() });
 /** Strip-mine an owned tile for a one-time windfall. */
 const ExploitOrder = z.object({ type: z.literal("exploit"), tile: z.string() });
 /** Send minerals to another Cog. */

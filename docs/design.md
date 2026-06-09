@@ -71,7 +71,7 @@ Tile **X** tallies its 6 neighbor slots (enemy *and* neutral count against it):
 
 A calm interior tile is cheap to hold and grow; a lone forward tile bills the contested rate and rots whenever its owner can't pay. Edge/corner tiles just have fewer slots for the majority test.
 
-**Capture rule:** a tile changes hands two ways — a winning Align (§5) flips it to the challenger, or **erosion to Coherence 0 drops it to neutral**. A tile whose Coherence grinds to 0 (via unpaid upkeep, §6) *loses its alignment and becomes a neutral husk* — anyone adjacent can then claim it with a fresh Align. A winning Align flips the instant a challenger's force exceeds the incumbent's defense, even from high Coherence. "Siege, not a snipe" is therefore **emergent, not a hard cap**: a Coherence-10 fortress needs 11+ force in a single turn (effectively unsnipeable), while a thin Coherence-1 salient flips for a trickle of energy — or simply rots to neutral on its own next Upkeep.
+**Capture rule:** a tile changes hands two ways — a winning Align (§5) flips it to the challenger, or **erosion to Coherence 0 drops it to neutral**. A tile whose Coherence grinds to 0 (via unpaid upkeep, §6) *loses its alignment and becomes a neutral husk* — anyone adjacent can then claim it with a fresh Align. A winning Align flips the instant a challenger's force exceeds the incumbent's defense, even from high Coherence. "Siege, not a snipe" is therefore **emergent, not a hard cap**: a Coherence-10 fortress needs 11+ force in a single turn (effectively unsnipeable), while a thin Coherence-1 salient flips for a trickle of donated coherence — or simply rots to neutral on its own next Upkeep.
 
 This single rule produces enormous depth, all emergent:
 
@@ -93,7 +93,7 @@ Energy is the **sole limiter**: do as much as you can afford. Every order draws 
 ### Align — the constructive verb (expand / capture / reinforce)
 Pour energy into a tile as **pressure** toward your alignment. Resolution is a **tug-of-war**, settled simultaneously across every Cog targeting the tile:
 
-- **Each Cog's force** = the Align energy it commits to the tile. The **incumbent** (current owner) adds its **standing Coherence** as free defense, so incumbent force = standing Coherence + any Align energy the owner also commits.
+- **Each Cog's force** = the COHERENCE it commits to the tile — **transferred out of its other tiles, largest first** (donors never drop below 1; a set whose Aligns exceed the spare pool is rejected wholesale). The **incumbent** (current owner) adds its **standing Coherence** as free defense, so incumbent force = standing Coherence + any Align coherence the owner also commits.
 - **Winner** = highest total force; **Alignment = winner**. **New Coherence = winner's force − next-highest *opposing* force**, clamped to `[0, cap]` (cap = the tile's neighbor count, normally 6).
 - A winning Align **flips** the tile the instant the challenger's force exceeds the incumbent's — even from high Coherence (§4). **Ties** in top force leave the tile with its current owner, or neutral, at Coherence 0.
 
@@ -156,7 +156,7 @@ Why it works:
 - **Slots into the turn structure** — the bid is just another secret Commit order.
 - **Perfect stage for cheap-talk collusion** — "I take this one, you take the next, neither bids high," then someone secretly outbids. The reveal does the rest.
 - **Self-balancing** — a runaway leader keeps paying the runner-up's second-price tax, quietly funding everyone else's comeback.
-- **Hearts compete with the world** — energy spent on a heart is energy not spent on upkeep or Aligning. And energy comes from minerals come from Coherence, so **buying victory drains the world's stability.**
+- **Hearts compete with the world** — energy spent on a heart is energy not spent on upkeep, and the coherence spent on Aligns is order pulled out of your own land. **Buying victory drains the world's stability.**
 
 **Emergent collapse gate (no explicit rule):** if everyone Exploits and frays the lattice, Coherence craters → mineral output starves → nobody can afford hearts. The tragedy enforces itself. The open strategic question — *is there a last-turn defection equilibrium where someone strip-mines the board to fund a final heart grab?* — is exactly the politics the game is about.
 

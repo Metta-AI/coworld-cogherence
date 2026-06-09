@@ -61,18 +61,21 @@ export interface Territory {
   tiles: number;
   fortresses: number;
   salients: number;
+  /** Total coherence across the cog's tiles — the pool Aligns draw from. */
+  coherence: number;
 }
 /** Per-cog territory shape: tiles held, fortresses (maxed coherence), and rotting
  *  salients (coherence>0 but minority-friendly neighbours, so they decay at Upkeep). */
 export function territory(snap: GameSnapshot): Map<string, Territory> {
   const map = tileMap(snap);
   const out = new Map<string, Territory>();
-  for (const c of snap.cogs) out.set(c.id, { tiles: 0, fortresses: 0, salients: 0 });
+  for (const c of snap.cogs) out.set(c.id, { tiles: 0, fortresses: 0, salients: 0, coherence: 0 });
   for (const t of snap.tiles) {
     if (!t.alignment) continue;
     const s = out.get(t.alignment);
     if (!s) continue;
     s.tiles++;
+    s.coherence += t.coherence;
     if (t.coherence >= snap.coherenceMax) s.fortresses++;
     else if (t.coherence > 0) {
       const nb = neighbors(t.q, t.r, map);
@@ -163,6 +166,38 @@ export function upkeepBy(snap: GameSnapshot): Map<string, number> {
     out.set(t.alignment, (out.get(t.alignment) ?? 0) + tileCost(t, map));
   }
   return out;
+}
+
+/** Predict a tile's energy drain next Upkeep by simulating its owner's funding
+ *  pass (mirrors the engine: base bills heartland-first, then doubles strongest-
+ *  first): 2x its bill when it will be double-paid (grows), 1x when merely held,
+ *  0 when the wallet runs out (it rots). */
+export function tileDrain(t: TileSnapshot, snap: GameSnapshot): { drain: number; verdict: "grows" | "holds" | "rots" } | null {
+  if (!t.alignment) return null;
+  const map = tileMap(snap);
+  const mine = snap.tiles.filter((x) => x.alignment === t.alignment);
+  const bill = (x: TileSnapshot): number => tileCost(x, map);
+  const desc = [...mine].sort((a, b) => b.coherence - a.coherence);
+  let energy = snap.cogs.find((c) => c.id === t.alignment)?.energy ?? 0;
+  const paid = new Set<TileSnapshot>();
+  for (const x of desc) {
+    const c = bill(x);
+    if (energy >= c) {
+      energy -= c;
+      paid.add(x);
+    }
+  }
+  const grows = new Set<TileSnapshot>();
+  for (const x of desc) {
+    if (!paid.has(x) || x.coherence >= snap.coherenceMax) continue;
+    const c = bill(x);
+    if (energy < c) continue;
+    energy -= c;
+    grows.add(x);
+  }
+  const self = mine.find((x) => x.q === t.q && x.r === t.r)!;
+  const b = bill(self);
+  return grows.has(self) ? { drain: 2 * b, verdict: "grows" } : paid.has(self) ? { drain: b, verdict: "holds" } : { drain: 0, verdict: "rots" };
 }
 
 export interface TileStatus {

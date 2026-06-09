@@ -1,7 +1,9 @@
 // The Resolve phase: all Cogs' Commit-phase orders execute simultaneously in a
 // single LOCKED sequence — validate+budget, sealed second-price heart auction,
-// charge, exploits, align tug-of-war, then assemble next-turn treasuries. Pure:
-// the input GameState is never mutated; a new state + an event list are returned.
+// charge, exploits, align coherence-donation + tug-of-war, then assemble
+// next-turn treasuries. Aligns are paid in COHERENCE, not energy: the committed
+// amount is transferred out of the aligner's own tiles (largest first, donors
+// floored at 1) into the contest. Pure: the input GameState is never mutated.
 //
 // Two invariants drive the design:
 //  - chargeEnergy is monotonic (affordable iff maxEnergy >= need), so a Cog that
@@ -36,7 +38,7 @@ interface Plan {
   transfers: Array<{ to: CogId; mineral: Mineral; amount: number }>;
   bid: number;
   sent: Treasury;
-  spendBase: number; // align energies + transfer fees (always paid, regardless of auction)
+  spendBase: number; // transfer fees (always paid, regardless of auction) — aligns cost coherence, not energy
 }
 
 /** Execute one simultaneous Resolve phase. Pure: returns a new state + events. */
@@ -65,9 +67,9 @@ export function resolve(
     for (const o of orders) {
       if (reject) break;
       if (o.type === "align") {
-        if (o.energy < 1) reject = `align ${o.tile} needs at least 1 energy`;
+        if (o.coherence < 1) reject = `align ${o.tile} needs at least 1 coherence`;
         else if (!isLegalAlignTarget(state, cogId, o.tile)) reject = `illegal align ${o.tile}`;
-        else aligns.push([o.tile, o.energy]);
+        else aligns.push([o.tile, o.coherence]);
       } else if (o.type === "exploit") {
         if (!isOwn(state, cogId, o.tile)) reject = `illegal exploit ${o.tile}`;
         else exploits.push(o.tile);
@@ -91,15 +93,31 @@ export function resolve(
     }
 
     // affordability: must hold the minerals it is sending, then afford worst-case
-    // spend (= Σ align.energy + #transfers×FEE + bid) from treasury − sent.
+    // ENERGY spend (= #transfers×FEE + bid) from treasury − sent. Aligns are paid
+    // in coherence instead: the committed total must fit the donatable pool —
+    // Σ max(0, coherence − 1) across the cog's tiles it is NOT exploiting away.
     if (MINERALS.some((m) => cog.treasury[m] < sent[m])) {
       events.push({ type: "rejected", cog: cogId, reason: "insufficient minerals to transfer" });
       continue;
     }
-    const spendBase = aligns.reduce((s, [, e]) => s + e, 0) + transfers.length * TRANSFER_FEE;
+    const spendBase = transfers.length * TRANSFER_FEE;
     if (maxEnergy(subT(cog.treasury, sent)) < spendBase + bid) {
       events.push({ type: "rejected", cog: cogId, reason: "cannot afford committed spend" });
       continue;
+    }
+    const alignTotal = aligns.reduce((s, [, c]) => s + c, 0);
+    if (alignTotal > 0) {
+      // donors are the cog's OTHER tiles: not the align targets themselves, and
+      // not tiles it is exploiting away this same turn
+      const excluded = new Set([...exploits, ...aligns.map(([k]) => k)]);
+      let pool = 0;
+      for (const [k, t] of Object.entries(state.tiles)) {
+        if (t.alignment === cogId && !excluded.has(k)) pool += Math.max(0, t.coherence - 1);
+      }
+      if (alignTotal > pool) {
+        events.push({ type: "rejected", cog: cogId, reason: "insufficient coherence to fund Aligns" });
+        continue;
+      }
     }
     plans.set(cogId, { aligns, exploits, transfers, bid, sent, spendBase });
   }
@@ -174,6 +192,30 @@ export function resolve(
       events.push({ type: "exploit", cog: cogId, tile: tk, mineral: t.mineral, minted });
       tiles[tk] = { ...t, alignment: null, coherence: 0, density: Math.floor(t.density * EXPLOIT_DENSITY) };
     }
+  }
+
+  // 3c2. align funding: the committed coherence is donated OUT of the aligner's
+  // own tiles — largest first (ties by key), never below 1 — before any contest
+  // resolves, so spending your fortress visibly weakens it this same turn.
+  for (const cogId of state.cogOrder) {
+    const p = plans.get(cogId);
+    if (!p) continue;
+    let need = p.aligns.reduce((s, [, c]) => s + c, 0);
+    if (need === 0) continue;
+    const targets = new Set(p.aligns.map(([k]) => k));
+    const donors = Object.entries(tiles)
+      .filter(([k, t]) => t.alignment === cogId && !targets.has(k))
+      .sort((a, b) => b[1].coherence - a[1].coherence || (a[0] < b[0] ? -1 : 1));
+    for (const [k, t] of donors) {
+      if (need === 0) break;
+      const give = Math.min(need, Math.max(0, t.coherence - 1));
+      if (give <= 0) continue;
+      tiles[k] = { ...t, coherence: t.coherence - give };
+      need -= give;
+    }
+    // Invariant: the pool was validated against pre-resolve state minus the cog's
+    // own exploits, and nothing else touches its tiles before this step.
+    if (need > 0) throw new Error(`resolve: align coherence invariant violated for ${cogId}`);
   }
 
   // 3d. align tug-of-war: gather aligns per tile, resolve against post-exploit

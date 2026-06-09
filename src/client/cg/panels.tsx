@@ -23,7 +23,7 @@ import {
   tileMap,
   neighbors,
   tileStatus,
-  tileCost,
+  tileDrain,
 } from "./derive";
 
 const cogIdx = (id: string): number => {
@@ -166,7 +166,7 @@ function actorOf(e: TurnEvent): string | null {
 function eventText(e: TurnEvent): React.ReactNode {
   switch (e.type) {
     case "capture": {
-      const cost = e.to && e.spent > 0 ? ` · −${e.spent}e` : "";
+      const cost = e.to && e.spent > 0 ? ` · −${e.spent} coh` : "";
       return e.from
         ? `flipped ${e.tile} from ${cogName(cogIdx(e.from))} → coherence ${e.coherence}${cost}`
         : `claimed ${e.tile} → coherence ${e.coherence}${cost}`;
@@ -311,7 +311,7 @@ export function TileInspector({ tileKey: key, snapshot }: { tileKey: string; sna
   const friendly = t.alignment ? nb.filter((n) => n.alignment === t.alignment).length : 0;
   const nc = nb.length;
   const status = tileStatus(t, map, snapshot.coherenceMax, ownerColor);
-  const rate = t.alignment ? tileCost(t, map) : 0;
+  const drain = tileDrain(t, snapshot);
   const scarred = t.density < t.density0; // an exploit halved the deposit
   const mint = (t.density * t.coherence) / 10; // expected mineral/turn
   const row = (label: string, value: React.ReactNode): React.ReactElement => (
@@ -363,10 +363,23 @@ export function TileInspector({ tileKey: key, snapshot }: { tileKey: string; sna
             )}
             {row(
               "energy",
-              t.alignment ? (
-                <span data-tip="this tile's upkeep bill — unpaid it rots −1; pay double to grow +1" style={{ color: "var(--exploit)" }}>
-                  −{rate}e/turn · 2× grows
-                </span>
+              drain ? (
+                drain.verdict === "rots" ? (
+                  <span data-tip="the owner's wallet doesn't reach this tile — its bill goes unpaid and it loses 1 coherence" style={{ color: "var(--exploit)" }}>
+                    unpaid · −1 coh
+                  </span>
+                ) : (
+                  <span
+                    data-tip={
+                      drain.verdict === "grows"
+                        ? "double-paid bill — this tile grows +1 coherence each turn the owner can afford it"
+                        : "base bill paid — the tile holds (double it to grow)"
+                    }
+                    style={{ color: "var(--exploit)" }}
+                  >
+                    −{drain.drain}e/turn
+                  </span>
+                )
               ) : (
                 "—"
               ),

@@ -47,6 +47,7 @@ export function Roster({
         {ranked.map((c, i) => {
           const color = cogColor(c.index);
           const tiles = terr.get(c.id)?.tiles ?? 0;
+          const coh = terr.get(c.id)?.coherence ?? 0;
           const active = focus === c.id;
           const dimmed = focus != null && !active;
           return (
@@ -83,8 +84,9 @@ export function Roster({
                   <div style={{ fontFamily: "var(--f-ui)", fontWeight: 700, fontSize: 13, color: "var(--text)", letterSpacing: "0.03em" }}>
                     {cogName(c.index)}
                   </div>
-                  <div className="cg-mono" data-tip="tiles currently aligned to this cog" style={{ fontSize: 8.5, color: "var(--muted)" }}>
-                    {tiles} tiles
+                  <div className="cg-mono" style={{ fontSize: 8.5, color: "var(--muted)" }}>
+                    <span data-tip="tiles currently aligned to this cog">{tiles} tiles</span>
+                    <span data-tip="total coherence across its tiles — the pool Aligns draw from" style={{ color: "var(--coherence)" }}> · {coh} coh</span>
                   </div>
                 </div>
                 <div data-tip={`${c.hearts} hearts — most hearts at turn 100 wins`} style={{ display: "flex", alignItems: "center", gap: 4 }}>
