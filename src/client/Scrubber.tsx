@@ -9,6 +9,18 @@ import { MAX_TURNS } from "../shared/engine/constants";
 import { cogColor, cogName } from "./colors";
 import { leaderIndex } from "./cg/derive";
 
+/** A heart tinted by a cog's color (the art-asset heart is fixed rose). */
+function Heart({ color, size = 10 }: { color: string; size?: number }): React.ReactElement {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" style={{ flex: "0 0 auto", filter: `drop-shadow(0 0 3px ${color})` }}>
+      <path
+        fill={color}
+        d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
+      />
+    </svg>
+  );
+}
+
 const WIN = 12;
 const ACCENT = "#3ce0c0";
 const W = 1000;
@@ -203,9 +215,34 @@ export function Scrubber({
                 <span className="cg-num" style={{ fontSize: 18, color: isNow ? "var(--text)" : "var(--text-dim)", lineHeight: 0.8 }}>{String(m.turn).padStart(2, "0")}</span>
                 {m.key && <span data-tip={`key turn — ${m.exploits} exploit${m.exploits === 1 ? "" : "s"}`} style={{ fontSize: 8, color: "#ff5a2c" }}>◆</span>}
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <span data-tip={`hearts leader: ${cogName(m.leader)}`} style={{ width: 8, height: 8, borderRadius: 2, background: cogColor(m.leader), boxShadow: `0 0 5px ${cogColor(m.leader)}` }} />
-                <span style={{ flex: 1 }} />
+              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <span data-tip={`hearts leader: ${cogName(m.leader)}`} style={{ display: "inline-flex" }}>
+                  <Heart color={cogColor(m.leader)} />
+                </span>
+                {(() => {
+                  // one stacked bar: this turn's territory by cog color; the dark
+                  // remainder is neutral ground
+                  const snap = snapshots[i]!;
+                  const counts = new Map<number, number>();
+                  const idxById = new Map(snap.cogs.map((c) => [c.id, c.index]));
+                  let owned = 0;
+                  for (const t of snap.tiles) {
+                    if (t.alignment == null) continue;
+                    const ci = idxById.get(t.alignment) ?? 0;
+                    counts.set(ci, (counts.get(ci) ?? 0) + 1);
+                    owned++;
+                  }
+                  const total = snap.tiles.length || 1;
+                  const parts = [...counts.entries()].sort((a, b) => a[0] - b[0]);
+                  const tip = `territory — ${parts.map(([ci, n]) => `${cogName(ci)} ${n}`).join(" · ")} · ${total - owned} neutral`;
+                  return (
+                    <div data-tip={tip} style={{ display: "flex", flex: 1, height: 5, borderRadius: 2, overflow: "hidden", background: "var(--panel-3)" }}>
+                      {parts.map(([ci, n]) => (
+                        <div key={ci} style={{ width: `${(n / total) * 100}%`, background: cogColor(ci) }} />
+                      ))}
+                    </div>
+                  );
+                })()}
                 {m.exploits > 0 && <span data-tip={`${m.exploits} exploit${m.exploits === 1 ? "" : "s"} scarred the board this turn`} style={{ fontSize: 9, color: "var(--exploit)" }}>✺{m.exploits}</span>}
               </div>
             </button>
