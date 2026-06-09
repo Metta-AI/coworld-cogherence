@@ -23,6 +23,18 @@ interface Box {
 const MAX_ZOOM = 8;
 const clampN = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v));
 
+/** Axial neighbor direction across edge i (between corners i and i+1) of a
+ *  pointy-top hex whose corner i sits at angle 60°·i − 30°: edge midpoints face
+ *  0°, 60°, … 300° in screen space → E, SE, SW, W, NW, NE. */
+const EDGE_DIRS: ReadonlyArray<[number, number]> = [
+  [1, 0],
+  [0, 1],
+  [-1, 1],
+  [-1, 0],
+  [0, -1],
+  [1, -1],
+];
+
 export type LatticeMode = "coherence" | "mineral" | "ownership";
 
 const SIZE = 26;
@@ -157,6 +169,8 @@ export function HexBoard({
   const vb = view ?? base;
   const flipSet = new Set(flips);
   const expSet = new Set(exploited);
+  // Owner by hex key, for per-edge border classification in coherence mode.
+  const ownerByKey = new Map(snapshot.tiles.map((t) => [tileKey(t.q, t.r), t.alignment]));
 
   return (
     <svg
@@ -222,15 +236,14 @@ export function HexBoard({
             stroke = "#1b1b28";
           }
         } else {
-          // coherence
+          // coherence — fill/glow encode the value; borders are drawn per edge below
           if (owner) {
             fill = col!;
             fillOp = 0.1 + f * 0.82;
-            stroke = col!;
-            strokeW = 0.6 + f * 0.8;
+            stroke = "none";
+            strokeW = 0;
             glow = f * 16;
             glowCol = col!;
-            // The glow itself reads out coherence here, so no digit (most tiles max).
           } else {
             fill = "#13131d";
             fillOp = 1;
@@ -238,9 +251,32 @@ export function HexBoard({
             strokeW = 1;
           }
         }
+
+        // Per-edge territory borders (coherence mode): edges facing a different
+        // owner / neutral / off-board draw a strong continuous line; edges shared
+        // with a friendly tile draw a thin internal seam. (Per-hex outlines used to
+        // scale with coherence, which left weak tiles with "missing" segments.)
+        // Slightly inset so two rival borders on a shared edge sit side by side.
+        let outerEdges = "";
+        let innerEdges = "";
+        if (mode === "coherence" && owner) {
+          const pts = hexCorners(c.x, c.y, SIZE);
+          for (let d = 0; d < 6; d++) {
+            const [dq, dr] = EDGE_DIRS[d]!;
+            const nOwner = ownerByKey.get(tileKey(t.q + dq, t.r + dr));
+            const a = pts[d]!;
+            const b = pts[(d + 1) % 6]!;
+            const seg = `M${(c.x + (a.x - c.x) * 0.95).toFixed(1)},${(c.y + (a.y - c.y) * 0.95).toFixed(1)}L${(c.x + (b.x - c.x) * 0.95).toFixed(1)},${(c.y + (b.y - c.y) * 0.95).toFixed(1)}`;
+            if (nOwner === owner) innerEdges += seg;
+            else outerEdges += seg;
+          }
+        }
+
+        let edgeDim = 1;
         if (highlight && owner !== highlight) {
           fillOp *= 0.34;
           glow *= 0.35;
+          edgeDim = 0.35;
           if (!owner) fillOp = 0.7;
         }
 
@@ -258,6 +294,12 @@ export function HexBoard({
             }}
           >
             <polygon points={cn} fill={fill} fillOpacity={fillOp} stroke={stroke} strokeWidth={strokeW} strokeLinejoin="round" />
+            {outerEdges && (
+              <path d={outerEdges} fill="none" stroke={col!} strokeWidth={1.8} strokeLinecap="round" opacity={0.92 * edgeDim} />
+            )}
+            {innerEdges && (
+              <path d={innerEdges} fill="none" stroke={col!} strokeWidth={0.6} strokeLinecap="round" opacity={0.3 * edgeDim} />
+            )}
             {sheen && (
               <polygon
                 points={innerCorners(c.x, c.y, 0.55)}

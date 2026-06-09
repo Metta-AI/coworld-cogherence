@@ -49,6 +49,25 @@ describe("HexBoard", () => {
     expect(fills.every((f) => mineralColors.has(f ?? "") || f === "#15151f")).toBe(true); // mineral hue, or a scarred husk
   });
 
+  it("draws strong border edges against neutral/enemy and a thin seam between friendly tiles", () => {
+    const pair: typeof snap = {
+      ...snap,
+      tiles: [
+        { q: 0, r: 0, alignment: "cog0", coherence: 5, mineral: "C", density: 1 },
+        { q: 1, r: 0, alignment: "cog0", coherence: 5, mineral: "C", density: 1 }, // east neighbor, same owner
+        { q: 0, r: 1, alignment: "cog1", coherence: 5, mineral: "C", density: 1 }, // southeast neighbor, enemy
+      ],
+    };
+    const { container } = render(<HexBoard snapshot={pair} mode="coherence" />);
+    const tile = container.querySelector('g.cg-tile[data-tile="0,0"]')!;
+    const paths = [...tile.querySelectorAll("path")];
+    const outer = paths.find((p) => p.getAttribute("stroke-width") === "1.8")!;
+    const inner = paths.find((p) => p.getAttribute("stroke-width") === "0.6")!;
+    const segs = (p: Element): number => (p.getAttribute("d")!.match(/M/g) ?? []).length;
+    expect(segs(inner)).toBe(1); // one friendly edge (east)
+    expect(segs(outer)).toBe(5); // enemy + neutral/off-board edges stay strong
+  });
+
   it("zooms with the wheel, pans by dragging, and resets on double-click", () => {
     const { container } = render(<HexBoard snapshot={snap} />);
     const svg = container.querySelector("svg")!;
