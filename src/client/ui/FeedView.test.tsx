@@ -34,6 +34,15 @@ describe("FeedView", () => {
     expect(container.querySelectorAll(".cg-feed-group")).toHaveLength(2);
   });
 
+  it("renders raw cog ids inside message text as colored display names", () => {
+    const { getByText, queryByText } = render(
+      <FeedView messages={[{ seq: 1, turn: 3, from: "cog0", to: "public", text: "watching cog2/cog3's reserves" }]} />,
+    );
+    expect(getByText("Carol")).toBeTruthy(); // cog2 → Carol
+    expect(getByText("David")).toBeTruthy(); // cog3 → David
+    expect(queryByText(/cog2/)).toBeNull(); // no raw ids remain in the body
+  });
+
   it("shows an empty state", () => {
     const { getByText } = render(<FeedView messages={[]} />);
     expect(getByText(/spoken/)).toBeTruthy();

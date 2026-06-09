@@ -9,7 +9,7 @@ import type { TurnEvent } from "../../shared/engine/log";
 import type { StampedEvent } from "../net/feed";
 import { cogColor, cogName } from "../colors";
 import { HexBoard, type LatticeMode } from "../HexBoard";
-import { CGIcon, CogSigil, Mineral } from "./atoms";
+import { CGIcon, CogSigil, CogText, Mineral } from "./atoms";
 import {
   MINERALS,
   commonsMax,
@@ -249,7 +249,7 @@ export function ChannelMessage({ m, onSeekTurn }: { m: Message; onSeekTurn?: (tu
         </button>
       </div>
       <div className="cg-mono" style={{ fontSize: 11, color: "var(--text-dim)", lineHeight: 1.5 }}>
-        {m.text}
+        <CogText text={m.text} />
       </div>
     </div>
   );

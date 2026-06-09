@@ -4,8 +4,27 @@
 import React from "react";
 import type { Treasury, Phase } from "../../shared/engine/types";
 import { Icon, type IconName } from "../Icon";
-import { cogColor } from "../colors";
+import { cogColor, cogName } from "../colors";
 import { MINERALS, MINERAL_NAME, minClass, setsOf } from "./derive";
+
+/** Free text with any raw engine ids (cog0, cog1…) rendered as that Cog's colored
+ *  display name — agents speak in ids on the wire; spectators read names. */
+export function CogText({ text }: { text: string }): React.ReactElement {
+  const parts = text.split(/\bcog(\d+)\b/g); // alternates [plain, seat-index, plain, …]
+  return (
+    <>
+      {parts.map((p, i) =>
+        i % 2 === 1 ? (
+          <b key={i} style={{ color: cogColor(Number(p)), fontWeight: 600 }}>
+            {cogName(Number(p))}
+          </b>
+        ) : (
+          p
+        ),
+      )}
+    </>
+  );
+}
 
 /** A real neon-glass game icon (heart / energy / coherence / logo / verbs). */
 export function CGIcon({ name, size = 16, title }: { name: IconName; size?: number; title?: string }): React.ReactElement {

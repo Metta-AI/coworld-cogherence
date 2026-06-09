@@ -24,7 +24,7 @@ describe("CogView", () => {
     expect(container.querySelectorAll("g.cg-tile")).toHaveLength(127);
     expect(getByTestId("cog-view")).toBeTruthy();
     expect(getByTestId("identity").textContent).toContain("Alice");
-    expect(getByTestId("cog-channels").textContent).toContain("hi cog0");
+    expect(getByTestId("cog-channels").textContent).toContain("hi Alice"); // ids in text render as names
   });
 
   it("hides the operator steering panel in replay mode, shows it when live", () => {

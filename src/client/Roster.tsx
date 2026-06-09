@@ -68,7 +68,7 @@ export function Roster({
                     {cogName(c.index)}
                   </div>
                   <div className="cg-mono" style={{ fontSize: 8.5, color: "var(--muted)" }}>
-                    {c.id} · {tiles} tiles
+                    {tiles} tiles
                   </div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 4 }}>

@@ -41,7 +41,7 @@ function Identity({ snapshot, cogId }: { snapshot: GameSnapshot; cogId: string }
           <div style={{ flex: 1 }}>
             <div style={{ fontFamily: "var(--f-ui)", fontWeight: 700, fontSize: 22, color: "var(--text)", letterSpacing: "0.03em" }}>{cogName(me.index)}</div>
             <div className="cg-mono" style={{ fontSize: 10, color: "var(--muted)" }}>
-              {cogId} · rank {rank}/{snapshot.cogs.length}
+              rank {rank}/{snapshot.cogs.length}
             </div>
           </div>
           <div style={{ textAlign: "right" }}>
