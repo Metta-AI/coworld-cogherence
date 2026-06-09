@@ -310,6 +310,7 @@ export function TileInspector({ tileKey: key, snapshot }: { tileKey: string; sna
   const ownerTiles = t.alignment ? snapshot.tiles.filter((x) => x.alignment === t.alignment).length : 0;
   const rate = t.alignment ? upkeepPerTile(ownerTiles) : 0;
   const scarred = t.density < t.density0; // an exploit halved the deposit
+  const mint = (t.density * t.coherence) / 10; // expected mineral/turn
   const row = (label: string, value: React.ReactNode): React.ReactElement => (
     <tr key={label}>
       <td className="cg-label" style={{ fontSize: 9, padding: "3px 0" }}>{label}</td>
@@ -341,8 +342,33 @@ export function TileInspector({ tileKey: key, snapshot }: { tileKey: string; sna
         </div>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <tbody>
-            {row("coherence", <span style={{ color: "var(--coherence)" }}>{t.coherence}/{snapshot.coherenceMax}</span>)}
-            {row("mineral", <Mineral m={t.mineral} label />)}
+            {row(
+              "coherence",
+              <span>
+                <span style={{ color: "var(--coherence)" }}>{t.coherence}/{snapshot.coherenceMax}</span>
+                {t.alignment && willGain && t.coherence < snapshot.coherenceMax && (
+                  <span data-tip="gains +1 coherence at Upkeep (drains 1e)" style={{ color: "var(--align)" }}> (+1)</span>
+                )}
+                {t.alignment && !willGain && t.coherence > 0 && (
+                  <span data-tip="rots −1 coherence at Upkeep (minority-friendly neighborhood)" style={{ color: "var(--exploit)" }}> (−1)</span>
+                )}
+              </span>,
+            )}
+            {row(
+              "mining",
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 5, justifyContent: "flex-end" }}>
+                {mint > 0 && <b style={{ color: "var(--text-dim)" }}>+{mint.toFixed(1)}</b>}
+                <Mineral m={t.mineral} />
+                {scarred ? (
+                  <span data-tip={`exploited — deposit halved from ${t.density0}`}>
+                    <s style={{ color: "var(--muted-2)" }}>{t.density0}</s>
+                    <span style={{ color: "var(--exploit)" }}> {t.density}</span>
+                  </span>
+                ) : (
+                  <span data-tip="deposit density — mints density × coherence / 10 per turn">{t.density}</span>
+                )}
+              </span>,
+            )}
             {row(
               "energy",
               t.alignment ? (
@@ -354,26 +380,8 @@ export function TileInspector({ tileKey: key, snapshot }: { tileKey: string; sna
               ),
             )}
             {row("neighbors", `${friendly}/${nc} friendly`)}
-            {row(
-              "density",
-              scarred ? (
-                <span>
-                  <s style={{ color: "var(--muted-2)" }}>{t.density0}</s>
-                  <span style={{ color: "var(--exploit)" }}> {t.density}</span>
-                  <span className="cg-mono" style={{ fontSize: 8.5, color: "var(--muted)" }}> scarred</span>
-                </span>
-              ) : (
-                t.density
-              ),
-            )}
           </tbody>
         </table>
-        {t.alignment && t.coherence > 0 && (
-          <div className="cg-mono" style={{ fontSize: 9.5, color: "var(--muted)", lineHeight: 1.5, paddingTop: 7, borderTop: "1px solid var(--border)" }}>
-            mints <b style={{ color: "var(--text-dim)" }}>{((t.density * t.coherence) / 10).toFixed(1)} {t.mineral}</b>/turn ·{" "}
-            {willGain ? "gains +1 coherence at Upkeep" : "rots −1 at Upkeep"}
-          </div>
-        )}
       </div>
     </div>
   );
