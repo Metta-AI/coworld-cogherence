@@ -1,13 +1,22 @@
 // The roster: one card per Cog, ranked by hearts — luminous sigil, name + tiles
-// held, hearts (glowing), and the COGS wallet with derived energy. The leader's
-// card carries its color border + glow.
+// held, hearts (glowing), and the COGS wallet with derived energy. Each card is a
+// button: clicking it spotlights that Cog's territory on the lattice (toggle).
 import React from "react";
 import type { GameSnapshot } from "../shared/snapshot";
 import { cogColor, cogName } from "./colors";
 import { CGIcon, CogSigil, Wallet } from "./cg/atoms";
 import { rankedByHearts, territory } from "./cg/derive";
 
-export function Roster({ snapshot }: { snapshot: GameSnapshot }): React.ReactElement {
+export function Roster({
+  snapshot,
+  focus = null,
+  onToggleFocus,
+}: {
+  snapshot: GameSnapshot;
+  /** The currently spotlighted cog id (its territory is highlighted on the board). */
+  focus?: string | null;
+  onToggleFocus?: (cogId: string) => void;
+}): React.ReactElement {
   const ranked = rankedByHearts(snapshot.cogs);
   const terr = territory(snapshot);
   return (
@@ -15,24 +24,38 @@ export function Roster({ snapshot }: { snapshot: GameSnapshot }): React.ReactEle
       <div className="cg-panel-head">
         <span className="cg-panel-title">Cogs</span>
         <span className="cg-mono" style={{ fontSize: 9, color: "var(--muted)" }}>
-          by hearts
+          {focus ? "click to clear" : "by hearts"}
         </span>
       </div>
       <div className="cg-panel-body cg-scroll" style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 7, padding: "10px 12px" }}>
         {ranked.map((c, i) => {
           const color = cogColor(c.index);
           const tiles = terr.get(c.id)?.tiles ?? 0;
+          const active = focus === c.id;
+          const dimmed = focus != null && !active;
           return (
-            <div
+            <button
               key={c.id}
+              type="button"
+              className="cg-roster-card"
               data-testid={`roster-${c.id}`}
+              aria-pressed={active}
+              title={`Spotlight ${cogName(c.index)}’s territory`}
+              onClick={() => onToggleFocus?.(c.id)}
               style={{
+                appearance: "none",
+                font: "inherit",
+                textAlign: "left",
+                width: "100%",
+                cursor: "pointer",
                 padding: "9px 10px",
                 borderRadius: 8,
                 background: "var(--panel-2)",
-                border: `1px solid ${i === 0 ? color : "var(--border)"}`,
+                border: `1px solid ${active || i === 0 ? color : "var(--border)"}`,
                 borderLeft: `3px solid ${color}`,
-                boxShadow: i === 0 ? `0 0 14px ${color}22` : "none",
+                boxShadow: active ? `0 0 0 1px ${color}, 0 0 16px ${color}66` : i === 0 ? `0 0 14px ${color}22` : "none",
+                opacity: dimmed ? 0.5 : 1,
+                transition: "opacity 0.15s, box-shadow 0.15s, border-color 0.15s",
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 7 }}>
@@ -56,7 +79,7 @@ export function Roster({ snapshot }: { snapshot: GameSnapshot }): React.ReactEle
                 </div>
               </div>
               <Wallet treasury={c.treasury} energy={c.energy} />
-            </div>
+            </button>
           );
         })}
       </div>

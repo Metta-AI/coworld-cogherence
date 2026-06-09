@@ -21,15 +21,18 @@ export function GlobalView({
   onSeekTurn?: (turn: number) => void;
 }): React.ReactElement {
   const [mode, setMode] = useState<LatticeMode>("coherence");
+  // Clicking a roster cog spotlights its territory on the lattice (toggle).
+  const [focus, setFocus] = useState<string | null>(null);
+  const toggleFocus = (id: string): void => setFocus((f) => (f === id ? null : id));
   return (
     <div className="cg-view cg-spectator" data-testid="global-view">
       <CommonsStrip snapshot={snapshot} />
       <div className="cg-grid cg-grid-spectator">
         <div className="cg-col">
-          <Roster snapshot={snapshot} />
+          <Roster snapshot={snapshot} focus={focus} onToggleFocus={toggleFocus} />
           <AuctionPanel snapshot={snapshot} events={events} />
         </div>
-        <LatticePanel snapshot={snapshot} events={events} mode={mode} setMode={setMode} />
+        <LatticePanel snapshot={snapshot} events={events} mode={mode} setMode={setMode} highlight={focus} />
         <div className="cg-col">
           <ResolveLog snapshot={snapshot} events={events} />
           <Channels messages={messages} onSeekTurn={onSeekTurn} />

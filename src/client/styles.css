@@ -175,10 +175,19 @@ button:focus-visible {
 .cg-turnjump:hover {
   color: var(--coherence);
 }
+.cg-roster-card:hover {
+  outline: 1px solid var(--border-2);
+  outline-offset: -1px;
+}
 
 /* ===== header =========================================== */
 .cg-header {
   flex: none;
+  /* Lift the header (and its absolutely-positioned dropdowns) above the view +
+     scrubber, which are siblings at z-index 1 — otherwise the Commons strip and
+     panels paint over the open live/view menus. */
+  position: relative;
+  z-index: 40;
   display: flex;
   align-items: center;
   gap: 18px;
