@@ -158,13 +158,6 @@ button:focus-visible {
   background: rgba(14, 14, 24, 0.86);
   backdrop-filter: blur(6px);
 }
-.cg-x {
-  background: none;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 14px;
-}
 .cg-turnjump {
   color: var(--muted);
   background: none;

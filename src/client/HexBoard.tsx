@@ -28,8 +28,7 @@ const innerCorners = (cx: number, cy: number, f: number): string =>
 export function HexBoard({
   snapshot,
   mode = "coherence",
-  selected = null,
-  onSelect,
+  onHoverTile,
   flips = [],
   exploited = [],
   highlight = null,
@@ -37,8 +36,9 @@ export function HexBoard({
 }: {
   snapshot: GameSnapshot;
   mode?: LatticeMode;
-  selected?: string | null;
-  onSelect?: (key: string | null) => void;
+  /** Reports the tile under the cursor (with its client coordinates) on enter,
+   *  and null when the cursor leaves the lattice — drives the hover inspector. */
+  onHoverTile?: (key: string | null, at?: { x: number; y: number }) => void;
   flips?: string[];
   exploited?: string[];
   /** Focus one Cog's territory (per-cog HUD): dim everyone else. */
@@ -73,7 +73,7 @@ export function HexBoard({
       height="100%"
       preserveAspectRatio="xMidYMid meet"
       style={{ display: "block", overflow: "visible" }}
-      onClick={() => onSelect?.(null)}
+      onMouseLeave={() => onHoverTile?.(null)}
     >
       <defs>
         <radialGradient id="cg-core" cx="50%" cy="50%" r="60%">
@@ -91,7 +91,6 @@ export function HexBoard({
         const col = colorOf(owner);
         const f = Math.max(0, Math.min(1, t.coherence / cohMax));
         const dens = Math.min(3, t.density);
-        const isSel = k === selected;
 
         let fill: string;
         let fillOp: number;
@@ -158,11 +157,8 @@ export function HexBoard({
             key={k}
             className="cg-tile"
             data-tile={k}
-            style={{ filter: filt, cursor: "pointer" }}
-            onClick={(e) => {
-              e.stopPropagation();
-              onSelect?.(isSel ? null : k);
-            }}
+            style={{ filter: filt }}
+            onMouseEnter={(e) => onHoverTile?.(k, { x: e.clientX, y: e.clientY })}
           >
             <polygon points={cn} fill={fill} fillOpacity={fillOp} stroke={stroke} strokeWidth={strokeW} strokeLinejoin="round" />
             {sheen && (
@@ -189,7 +185,6 @@ export function HexBoard({
             {flipSet.has(k) && (
               <polygon points={cn} fill="none" stroke="#fff" strokeWidth="2" strokeDasharray="3 3" style={{ filter: `drop-shadow(0 0 7px ${col ?? "#fff"})` }} />
             )}
-            {isSel && <polygon points={cn} fill="none" stroke="#fff" strokeWidth="2.4" style={{ filter: "drop-shadow(0 0 6px #fff)" }} />}
           </g>
         );
       })}

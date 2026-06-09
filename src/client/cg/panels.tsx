@@ -2,7 +2,7 @@
 // the Resolve log, the public/DM Channels, the tile inspector, and the LatticePanel
 // that wraps the luminous board with its mode toggle, legend, turn pulse, and
 // inspector. All read the real GameSnapshot + event/message streams.
-import React, { useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import type { GameSnapshot } from "../../shared/snapshot";
 import type { Message } from "../../shared/messages";
 import type { TurnEvent } from "../../shared/engine/log";
@@ -264,8 +264,8 @@ export function Channels({ messages, onSeekTurn }: { messages: Message[]; onSeek
   );
 }
 
-// ===== Tile inspector =====================================================
-export function TileInspector({ tileKey: key, snapshot, onClose }: { tileKey: string; snapshot: GameSnapshot; onClose: () => void }): React.ReactElement | null {
+// ===== Tile inspector (hover card — follows the cursor, nothing pinned) ===
+export function TileInspector({ tileKey: key, snapshot }: { tileKey: string; snapshot: GameSnapshot }): React.ReactElement | null {
   const map = tileMap(snapshot);
   const t = map.get(key);
   if (!t) return null;
@@ -282,9 +282,6 @@ export function TileInspector({ tileKey: key, snapshot, onClose }: { tileKey: st
         <span className="cg-panel-title" style={{ fontSize: 11 }}>
           Tile {key}
         </span>
-        <button onClick={onClose} className="cg-x" aria-label="close">
-          ✕
-        </button>
       </div>
       <div className="cg-panel-body" style={{ padding: 11, display: "flex", flexDirection: "column", gap: 9 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
@@ -433,18 +430,37 @@ export function LatticePanel({
   setMode: (m: LatticeMode) => void;
   highlight?: string | null;
 }): React.ReactElement {
-  const [selected, setSelected] = useState<string | null>(null);
+  // The inspector is a hover card: it tracks the tile under the cursor and sits
+  // just beside it, flipping at the panel's right/bottom edges. Leaving the
+  // lattice dismisses it — nothing is pinned.
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [hover, setHover] = useState<{ key: string; x: number; y: number } | null>(null);
+  const CARD_W = 248;
+  const CARD_H = 312;
+  const OFF = 18;
+  const handleHover = useCallback((key: string | null, at?: { x: number; y: number }) => {
+    if (!key || !at) {
+      setHover(null);
+      return;
+    }
+    const r = wrapRef.current?.getBoundingClientRect();
+    if (!r) return;
+    const px = at.x - r.left;
+    const py = at.y - r.top;
+    const x = px + OFF + CARD_W > r.width ? Math.max(8, px - OFF - CARD_W) : px + OFF;
+    const y = py + OFF + CARD_H > r.height ? Math.max(8, py - OFF - CARD_H) : py + OFF;
+    setHover({ key, x, y });
+  }, []);
   const turn = lastResolvedTurn(snapshot);
   const flips = flipTilesAt(events, turn);
   const exploited = exploitTilesAt(events, turn);
   return (
-    <div className="cg-panel cg-lattice" onClick={() => setSelected(null)} data-testid="lattice">
+    <div className="cg-panel cg-lattice" ref={wrapRef} data-testid="lattice">
       <div style={{ position: "absolute", inset: 0, padding: 8 }}>
         <HexBoard
           snapshot={snapshot}
           mode={mode}
-          selected={selected}
-          onSelect={setSelected}
+          onHoverTile={handleHover}
           flips={flips}
           exploited={exploited}
           highlight={highlight}
@@ -454,15 +470,15 @@ export function LatticePanel({
       <div style={{ position: "absolute", top: 12, left: 14 }}>
         <TurnPulse snapshot={snapshot} events={events} />
       </div>
-      <div style={{ position: "absolute", top: 12, right: 14 }} onClick={(e) => e.stopPropagation()}>
+      <div style={{ position: "absolute", top: 12, right: 14 }}>
         <ModeToggle mode={mode} setMode={setMode} />
       </div>
       <div style={{ position: "absolute", bottom: 12, right: 14 }}>
         <LatticeLegend mode={mode} />
       </div>
-      {selected && (
-        <div style={{ position: "absolute", bottom: 12, left: 14 }} onClick={(e) => e.stopPropagation()}>
-          <TileInspector tileKey={selected} snapshot={snapshot} onClose={() => setSelected(null)} />
+      {hover && (
+        <div style={{ position: "absolute", left: hover.x, top: hover.y, pointerEvents: "none", zIndex: 5 }}>
+          <TileInspector tileKey={hover.key} snapshot={snapshot} />
         </div>
       )}
     </div>

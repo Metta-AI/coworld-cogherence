@@ -49,14 +49,13 @@ describe("HexBoard", () => {
     expect(fills.every((f) => mineralColors.has(f ?? "") || f === "#15151f")).toBe(true); // mineral hue, or a scarred husk
   });
 
-  it("selects a tile on click and rings it", () => {
-    const onSelect = vi.fn();
-    const { container, rerender } = render(<HexBoard snapshot={snap} onSelect={onSelect} />);
+  it("reports the hovered tile with cursor coords, and null on leave", () => {
+    const onHover = vi.fn();
+    const { container } = render(<HexBoard snapshot={snap} onHoverTile={onHover} />);
     const tile = container.querySelector('g.cg-tile[data-tile="0,0"]')!;
-    fireEvent.click(tile);
-    expect(onSelect).toHaveBeenCalledWith("0,0");
-    rerender(<HexBoard snapshot={snap} onSelect={onSelect} selected="0,0" />);
-    const ring = container.querySelector('g.cg-tile[data-tile="0,0"] polygon[stroke="#fff"]');
-    expect(ring).toBeTruthy();
+    fireEvent.mouseEnter(tile, { clientX: 40, clientY: 30 });
+    expect(onHover).toHaveBeenCalledWith("0,0", { x: 40, y: 30 });
+    fireEvent.mouseLeave(container.querySelector("svg")!);
+    expect(onHover).toHaveBeenLastCalledWith(null);
   });
 });
