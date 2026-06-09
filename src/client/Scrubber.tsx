@@ -25,7 +25,7 @@ const WIN = 12;
 const ACCENT = "#3ce0c0";
 const W = 1000;
 const H = 56;
-const EVENT_W: Record<string, number> = { auction: 1.5, exploit: 4, capture: 1, transfer: 1.5, starved: 1, mint: 0.4, firstCommit: 0.5, rejected: 0.5 };
+const EVENT_W: Record<string, number> = { auction: 1.5, exploit: 4, capture: 1, lost: 1, transfer: 1.5, starved: 1, mint: 0.4, firstCommit: 0.5, rejected: 0.5 };
 const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v));
 
 interface Meta {

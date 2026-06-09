@@ -128,12 +128,13 @@ export function AuctionPanel({ snapshot, events }: { snapshot: GameSnapshot; eve
 }
 
 // ===== Resolve log ========================================================
-const EVENT_ORDER: Record<string, number> = { exploit: 0, capture: 1, transfer: 2, auction: 3, starved: 4, firstCommit: 5, rejected: 6 };
+const EVENT_ORDER: Record<string, number> = { exploit: 0, capture: 1, lost: 2, transfer: 3, auction: 4, starved: 5, firstCommit: 6, rejected: 7 };
 
 function EventTag({ e }: { e: TurnEvent }): React.ReactElement {
   if (e.type === "capture") return <span className={`cg-verb ${e.from ? "exploit" : "align"}`}>{e.from ? "FLIP" : "ALIGN"}</span>;
   if (e.type === "exploit") return <span className="cg-verb exploit">EXPLOIT</span>;
   if (e.type === "transfer") return <span className="cg-verb transfer">TRANSFER</span>;
+  if (e.type === "lost") return <span className="cg-verb exploit">LOST</span>;
   if (e.type === "auction") return <span className="cg-verb bid">AUCTION</span>;
   return (
     <span className="cg-mono" style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "var(--muted)", padding: "2px 6px", background: "var(--panel-2)", borderRadius: 5 }}>
@@ -147,6 +148,7 @@ function actorOf(e: TurnEvent): string | null {
     case "capture":
       return e.to;
     case "exploit":
+    case "lost":
     case "starved":
     case "firstCommit":
     case "rejected":
@@ -174,6 +176,8 @@ function eventText(e: TurnEvent): React.ReactNode {
       return `${e.amount} ${e.mineral} → ${cogName(cogIdx(e.to))} · −${TRANSFER_FEE}e fee`;
     case "auction":
       return e.winner ? `wins the heart, pays 2nd-price ${e.price}e` : "heart unsold";
+    case "lost":
+      return `lost ${e.tile} — ${e.cause === "rot" ? "rotted to neutral" : "starved out"}`;
     case "starved":
       return `${e.tile} starved → coherence ${e.coherence}`;
     case "firstCommit":

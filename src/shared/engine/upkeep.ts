@@ -16,6 +16,9 @@ import { MINT_DIVISOR, COHERENCE_MAX, DRIFT_GAIN_COST, upkeepPerTile } from "./c
 /** Events emitted by an Upkeep phase (for the turn log / replay). */
 export type UpkeepEvent =
   | { type: "starved"; cog: CogId; tile: HexKey; coherence: number }
+  /** A tile went NEUTRAL — the owner lost it to entropy (rot) or to an unpaid
+   *  upkeep bill (starved). Flips to an enemy are capture events in Resolve. */
+  | { type: "lost"; cog: CogId; tile: HexKey; cause: "rot" | "starved" }
   | { type: "mint"; cog: CogId; gained: Treasury }
   /** Tempo bonus for the first Cog to lock its Commit this turn (granted in stepTurn).
    *  `reward` is denominated in ENERGY — the minerals granted are worth exactly that. */
@@ -68,7 +71,12 @@ export function upkeep(
       const t = state.tiles[k]!;
       if (driftDirection(state, t) < 0) {
         const coherence = Math.max(0, t.coherence - 1);
-        tiles[k] = coherence === 0 ? { ...t, coherence, alignment: null } : { ...t, coherence };
+        if (coherence === 0) {
+          tiles[k] = { ...t, coherence, alignment: null };
+          events.push({ type: "lost", cog: cogId, tile: k, cause: "rot" });
+        } else {
+          tiles[k] = { ...t, coherence };
+        }
       } else if (t.coherence < COHERENCE_MAX) {
         gainers.push(k);
       }
@@ -107,6 +115,7 @@ export function upkeep(
         // A tile starved to Coherence 0 loses its alignment — it goes neutral.
         tiles[k] = coherence === 0 ? { ...t, coherence, alignment: null } : { ...t, coherence };
         events.push({ type: "starved", cog: cogId, tile: k, coherence });
+        if (coherence === 0) events.push({ type: "lost", cog: cogId, tile: k, cause: "starved" });
       }
     }
 

@@ -132,6 +132,21 @@ describe("upkeep", () => {
     expect(tre(state, "A")).toEqual(T(2, 0, 0, 0));
   });
 
+  it("emits a lost event when a tile goes neutral — rot at drift, or starved out", () => {
+    // (0,0): lone A tile at coherence 1 -> drift -1 -> 0 -> lost (rot).
+    // B pair at coherence 1 with no energy: both gain forfeited? no — friendly pair
+    // points +1 but B can pay 0 gains; upkeep unfunded -> starve -1 -> 0 -> lost (starved).
+    const s = makeState({
+      tiles: [tile(0, 0, "A", 1), tile(10, 0, "B", 1), tile(11, 0, "B", 1)],
+      cogOrder: ["A", "B"], treasuries: { A: T(), B: T() },
+    });
+    const { state, events } = upkeep(s, FLOOR);
+    expect(at(state, 0, 0)).toMatchObject({ alignment: null, coherence: 0 });
+    expect(events).toContainEqual({ type: "lost", cog: "A", tile: "0,0", cause: "rot" });
+    expect(at(state, 10, 0)).toMatchObject({ alignment: null, coherence: 0 });
+    expect(events).toContainEqual({ type: "lost", cog: "B", tile: "10,0", cause: "starved" });
+  });
+
   it("upkeepPerTile scales with empire size: 2e under 9 tiles, then +1 per sqrt step", () => {
     expect(upkeepPerTile(1)).toBe(2);
     expect(upkeepPerTile(8)).toBe(2);

@@ -12,6 +12,7 @@ describe("protocol", () => {
     expect(() => turnEventSchema.parse({ type: "auction", winner: "cog0", price: 3, bids: [["cog0", 4]] })).not.toThrow();
     expect(() => turnEventSchema.parse({ type: "mint", cog: "cog0", gained: { C: 1, O: 0, Ge: 0, S: 2 } })).not.toThrow();
     expect(() => turnEventSchema.parse({ type: "capture", tile: "0,0", from: null, to: "cog1", coherence: 2, spent: 3 })).not.toThrow();
+    expect(() => turnEventSchema.parse({ type: "lost", cog: "cog1", tile: "0,0", cause: "rot" })).not.toThrow();
   });
   it("rejects an unknown message type", () =>
     expect(() => serverMessageSchema.parse({ type: "nope" })).toThrow());
