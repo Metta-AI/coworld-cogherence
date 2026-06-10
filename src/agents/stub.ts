@@ -12,7 +12,7 @@ import type { Order } from "../shared/engine/orders";
 import type { Tile } from "../shared/engine/types";
 import { maxEnergy } from "../shared/engine/energy";
 import { neighbors, key, distance } from "../shared/engine/hex";
-import { ALIGN_MAX_ENERGY, upkeepBase } from "../shared/engine/constants";
+import { ALIGN_MAX_ENERGY, ALIGN_REPEAT_SURCHARGE, upkeepBase } from "../shared/engine/constants";
 import { makeRng, randInt } from "../shared/engine/rng";
 
 const myEnergy = (view: AgentView): number => maxEnergy(view.state.cogs[view.me]!.treasury);
@@ -124,28 +124,33 @@ export const greedyAgent = (id: string): Agent => ({
     let energy = myEnergy(view);
     const billsReserve = owned.length * (upkeepBase(owned.length) + 1); // ~a turn of bills stays banked
     const afford = (cost: number): boolean => energy - billsReserve >= cost;
+    // each extra Align this turn bills +10e overhead — budget it alongside the order
+    let alignsMade = 0;
+    const surcharge = (): number => alignsMade * ALIGN_REPEAT_SURCHARGE;
+    const queueAlign = (tile: string, e: number): void => {
+      orders.push({ type: "align", tile, energy: e });
+      energy -= e + surcharge();
+      alignsMade++;
+    };
 
     // 1. Rescue any core tile one Upkeep from rotting to neutral (force 2 at distance 0 = 4e).
     const critical = owned
       .filter((t) => t.coherence <= 1 && ownNeighborCount(view, t) >= 2)
       .sort((a, b) => a.coherence - b.coherence)[0];
-    if (critical && afford(alignCostFor(2, 0))) {
-      orders.push({ type: "align", tile: key(critical.hex), energy: alignCostFor(2, 0) });
-      energy -= alignCostFor(2, 0);
+    if (critical && afford(alignCostFor(2, 0) + surcharge())) {
+      queueAlign(key(critical.hex), alignCostFor(2, 0));
     }
     // 2. Settle: claim the neutral pocket that most thickens the blob; with no
     //    adjacent pocket, reach for the nearest neutral ground (cost rises with
     //    distance² under the sqrt arrival curve).
     const pocket = bestPocket(view);
-    if (pocket && pocket.alignment === null && afford(alignCostFor(2, 1))) {
-      orders.push({ type: "align", tile: key(pocket.hex), energy: alignCostFor(2, 1) });
-      energy -= alignCostFor(2, 1);
+    if (pocket && pocket.alignment === null && afford(alignCostFor(2, 1) + surcharge())) {
+      queueAlign(key(pocket.hex), alignCostFor(2, 1));
     } else {
       const spot = nearestNeutral(view);
       const cost = spot ? alignCostFor(2, spot.dist) : Infinity;
-      if (spot && spot.dist > 1 && cost > spot.dist * spot.dist && afford(cost)) {
-        orders.push({ type: "align", tile: key(spot.tile.hex), energy: cost });
-        energy -= cost;
+      if (spot && spot.dist > 1 && cost > spot.dist * spot.dist && afford(cost + surcharge())) {
+        queueAlign(key(spot.tile.hex), cost);
       }
     }
     // 3. Raid: flip a weak adjacent enemy when the war chest covers arriving force
@@ -155,9 +160,8 @@ export const greedyAgent = (id: string): Agent => ({
       .sort((a, b) => a.coherence - b.coherence)[0];
     if (prey) {
       const cost = alignCostFor(prey.coherence + 2, 1);
-      if (afford(cost + 4)) {
-        orders.push({ type: "align", tile: key(prey.hex), energy: cost });
-        energy -= cost;
+      if (afford(cost + surcharge() + 4)) {
+        queueAlign(key(prey.hex), cost);
       }
     }
 

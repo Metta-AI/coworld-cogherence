@@ -71,6 +71,39 @@ describe("resolve", () => {
     expect(events.some((e) => e.type === "capture" && e.tile === "3,0" && e.coherence === 4 && e.spent === 25)).toBe(true);
   });
 
+  it("the k-th Align in a turn bills k×10e extra — first free, surcharge buys no force", () => {
+    // two adjacent neutral claims at 4e each: total = 4 + (4 + 10) = 18e
+    const s = makeState({
+      tiles: [tile(0, 0, "A", 5), tile(1, 0, null, 0), tile(-1, 0, null, 0)],
+      cogOrder: ["A"], treasuries: { A: T(18, 0, 0, 0) },
+    });
+    const { state, events } = resolve(s, {
+      A: [
+        { type: "align", tile: "1,0", energy: 4 },
+        { type: "align", tile: "-1,0", energy: 4 },
+      ],
+    });
+    expect(at(state, 1, 0)).toMatchObject({ alignment: "A", coherence: 1 }); // floor(sqrt(3)) each
+    expect(at(state, -1, 0)).toMatchObject({ alignment: "A", coherence: 1 }); // same force — the tax bought none
+    expect(tre(state, "A")).toEqual(T(0, 0, 0, 0)); // 4 + 14 charged
+    expect(events.some((e) => e.type === "capture" && e.tile === "-1,0" && e.spent === 14)).toBe(true);
+  });
+
+  it("a set that cannot cover the repeat-align surcharge is rejected", () => {
+    const s = makeState({
+      tiles: [tile(0, 0, "A", 5), tile(1, 0, null, 0), tile(-1, 0, null, 0)],
+      cogOrder: ["A"], treasuries: { A: T(17, 0, 0, 0) }, // 1e short of 4 + 14
+    });
+    const { state, events } = resolve(s, {
+      A: [
+        { type: "align", tile: "1,0", energy: 4 },
+        { type: "align", tile: "-1,0", energy: 4 },
+      ],
+    });
+    expect(at(state, 1, 0).alignment).toBeNull();
+    expect(events.some((e) => e.type === "rejected" && e.cog === "A" && /afford/.test(e.reason))).toBe(true);
+  });
+
   it("an align whose force fully dissipates before arriving is rejected", () => {
     // 9e over distance 3 -> floor(sqrt(9 − 9)) = 0 arrives -> bounced at validation
     const s = makeState({

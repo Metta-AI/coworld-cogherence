@@ -8,7 +8,7 @@ import type { StampedEvent } from "../net/feed";
 import type { LatticeMode } from "../HexBoard";
 import type { Order } from "../../shared/engine/orders";
 import { distance } from "../../shared/engine/hex";
-import { ALIGN_MAX_ENERGY, COHERENCE_MAX, EXPLOIT_MULT } from "../../shared/engine/constants";
+import { ALIGN_MAX_ENERGY, ALIGN_REPEAT_SURCHARGE, COHERENCE_MAX, EXPLOIT_MULT } from "../../shared/engine/constants";
 import { cogColor, cogName } from "../colors";
 import { EnergyChip, CGIcon, Mineral } from "../cg/atoms";
 import { LatticePanel, ChannelMessage, TurnLog } from "../cg/panels";
@@ -106,6 +106,7 @@ function TileMenu({
   cogId,
   tileKey,
   at,
+  queuedAligns,
   onPick,
   onClose,
 }: {
@@ -113,6 +114,8 @@ function TileMenu({
   cogId: string;
   tileKey: string;
   at: { x: number; y: number };
+  /** Aligns already queued this turn — the next one bills +n×10e overhead. */
+  queuedAligns: number;
   onPick: (o: Order) => void;
   onClose: () => void;
 }): React.ReactElement | null {
@@ -153,6 +156,7 @@ function TileMenu({
     }
   }
 
+  const repeatTax = queuedAligns * ALIGN_REPEAT_SURCHARGE;
   const W = 230;
   const x = Math.min(at.x, window.innerWidth - W - 12);
   const y = Math.min(at.y, window.innerHeight - 260);
@@ -172,6 +176,11 @@ function TileMenu({
         </button>
       </div>
       <div className="cg-panel-body cg-scroll" style={{ padding: "8px 10px", display: "flex", flexDirection: "column", gap: 3, maxHeight: 240, overflowY: "auto" }}>
+        {repeatTax > 0 && (
+          <div className="cg-mono" data-tip="each additional Align in one turn bills +10e more than the last — overhead, no force" style={{ fontSize: 8.5, color: "var(--deal)" }}>
+            {queuedAligns + 1}. align this turn: costs below include +{repeatTax}e repeat tax
+          </div>
+        )}
         {mine && (
           <>
             <button type="button" className="cg-menu-row" onClick={() => onPick({ type: "exploit", tile: tileKey })}>
@@ -198,7 +207,7 @@ function TileMenu({
                   <span className="cg-mono" style={{ fontSize: 10.5, color: "var(--exploit)" }}>
                     {o.annihilates ? "−" + o.removed + " coh ⌀ annihilates" : `−${o.removed} coh`}
                   </span>
-                  <span className="cg-mono" style={{ fontSize: 10.5, color: "var(--energy)" }}>{o.energy}e</span>
+                  <span className="cg-mono" style={{ fontSize: 10.5, color: "var(--energy)" }}>{o.energy + repeatTax}e</span>
                 </span>
               </button>
             ))}
@@ -218,7 +227,7 @@ function TileMenu({
           <button key={o.coh} type="button" className="cg-menu-row" onClick={() => onPick({ type: "align", tile: tileKey, energy: o.energy })}>
             <span style={row}>
               <span className="cg-mono" style={{ fontSize: 10.5, color: "var(--coherence)" }}>coh={o.coh}</span>
-              <span className="cg-mono" style={{ fontSize: 10.5, color: "var(--energy)" }}>{o.energy}e</span>
+              <span className="cg-mono" style={{ fontSize: 10.5, color: "var(--energy)" }}>{o.energy + repeatTax}e</span>
             </span>
           </button>
         ))}
@@ -338,6 +347,7 @@ export function CogView({
           cogId={cogId}
           tileKey={menu.tileKey}
           at={menu.at}
+          queuedAligns={pending.filter((o) => o.type === "align").length}
           onPick={(o) => {
             postPending([...pending, o]);
             setMenu(null);

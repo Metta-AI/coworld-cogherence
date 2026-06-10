@@ -64,5 +64,9 @@ export const TRANSFER_FEE = 1;
  *  rejected. At the cap, 100e at distance 0 arrives as force 10 — exactly the
  *  coherence cap — so a fortress costs a full turn's fortune to stamp out. */
 export const ALIGN_MAX_ENERGY = 100;
+/** Repeat-align tax: the k-th Align a cog submits in ONE turn (0-indexed)
+ *  costs an extra k × this much energy — first free, then +10, +20, … The
+ *  surcharge is pure overhead: it buys no force. */
+export const ALIGN_REPEAT_SURCHARGE = 10;
 export const alignForce = (energy: number, dist: number): number =>
   Math.floor(Math.sqrt(Math.max(0, energy - dist * dist)));

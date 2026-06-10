@@ -18,7 +18,7 @@ import { chargeEnergy, maxEnergy } from "./energy";
 import { resolveTile } from "./coherence";
 import { alignDistance, isLegalAlignTarget, isOwn } from "./orders";
 import type { Order } from "./orders";
-import { ALIGN_MAX_ENERGY, alignForce, EXPLOIT_MULT, EXPLOIT_DENSITY, TRANSFER_FEE } from "./constants";
+import { ALIGN_MAX_ENERGY, ALIGN_REPEAT_SURCHARGE, alignForce, EXPLOIT_MULT, EXPLOIT_DENSITY, TRANSFER_FEE } from "./constants";
 
 /** Events emitted by a Resolve phase (for the turn log / replay). */
 export type ResolveEvent =
@@ -71,6 +71,7 @@ export function resolve(
     const sent = emptyT();
     let bid = 0;
     let bidSeen = false;
+    let alignIdx = 0; // repeat-align surcharge counter (submission order)
     let reject: string | null = null;
 
     for (const o of orders) {
@@ -84,7 +85,8 @@ export function resolve(
           const dist = alignDistance(state, cogId, o.tile);
           const eff = alignForce(o.energy, dist);
           if (eff < 1) reject = `align ${o.tile} dissipates over distance ${dist}`;
-          else aligns.push([o.tile, o.energy, eff]);
+          // the k-th Align this turn bills k×10e extra (pure overhead, no force)
+          else aligns.push([o.tile, o.energy + ALIGN_REPEAT_SURCHARGE * alignIdx++, eff]);
         }
       } else if (o.type === "exploit") {
         if (!isOwn(state, cogId, o.tile)) reject = `illegal exploit ${o.tile}`;

@@ -31,7 +31,7 @@ export const SUBMIT_ORDERS_TOOL: ToolDef = {
       aligns: {
         type: "array",
         description:
-          "Commit ENERGY (max 100) to a tile's tug-of-war. The force arriving = floor(sqrt(energy − distance²)), where distance is from your CLOSEST tile (your own tile = 0, adjacent = 1). 100e at distance 0 arrives as force 10. The full energy is charged win or lose; an align whose force fully dissipates is rejected. Target ANY tile.",
+          "Commit ENERGY (max 100) to a tile's tug-of-war. The force arriving = floor(sqrt(energy − distance²)), where distance is from your CLOSEST tile (your own tile = 0, adjacent = 1). 100e at distance 0 arrives as force 10. The full energy is charged win or lose; an align whose force fully dissipates is rejected. Target ANY tile. Each ADDITIONAL align in the same turn bills +10e overhead (first free, then +10, +20, ...).",
         items: {
           type: "object",
           properties: {
