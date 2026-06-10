@@ -359,7 +359,7 @@ export function TurnLog({ snapshot, events }: { snapshot: GameSnapshot; events: 
 
             </Section>
 
-            <Section label="Upkeep">
+            <Section label="Production">
             {upkeepList.length === 0 && <Quiet text="quiet turn — every bill paid, nothing minted." />}
             {upkeepList.length > 0 && (
               <div

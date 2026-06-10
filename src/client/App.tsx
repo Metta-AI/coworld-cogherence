@@ -82,6 +82,21 @@ export function App({ replay: injected, live: liveProp }: { replay?: Replay; liv
     return () => clearInterval(id);
   }, [playing, liveMode, snaps.length]);
 
+  // Spacebar toggles the game: live -> pause/resume the server's turn loop;
+  // replay -> toggle playback. Ignored while typing in a field.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.code !== "Space") return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      e.preventDefault();
+      if (liveMode) void fetch(storeRef.current.status?.paused ? "/resume" : "/pause", { method: "POST" });
+      else setPlaying((p) => !p);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [liveMode]);
+
   const snapshot = snaps.length ? snaps[Math.min(index, snaps.length - 1)]! : null;
   const cogs = snapshot ? snapshot.cogs.map((c) => ({ id: c.id, index: c.index })) : [];
 
