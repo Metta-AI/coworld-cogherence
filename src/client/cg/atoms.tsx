@@ -174,6 +174,11 @@ export function Wallet({ treasury, energy, upkeep, income, expected }: { treasur
         <span className="cg-mono" style={{ fontSize: 12, fontWeight: 600, color: "var(--energy)" }}>
           {energy}
         </span>
+        {delta != null && (
+          <span className="cg-mono" style={{ fontSize: 9.5, fontWeight: 700, color: delta >= 0 ? "var(--coherence)" : "var(--exploit)" }}>
+            {delta >= 0 ? "+" : ""}{delta}
+          </span>
+        )}
       </span>
     </div>
   );
