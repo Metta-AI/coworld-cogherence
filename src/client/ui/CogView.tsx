@@ -297,17 +297,30 @@ export function CogView({
       on = false;
     };
   }, [live, cogId, snapshot.turn]);
-  // billed energy per queued align: force² + distance² + the repeat surcharge
+  // per-order energy effect: an align's bill (force² + distance² + repeat
+  // surcharge), an abandon's refund, an exploit's mineral windfall — plus the
+  // total energy the queue will spend at Commit.
   const ownTiles = snapshot.tiles.filter((x) => x.alignment === cogId);
   let alignIdx = 0;
-  const pendingCosts = pending.map((o) => {
-    if (o.type !== "align") return undefined;
-    const t = snapshot.tiles.find((x) => `${x.q},${x.r}` === o.tile);
-    const d =
-      !t || t.alignment === cogId
-        ? 0
-        : ownTiles.reduce((m, x) => Math.min(m, distance({ q: x.q, r: x.r }, { q: t.q, r: t.r })), Infinity);
-    return alignEnergyCost(o.force, d) + ALIGN_REPEAT_SURCHARGE * alignIdx++;
+  let pendingCommitted = 0;
+  const pendingNotes = pending.map((o) => {
+    if (o.type === "bid") {
+      pendingCommitted += o.energy;
+      return undefined; // the bid text already carries its amount
+    }
+    const t = "tile" in o ? snapshot.tiles.find((x) => `${x.q},${x.r}` === o.tile) : undefined;
+    if (o.type === "align") {
+      const d =
+        !t || t.alignment === cogId
+          ? 0
+          : ownTiles.reduce((m, x) => Math.min(m, distance({ q: x.q, r: x.r }, { q: t.q, r: t.r })), Infinity);
+      const cost = alignEnergyCost(o.force, d) + ALIGN_REPEAT_SURCHARGE * alignIdx++;
+      pendingCommitted += cost;
+      return `${cost}e`;
+    }
+    if (o.type === "abandon") return t ? `+${t.coherence}e` : undefined;
+    if (o.type === "exploit") return t ? `+${EXPLOIT_MULT * t.coherence * t.density} ${t.mineral}` : undefined;
+    return undefined;
   });
   const postPending = useCallback(
     (next: Order[]): void => {
@@ -335,7 +348,8 @@ export function CogView({
                 cogId={cogId}
                 atLatest={atLatest}
                 pending={pending}
-                pendingCosts={pendingCosts}
+                pendingNotes={pendingNotes}
+                pendingCommitted={pendingCommitted}
                 onCancelPending={(i) => postPending(pending.filter((_, j) => j !== i))}
                 onSetBid={(energy) => {
                   const rest = pending.filter((o) => o.type !== "bid");

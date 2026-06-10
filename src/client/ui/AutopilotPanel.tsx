@@ -10,16 +10,16 @@ import { cogName } from "../colors";
 
 type Saved = "idle" | "saving" | "saved";
 
-/** One pending order as text; aligns show force AND the energy they will bill
- *  (force² + distance² + the repeat surcharge by queue position). */
-const orderText = (o: Order, cost?: number): string => {
+/** One pending order as text; `note` carries its energy effect (an align's
+ *  bill, an abandon's refund, an exploit's mineral windfall). */
+const orderText = (o: Order, note?: string): string => {
   switch (o.type) {
     case "align":
-      return `Align([${o.tile}], force=${o.force})${cost != null ? ` · ${cost}e` : ""}`;
+      return `Align([${o.tile}], force=${o.force})${note ? ` · ${note}` : ""}`;
     case "exploit":
-      return `Exploit([${o.tile}])`;
+      return `Exploit([${o.tile}])${note ? ` · ${note}` : ""}`;
     case "abandon":
-      return `Abandon([${o.tile}])`;
+      return `Abandon([${o.tile}])${note ? ` · ${note}` : ""}`;
     case "transfer":
       return `Transfer(${o.amount} ${o.mineral} → ${cogName(Number(o.to.replace(/\D/g, "")) || 0)})`;
     case "bid":
@@ -27,10 +27,20 @@ const orderText = (o: Order, cost?: number): string => {
   }
 };
 
-/** Operator orders queued for the NEXT Commit — each cancelable. `costs` maps
- *  queue index → billed energy for aligns (computed by the owner from the
- *  board: force² + distance² + repeat surcharge). */
-function PendingActions({ pending, costs, onCancel }: { pending: Order[]; costs?: Array<number | undefined>; onCancel?: (i: number) => void }): React.ReactElement {
+/** Operator orders queued for the NEXT Commit — each cancelable. `notes` maps
+ *  queue index → the order's energy effect (computed by the owner from the
+ *  board); `committed` totals the energy this queue will spend. */
+function PendingActions({
+  pending,
+  notes,
+  committed = 0,
+  onCancel,
+}: {
+  pending: Order[];
+  notes?: Array<string | undefined>;
+  committed?: number;
+  onCancel?: (i: number) => void;
+}): React.ReactElement {
   return (
     <div data-testid="pending-actions" style={{ marginTop: 8 }}>
       <div className="cg-label" style={{ fontSize: 8.5, letterSpacing: "0.12em", paddingBottom: 3, borderBottom: "1px solid var(--border)" }}>
@@ -44,7 +54,7 @@ function PendingActions({ pending, costs, onCancel }: { pending: Order[]; costs?
         pending.map((o, i) => (
           <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 0", borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
             <span className="cg-mono" style={{ fontSize: 10.5, color: "var(--text-dim)", flex: 1 }}>
-              {orderText(o, costs?.[i])}
+              {orderText(o, notes?.[i])}
             </span>
             {onCancel && (
               <button
@@ -60,6 +70,11 @@ function PendingActions({ pending, costs, onCancel }: { pending: Order[]; costs?
           </div>
         ))
       )}
+      {committed > 0 && (
+        <div className="cg-mono" data-tip="total energy this queue will spend at Commit (align bills + bid + fees)" style={{ fontSize: 9.5, color: "var(--energy)", paddingTop: 4 }}>
+          committed: −{committed}e
+        </div>
+      )}
       {pending.length > 0 && (
         <div className="cg-mono" style={{ fontSize: 8.5, color: "var(--muted)", paddingTop: 3 }}>
           sent at the next Commit — they override the autopilot's own orders.
@@ -73,7 +88,8 @@ export function AutopilotPanel({
   cogId,
   atLatest = true,
   pending = [],
-  pendingCosts,
+  pendingNotes,
+  pendingCommitted,
   onCancelPending,
   onSetBid,
   onReady,
@@ -82,8 +98,10 @@ export function AutopilotPanel({
   atLatest?: boolean;
   /** Operator orders queued for the next Commit (server-side state). */
   pending?: Order[];
-  /** Billed energy per queue index (aligns) — see PendingActions. */
-  pendingCosts?: Array<number | undefined>;
+  /** Energy-effect note per queue index — see PendingActions. */
+  pendingNotes?: Array<string | undefined>;
+  /** Total energy the queue spends at Commit. */
+  pendingCommitted?: number;
   onCancelPending?: (i: number) => void;
   /** Manual mode: set/replace the queued heart bid (0 clears it). */
   onSetBid?: (energy: number) => void;
@@ -136,7 +154,7 @@ export function AutopilotPanel({
         <div className="cg-mono" style={{ fontSize: 9, color: "var(--muted)", marginTop: 6 }}>
           viewing a past turn — jump to the latest to steer
         </div>
-        <PendingActions pending={pending} costs={pendingCosts} />
+        <PendingActions pending={pending} notes={pendingNotes} committed={pendingCommitted} />
       </div>
     );
   }
@@ -170,7 +188,7 @@ export function AutopilotPanel({
         </>
       ) : (
         <>
-          <PendingActions pending={pending} costs={pendingCosts} onCancel={onCancelPending} />
+          <PendingActions pending={pending} notes={pendingNotes} committed={pendingCommitted} onCancel={onCancelPending} />
           <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 8 }}>
             <span className="cg-mono" data-tip="sealed second-price heart bid sent with this Commit (0 = no bid)" style={{ fontSize: 10, color: "var(--muted)" }}>
               Heart bid
