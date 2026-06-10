@@ -374,7 +374,11 @@ export function TurnLog({ snapshot, events }: { snapshot: GameSnapshot; events: 
                   <span key={m} className={`cg-min ${minClass(m)}`} style={{ justifySelf: "end" }}>{m}</span>
                 ))}
                 <span style={{ justifySelf: "end" }}><EnergyChip /></span>
-                <span style={{ justifySelf: "end", fontSize: 14, lineHeight: 1, color: "var(--muted)" }}>⬡</span>
+                <span style={{ justifySelf: "end", display: "inline-flex" }} data-tip="net tiles gained/lost this turn">
+                  <svg width={18} height={18} viewBox="0 0 18 18">
+                    <path d="M9 2 L15.1 5.5 V12.5 L9 16 L2.9 12.5 V5.5 Z" fill="none" stroke="var(--text-dim)" strokeWidth="2" strokeLinejoin="round" />
+                  </svg>
+                </span>
                 <span />
                 {upkeepList.map(([cog, r]) => {
                   const ci = cogIdx(cog);

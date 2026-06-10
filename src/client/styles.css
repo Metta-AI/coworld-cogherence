@@ -22,7 +22,7 @@
 
   /* resources / verbs */
   --coherence: #3ce0c0;
-  --energy: #42d4f4;
+  --energy: #ffffff;
   --heart: #ff4d9d;
   --align: #2ee6a0;
   --exploit: #ff5a2c;
@@ -366,9 +366,9 @@ button:focus-visible {
   box-shadow: 0 0 8px rgba(255, 194, 60, 0.5);
 }
 .cg-min.energy {
-  background: #42d4f4;
+  background: #ffffff;
   border-radius: 999px;
-  box-shadow: 0 0 8px rgba(66, 212, 244, 0.5);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.45);
 }
 
 /* ===== verb tag ========================================= */
