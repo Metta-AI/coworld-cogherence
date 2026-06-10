@@ -48,8 +48,9 @@ export const FIRST_COMMIT_REWARD = 2;
 /** Energy yielded by a single leftover mineral. */
 export const SINGLE_ENERGY = 1;
 
-/** Exploit windfall = EXPLOIT_MULT × coherence × density (coherence pre-drop). */
-export const EXPLOIT_MULT = 2;
+/** Exploit windfall = EXPLOIT_MULT × coherence × density units of the tile's
+ *  MINERAL (coherence pre-drop) — a huge one-time mineral burst. */
+export const EXPLOIT_MULT = 10;
 
 /** Exploit scars the land: density = floor(density × EXPLOIT_DENSITY), min 0. */
 export const EXPLOIT_DENSITY = 0.5;

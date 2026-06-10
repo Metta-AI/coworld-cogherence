@@ -75,6 +75,7 @@ export function AutopilotPanel({
   pending = [],
   pendingCosts,
   onCancelPending,
+  onSetBid,
   onReady,
 }: {
   cogId: string;
@@ -84,6 +85,8 @@ export function AutopilotPanel({
   /** Billed energy per queue index (aligns) — see PendingActions. */
   pendingCosts?: Array<number | undefined>;
   onCancelPending?: (i: number) => void;
+  /** Manual mode: set/replace the queued heart bid (0 clears it). */
+  onSetBid?: (energy: number) => void;
   /** Manual mode: submit the queue for this Commit and mark the cog ready. */
   onReady?: () => void;
 }): React.ReactElement {
@@ -168,6 +171,21 @@ export function AutopilotPanel({
       ) : (
         <>
           <PendingActions pending={pending} costs={pendingCosts} onCancel={onCancelPending} />
+          <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 8 }}>
+            <span className="cg-mono" data-tip="sealed second-price heart bid sent with this Commit (0 = no bid)" style={{ fontSize: 10, color: "var(--muted)" }}>
+              Heart bid
+            </span>
+            <input
+              type="number"
+              min={0}
+              data-testid="bid-input"
+              value={pending.find((o) => o.type === "bid")?.energy ?? 0}
+              onChange={(e) => onSetBid?.(Math.max(0, Number(e.target.value) || 0))}
+              className="cg-mono"
+              style={{ width: 64, background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 6, color: "var(--text)", padding: "3px 6px", fontSize: 11 }}
+            />
+            <span className="cg-mono" style={{ fontSize: 10, color: "var(--muted)" }}>e</span>
+          </div>
           <div className="steer-actions" style={{ marginTop: 8 }}>
             <button type="button" data-testid="ready-btn" onClick={onReady} data-tip="submit the queued actions for this Commit and mark this cog ready (empty queue = hold)">
               Ready

@@ -53,6 +53,7 @@ describe("AutopilotPanel", () => {
   it("manual mode lists pending actions, cancels by index, and Ready fires onReady", async () => {
     const onCancel = vi.fn();
     const onReady = vi.fn();
+    const onSetBid = vi.fn();
     // manual: the steering fetch reports paused: true
     vi.stubGlobal(
       "fetch",
@@ -63,12 +64,14 @@ describe("AutopilotPanel", () => {
       { type: "exploit" as const, tile: "0,0" },
     ];
     const { getByTestId, getAllByText } = render(
-      <AutopilotPanel cogId="cog0" pending={pending} onCancelPending={onCancel} onReady={onReady} />,
+      <AutopilotPanel cogId="cog0" pending={pending} onCancelPending={onCancel} onSetBid={onSetBid} onReady={onReady} />,
     );
     await waitFor(() => expect(getByTestId("pending-actions").textContent).toContain("Align([3,-4], force=2)"));
     expect(getByTestId("pending-actions").textContent).toContain("Exploit([0,0])");
     fireEvent.click(getAllByText("✕")[1]!);
     expect(onCancel).toHaveBeenCalledWith(1);
+    fireEvent.change(getByTestId("bid-input"), { target: { value: "7" } });
+    expect(onSetBid).toHaveBeenCalledWith(7);
     fireEvent.click(getByTestId("ready-btn"));
     expect(onReady).toHaveBeenCalled();
   });

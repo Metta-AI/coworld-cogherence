@@ -189,7 +189,7 @@ function TileMenu({
             <button type="button" className="cg-menu-row" onClick={() => onPick({ type: "exploit", tile: tileKey })}>
               <span style={row}>
                 <span className="cg-verb exploit">EXPLOIT</span>
-                <span className="cg-mono" style={{ fontSize: 10, color: "var(--coherence)" }}>+{EXPLOIT_MULT * t.coherence * t.density}e · scars</span>
+                <span className="cg-mono" style={{ fontSize: 10, color: "var(--coherence)" }}>+{EXPLOIT_MULT * t.coherence * t.density} {t.mineral} · scars</span>
               </span>
             </button>
             <button type="button" className="cg-menu-row" onClick={() => onPick({ type: "abandon", tile: tileKey })}>
@@ -337,6 +337,10 @@ export function CogView({
                 pending={pending}
                 pendingCosts={pendingCosts}
                 onCancelPending={(i) => postPending(pending.filter((_, j) => j !== i))}
+                onSetBid={(energy) => {
+                  const rest = pending.filter((o) => o.type !== "bid");
+                  postPending(energy > 0 ? [...rest, { type: "bid", energy }] : rest);
+                }}
                 onReady={() => {
                   void fetch(`/cog/${cogId}/ready`, { method: "POST" });
                   setPending([]); // the server consumes the queue as it submits

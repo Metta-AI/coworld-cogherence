@@ -113,7 +113,7 @@ Align is also what keeps the shared economy alive: adding Coherence *is* restori
 On a tile you hold:
 - Drop its **Coherence to 0**.
 - **Unalign** it (back to neutral — anyone can grab the husk).
-- Mint **2 × Coherence × Density** of its mineral as a windfall (uses Coherence *before* the drop).
+- Mint **10 × Coherence × Density** of its **mineral** as a windfall (uses Coherence *before* the drop).
 - **Permanently reduce its Density.**
 
 A huge one-time burst that abandons the tile and **scars the land forever**. Good for cashing a frontier you're about to lose, scorched-earth retreats, or a war chest before an auction. Repeated Exploiting is an **irreversible death spiral** for the board. Exploit pays for itself (it mints), so it is the cheap emergency liquidity move.
@@ -313,7 +313,7 @@ t1 is A's frontier O-tile (B eyes it); t2 is unclaimed **S** that A badly needs;
 - **C** (10e): Align **t2** ← **force 2** *(5e)* · **bid 2.**
 
 ### 3. Resolve (canonical order §14.4)
-**① Exploit** — A scorches t3 (Coh 2, Ge, D1) before losing it: windfall = 2 × Coherence × Density = 2 × 2 × 1 = **4 Ge** to A (minted now, can fund the rest of A's turn); t3 → **neutral @ 0**, Density **1 → 0** (scarred, §12).
+**① Exploit** — A scorches t3 (Coh 2, Ge, D1) before losing it: windfall = 10 × Coherence × Density = 10 × 2 × 1 = **20 Ge** to A (minted now, can fund the rest of A's turn); t3 → **neutral @ 0**, Density **1 → 0** (scarred, §12).
 
 **② Align** (tug-of-war, all at once §5):
 - **t1:** incumbent A = standing 2 + 0 committed = **2**; challenger B arrives with **3**. B wins → **t1 flips to B @ Coherence 1** (3 − 2). *The betrayal lands.*

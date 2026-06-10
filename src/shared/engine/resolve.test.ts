@@ -135,13 +135,13 @@ describe("resolve", () => {
     expect(tre(state, "A")).toEqual(T(1, 2, 2, 2)); // A: -3 S sent, -1 energy (one C) for the transfer fee
   });
 
-  it("exploit mints 2*coherence*density, neutralizes the tile, halves density (windfall is next-turn money)", () => {
+  it("exploit mints 10*coherence*density of the MINERAL, neutralizes the tile, halves density (windfall is next-turn money)", () => {
     const s = makeState({
       tiles: [tile(0, 0, "A", 4, "O", 3)], cogOrder: ["A"], treasuries: { A: T() },
     });
     const { state } = resolve(s, { A: [{ type: "exploit", tile: "0,0" }] });
     expect(at(state, 0, 0)).toMatchObject({ alignment: null, coherence: 0, density: 1 }); // floor(3*0.5)=1
-    expect(tre(state, "A").O).toBe(24); // 2*4*3
+    expect(tre(state, "A").O).toBe(120); // 10*4*3
   });
 
   it("exploit resolves BEFORE align: an exploited tile is neutral/0 when a rival's align lands, so the rival takes the husk", () => {
@@ -156,7 +156,7 @@ describe("resolve", () => {
     expect(at(state, 0, 0)).toMatchObject({ alignment: "B", coherence: 3 });
     expect(at(state, 1, 0).coherence).toBe(4); // coherence is never drained now
     expect(tre(state, "B")).toEqual(T(0, 0, 0, 0)); // the full 10e charged
-    expect(tre(state, "A").C).toBe(20); // 2*5*2 windfall
+    expect(tre(state, "A").C).toBe(100); // 10*5*2 windfall
   });
 
   it("a contested neutral tile goes to the larger arriving force; both pay in full", () => {

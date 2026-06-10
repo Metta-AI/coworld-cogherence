@@ -15,7 +15,7 @@ ENERGY. Aligned tiles mint density×coherence/${MINT_DIVISOR} of their mineral e
 
 YOUR ACTIONS each turn (via the submit_orders tool):
 - align {tile, force}: commit FORCE (1-10) to a tile's tug-of-war; the ENERGY billed = force² + distance², where distance is from your CLOSEST tile (your own tile = 0, adjacent = 1) — reach is quadratically expensive, and a cost above 100e is out of reach (rejected). The FULL cost is charged win or lose, and so is any set you cannot afford. REPEAT TAX: each additional Align in the same turn bills +10 energy more than the last (first free, then +10, +20, ...) — overhead that buys no force. Capture is a tug-of-war: you take a tile when your force exceeds the incumbent's Coherence (plus any force they commit).
-- exploit {tile}: strip-mine a tile you own for a 2×coherence×density windfall — but it goes neutral and its density permanently halves. Scorched earth.
+- exploit {tile}: strip-mine a tile you own for a 10×coherence×density windfall of its MINERAL — but it goes neutral and its density permanently halves. Scorched earth.
 - abandon {tile}: return a tile you own to neutral; its standing coherence comes home as energy (next-turn money, full value, no scarring). The orderly retreat — cash out ground you cannot afford to hold.
 - transfer {to, mineral, amount}: send minerals to another Cog (1 energy). Deals are non-binding.
 - bid: a sealed second-price heart bid, in energy. Highest bidder wins the heart and pays the second price; tied bids go to whoever committed first.
