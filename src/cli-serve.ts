@@ -35,7 +35,7 @@ async function main(): Promise<void> {
   }).map((a) => steerableAgent(a, steering));
   const defaultLive = flag("default-live");
   const h = await startServer({
-    seed, agents, port, deadlineMs, minTurnMs, maxTurns, hub, bus, steering, agentSpecs: specs, defaultLive, autorun: true,
+    seed, agents, port, deadlineMs, minTurnMs, maxTurns, turnLimit: 10, hub, bus, steering, agentSpecs: specs, defaultLive, autorun: true,
   });
   console.log(`Cogherence live — seed ${seed}, agents [${specs.join(", ")}]`);
   console.log(`  server:   ${h.url}`);

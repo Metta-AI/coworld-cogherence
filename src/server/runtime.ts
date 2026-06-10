@@ -25,6 +25,8 @@ export async function startServer(opts: {
   deadlineMs?: number;
   minTurnMs?: number;
   maxTurns?: number;
+  /** Soft auto-stop: the live loop pauses here; POST /extend adds 10 turns. */
+  turnLimit?: number;
   hub?: ActPromptHub;
   bus?: MessageBus;
   steering?: SteeringStore;
@@ -36,6 +38,7 @@ export async function startServer(opts: {
     seed: opts.seed,
     agents: opts.agents,
     maxTurns: opts.maxTurns,
+    turnLimit: opts.turnLimit,
     deadlineMs: opts.deadlineMs,
     minTurnMs: opts.minTurnMs,
     bus: opts.bus,

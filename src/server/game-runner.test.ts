@@ -97,6 +97,26 @@ describe("GameRunner", () => {
     expect(runner.state.turn).toBeGreaterThan(parked); // advanced after resume
   });
 
+  it("auto-stops (pauses) at the soft turn limit; extendTurnLimit adds turns and resumes", async () => {
+    const runner = new GameRunner({
+      seed: 7, agents: [greedyAgent("cog0"), greedyAgent("cog1")], maxTurns: 20, deadlineMs: 10, minTurnMs: 1, turnLimit: 2,
+    });
+    void runner.run();
+    await new Promise((r) => setTimeout(r, 250));
+    expect(runner.state.turn).toBe(3); // turns 1-2 played, parked before turn 3
+    expect(runner.currentStatus().paused).toBe(true);
+    expect(runner.currentStatus().turnLimit).toBe(2);
+
+    runner.setPaused(false); // resuming WITHOUT extending re-parks at the limit
+    await new Promise((r) => setTimeout(r, 80));
+    expect(runner.state.turn).toBe(3);
+    expect(runner.currentStatus().paused).toBe(true);
+
+    expect(runner.extendTurnLimit(10)).toBe(12); // +10 and resumes
+    await new Promise((r) => setTimeout(r, 400));
+    expect(runner.state.turn).toBeGreaterThan(3);
+  });
+
   it("runs a negotiate round: agents post to the bus, others stay silent", async () => {
     const chatty: Agent = { id: "cog0", commit: () => [], negotiate: () => [{ to: "public", text: "hello all" }] };
     const quiet: Agent = { id: "cog1", commit: () => [] };

@@ -44,6 +44,7 @@ export function Scrubber({
   onSeek,
   playing,
   onTogglePlay,
+  turnLimit,
   live = false,
 }: {
   snapshots: GameSnapshot[];
@@ -52,6 +53,8 @@ export function Scrubber({
   onSeek: (i: number) => void;
   playing: boolean;
   onTogglePlay: () => void;
+  /** Live soft auto-stop (from server status) — clicking the /N adds 10 turns. */
+  turnLimit?: number;
   /** Following the live head (teal) vs replaying a past turn (rose). */
   live?: boolean;
 }): React.ReactElement {
@@ -266,10 +269,23 @@ export function Scrubber({
         <div style={{ flex: 1 }} />
         <span className={`cg-scrub-dot ${live ? "is-live" : "is-replay"}`} data-tip={live ? "live" : "replay"} />
         {cur && (
-          <div data-tip="the turn the board is showing / total game length" style={{ display: "flex", alignItems: "baseline", gap: 3, marginLeft: 6 }}>
-            <span className="cg-mono" style={{ fontSize: 9, color: "var(--muted)", letterSpacing: "0.12em" }}>TURN</span>
-            <span className="cg-num" style={{ fontSize: 26, color: "var(--text)", lineHeight: 0.8, marginLeft: 4 }}>{String(Math.min(cur.turn, MAX_TURNS)).padStart(2, "0")}</span>
-            <span className="cg-mono" style={{ fontSize: 12, color: "var(--muted)" }}>/{MAX_TURNS}</span>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 3, marginLeft: 6 }}>
+            <span className="cg-mono" data-tip="the turn the board is showing" style={{ fontSize: 9, color: "var(--muted)", letterSpacing: "0.12em" }}>TURN</span>
+            <span className="cg-num" style={{ fontSize: 26, color: "var(--text)", lineHeight: 0.8, marginLeft: 4 }}>{String(Math.min(cur.turn, turnLimit ?? MAX_TURNS, MAX_TURNS)).padStart(2, "0")}</span>
+            {turnLimit != null ? (
+              <button
+                type="button"
+                data-testid="extend-limit"
+                data-tip={`auto-stops at turn ${turnLimit} — click to add 10 more`}
+                onClick={() => void fetch("/extend", { method: "POST" })}
+                className="cg-mono"
+                style={{ background: "none", border: "1px solid var(--border)", borderRadius: 5, padding: "1px 5px", cursor: "pointer", fontSize: 12, color: "var(--coherence)" }}
+              >
+                /{turnLimit} +
+              </button>
+            ) : (
+              <span className="cg-mono" data-tip="total game length" style={{ fontSize: 12, color: "var(--muted)" }}>/{MAX_TURNS}</span>
+            )}
           </div>
         )}
       </div>

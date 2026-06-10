@@ -93,6 +93,7 @@ export const serverStatusSchema = z
     pausedAt: z.number().optional(), // epoch ms the current pause began (freezes the GAME clock)
     pausedAccumMs: z.number().optional(), // total ms paused so far (excluded from the GAME clock)
     phaseDeadlineAt: z.number().optional(),
+    turnLimit: z.number().int().optional(), // soft auto-stop (live); extendable
     startedAt: z.number().optional(), // epoch ms the live game began — drives the header GAME clock
   })
   .strict();

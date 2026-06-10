@@ -19,6 +19,9 @@ export class GameRunner {
   private agents: Agent[];
   private seed: number;
   private maxTurns: number;
+  /** Soft auto-stop: the loop PAUSES (doesn't finish) when the next turn would
+   *  exceed this; extendTurnLimit(+10) raises it and resumes. Infinity = off. */
+  private turnLimit: number;
   private deadlineMs: number;
   private minTurnMs: number;
   private bus?: MessageBus;
@@ -49,6 +52,7 @@ export class GameRunner {
     seed: number;
     agents: Agent[];
     maxTurns?: number;
+    turnLimit?: number;
     deadlineMs?: number;
     minTurnMs?: number;
     bus?: MessageBus;
@@ -57,6 +61,7 @@ export class GameRunner {
     this.agents = opts.agents;
     this.seed = opts.seed;
     this.maxTurns = opts.maxTurns ?? 100;
+    this.turnLimit = opts.turnLimit ?? Infinity;
     this.deadlineMs = opts.deadlineMs ?? 20_000;
     this.minTurnMs = opts.minTurnMs ?? 0;
     this.bus = opts.bus;
@@ -81,6 +86,13 @@ export class GameRunner {
     this.pausedAccumMs = 0;
     this.releaseWaiters();
     void this.run();
+  }
+
+  /** Raise the soft auto-stop by `by` turns (capped at maxTurns) and resume. */
+  extendTurnLimit(by: number): number {
+    this.turnLimit = Math.min(this.maxTurns, (Number.isFinite(this.turnLimit) ? this.turnLimit : this.maxTurns) + by);
+    this.setPaused(false);
+    return this.turnLimit;
   }
 
   /** Operator pause/resume of the live turn loop. Pausing parks the loop at the
@@ -156,6 +168,7 @@ export class GameRunner {
       done: this.coord?.done() ?? [],
       paused: this.paused,
       pausedAccumMs: this.pausedAccumMs,
+      ...(Number.isFinite(this.turnLimit) ? { turnLimit: this.turnLimit } : {}),
       ...(this.pausedAt !== undefined ? { pausedAt: this.pausedAt } : {}),
       ...(this.phaseDeadlineAt !== undefined ? { phaseDeadlineAt: this.phaseDeadlineAt } : {}),
       ...(this.startedAt !== undefined ? { startedAt: this.startedAt } : {}),
@@ -170,9 +183,12 @@ export class GameRunner {
     this.emit({ type: "serverStatus", status: this.status() });
 
     while (this.state.turn <= this.maxTurns && gen === this.generation) {
+      // Soft auto-stop: pause at the limit (the operator extends it to continue).
+      if (this.state.turn > this.turnLimit && !this.paused) this.setPaused(true);
       // Operator pause parks here, at a clean turn boundary, until resume/reset.
       await this.waitWhilePaused(gen);
       if (gen !== this.generation) return scoreGame(this.state);
+      if (this.state.turn > this.turnLimit) continue; // resumed without extending -> re-park
 
       const startedAt = Date.now();
       const snapshot = this.state;

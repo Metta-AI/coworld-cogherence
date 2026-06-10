@@ -158,6 +158,7 @@ export function App({ replay: injected, live: liveProp }: { replay?: Replay; liv
               setFollow(liveMode && i >= snaps.length - 1);
               setIndex(i);
             }}
+            turnLimit={liveMode ? store.status?.turnLimit : undefined}
             playing={liveMode ? !paused : playing}
             onTogglePlay={() => {
               // live: the transport's play/pause IS the game's pause/resume

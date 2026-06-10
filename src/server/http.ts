@@ -60,6 +60,10 @@ export function createApp(
     runner.setPaused(false);
     res.json({ ok: true });
   });
+  // Operator: raise the soft auto-stop by 10 turns and resume.
+  app.post("/extend", (_req, res) => {
+    res.json({ ok: true, turnLimit: runner.extendTurnLimit(10) });
+  });
 
   // Operator: seat a new Cog mid-game (greedy stub) at a free corner. A full
   // board (6 seats / no free corner) is a 409 with the engine's reason.

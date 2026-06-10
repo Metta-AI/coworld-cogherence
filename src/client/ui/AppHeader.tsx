@@ -54,7 +54,7 @@ export function AppHeader({
   // Phase strip is driven by the live status when connected, else the snapshot.
   const phase = connected && status && !status.finished ? status.phase : snapshot?.phase ?? "resolve";
   const ready = connected && status?.phase === "commit" && !status.finished ? `${status.done.length}/${status.cogCount} ready` : undefined;
-  const turnNum = snapshot ? Math.min(snapshot.turn, MAX_TURNS) : 0;
+  const turnNum = snapshot ? Math.min(snapshot.turn, status?.turnLimit ?? MAX_TURNS, MAX_TURNS) : 0;
 
   return (
     <header className="cg-header" data-testid="app-header">
@@ -85,7 +85,7 @@ export function AppHeader({
           <span className="cg-turn" data-testid="turn-label">
             <span className="cg-label" style={{ fontSize: 9 }}>turn</span>
             <span className="cg-num" style={{ fontSize: 34 }}>{pad(turnNum)}</span>
-            <span className="cg-mono" style={{ fontSize: 12, color: "var(--muted)" }}>/{MAX_TURNS}</span>
+            <span className="cg-mono" data-tip={status?.turnLimit != null ? `auto-stops at turn ${status.turnLimit} (of ${MAX_TURNS})` : undefined} style={{ fontSize: 12, color: "var(--muted)" }}>/{status?.turnLimit ?? MAX_TURNS}</span>
           </span>
         )}
         {connected ? (
