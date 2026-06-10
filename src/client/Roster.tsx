@@ -92,7 +92,7 @@ export function Roster({
                   </div>
                   <div className="cg-mono" style={{ fontSize: 8.5, color: "var(--muted)" }}>
                     <span data-tip="tiles currently aligned to this cog">{tiles} tiles</span>
-                    <span data-tip="total coherence across its tiles — the pool war Aligns (attacks/reinforcement) draw from" style={{ color: "var(--coherence)" }}> · {coh} coh</span>
+                    <span data-tip="total coherence across its tiles — the standing order of its territory" style={{ color: "var(--coherence)" }}> · {coh} coh</span>
                   </div>
                 </div>
                 <div data-tip={`${c.hearts} hearts — most hearts at turn 100 wins`} style={{ display: "flex", alignItems: "center", gap: 4 }}>

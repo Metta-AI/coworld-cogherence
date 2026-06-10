@@ -200,7 +200,7 @@ function orderOutcome(
 function orderLine(order: PlayedOrder): { verb: string; tone: string; action: string } {
   switch (order.type) {
     case "align":
-      return { verb: "ALIGN", tone: "align", action: `Align([${order.tile}], force=${order.force})` };
+      return { verb: "ALIGN", tone: "align", action: `Align([${order.tile}], ${order.energy}e)` };
     case "exploit":
       return { verb: "EXPLOIT", tone: "exploit", action: `Exploit([${order.tile}])` };
     case "abandon":

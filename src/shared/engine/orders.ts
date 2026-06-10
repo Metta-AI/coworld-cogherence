@@ -8,17 +8,15 @@ import { z } from "zod";
 import { MINERALS } from "./types";
 import type { GameState, CogId, HexKey } from "./types";
 import { distance } from "./hex";
+import { ALIGN_MAX_ENERGY } from "./constants";
 
 /** A heart-auction bid (energy). 0 means "no bid". */
 const BidOrder = z.object({ type: z.literal("bid"), energy: z.number().int().nonnegative() });
-/** Commit FORCE to a tile's tug-of-war (expand / capture / reinforce) — ANY
- *  in-board tile, not just neighbors, but force decays DISTANCE_FORCE_DECAY per
- *  hex beyond the first from your closest tile. Funding depends on the target:
- *  settling NEUTRAL ground is paid in energy, while Aligns against standing
- *  alignments (enemy tiles, or reinforcing your own) are paid in coherence
- *  transferred OUT of your other tiles, largest first (donors never drop below
- *  1). A set the cog cannot fund is rejected wholesale. */
-const AlignOrder = z.object({ type: z.literal("align"), tile: z.string(), force: z.number().int().positive() });
+/** Commit ENERGY to a tile's tug-of-war (expand / capture / reinforce) — ANY
+ *  in-board tile. The force arriving = floor(sqrt(energy − distance²)), where
+ *  distance is to the cog's closest tile (see alignForce). The full energy is
+ *  charged win or lose; a set the cog cannot fund is rejected wholesale. */
+const AlignOrder = z.object({ type: z.literal("align"), tile: z.string(), energy: z.number().int().positive().max(ALIGN_MAX_ENERGY) });
 /** Strip-mine an owned tile for a one-time windfall. */
 const ExploitOrder = z.object({ type: z.literal("exploit"), tile: z.string() });
 /** Return an owned tile to neutral; its standing coherence comes home as energy. */

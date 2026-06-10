@@ -2,11 +2,12 @@
 // a zod validator for its input, and a converter to the engine's Order[].
 // Malformed input -> [] (no orders, bid 0): the agent never throws (design §14.3).
 import { z } from "zod";
+import { ALIGN_MAX_ENERGY } from "../../shared/engine/constants";
 import { MINERALS } from "../../shared/engine/types";
 import type { Order } from "../../shared/engine/orders";
 import type { ToolDef } from "./tool-client";
 
-const alignSchema = z.object({ tile: z.string(), force: z.number().int().positive() });
+const alignSchema = z.object({ tile: z.string(), energy: z.number().int().positive().max(ALIGN_MAX_ENERGY) });
 const transferSchema = z.object({ to: z.string(), mineral: z.enum(MINERALS), amount: z.number().int().positive() });
 
 export const submitOrdersSchema = z.object({
@@ -30,14 +31,14 @@ export const SUBMIT_ORDERS_TOOL: ToolDef = {
       aligns: {
         type: "array",
         description:
-          "Commit force to a tile's tug-of-war. Settling a NEUTRAL tile costs that much ENERGY; attacking an enemy tile or reinforcing your own costs that much COHERENCE, transferred out of your other tiles largest-first (they never drop below 1). Target ANY tile: force decays 2 per hex of distance beyond 1 from your closest tile, and a fully-dissipated align is rejected.",
+          "Commit ENERGY (max 100) to a tile's tug-of-war. The force arriving = floor(sqrt(energy − distance²)), where distance is from your CLOSEST tile (your own tile = 0, adjacent = 1). 100e at distance 0 arrives as force 10. The full energy is charged win or lose; an align whose force fully dissipates is rejected. Target ANY tile.",
         items: {
           type: "object",
           properties: {
             tile: { type: "string", description: "tile key, e.g. '0,0' (axial q,r)" },
-            force: { type: "integer", minimum: 1 },
+            energy: { type: "integer", minimum: 1, maximum: 100 },
           },
-          required: ["tile", "force"],
+          required: ["tile", "energy"],
           additionalProperties: false,
         },
       },
@@ -74,7 +75,7 @@ export const SUBMIT_ORDERS_TOOL: ToolDef = {
 /** Convert a validated payload into engine Order[]. */
 export function toOrders(p: SubmitOrders): Order[] {
   const orders: Order[] = [];
-  for (const a of p.aligns ?? []) orders.push({ type: "align", tile: a.tile, force: a.force });
+  for (const a of p.aligns ?? []) orders.push({ type: "align", tile: a.tile, energy: a.energy });
   for (const t of p.abandons ?? []) orders.push({ type: "abandon", tile: t });
   for (const t of p.exploits ?? []) orders.push({ type: "exploit", tile: t });
   for (const tr of p.transfers ?? []) orders.push({ type: "transfer", to: tr.to, mineral: tr.mineral, amount: tr.amount });

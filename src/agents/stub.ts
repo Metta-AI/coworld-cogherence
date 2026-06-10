@@ -12,16 +12,15 @@ import type { Order } from "../shared/engine/orders";
 import type { Tile } from "../shared/engine/types";
 import { maxEnergy } from "../shared/engine/energy";
 import { neighbors, key, distance } from "../shared/engine/hex";
-import { DISTANCE_FORCE_DECAY } from "../shared/engine/constants";
+import { ALIGN_MAX_ENERGY } from "../shared/engine/constants";
 import { makeRng, randInt } from "../shared/engine/rng";
 
 const myEnergy = (view: AgentView): number => maxEnergy(view.state.cogs[view.me]!.treasury);
 const ownedTiles = (view: AgentView): Tile[] =>
   Object.values(view.state.tiles).filter((t) => t.alignment === view.me);
-/** Coherence available to fund WAR Aligns: Σ max(0, coherence − 1) across owned
- *  tiles, optionally excluding one (the align target can't donate to itself). */
-const cohPool = (view: AgentView, excludeKey?: string): number =>
-  ownedTiles(view).reduce((s, t) => (key(t.hex) === excludeKey ? s : s + Math.max(0, t.coherence - 1)), 0);
+/** Energy an Align must commit so `force` arrives at the tug-of-war from `dist`
+ *  hexes away: arriving force = floor(sqrt(energy − dist²)) (see alignForce). */
+const alignCostFor = (force: number, dist: number): number => Math.min(ALIGN_MAX_ENERGY, force * force + dist * dist);
 
 /** Non-owned tiles (neutral or enemy) adjacent to the cog's territory — its legal Align targets. */
 const adjacentTargets = (view: AgentView): Tile[] => {
@@ -39,8 +38,8 @@ const adjacentTargets = (view: AgentView): Tile[] => {
 const weakest = (tiles: Tile[]): Tile => tiles.reduce((a, b) => (a.coherence <= b.coherence ? a : b));
 
 /** The nearest NEUTRAL non-barren tile and its distance from the cog's closest
- *  tile (ties -> denser ground). Distance aligns lose DISTANCE_FORCE_DECAY per
- *  hex beyond the first, so closer is cheaper. */
+ *  tile (ties -> denser ground). Align energy scales with distance², so closer
+ *  is much cheaper. */
 const nearestNeutral = (view: AgentView): { tile: Tile; dist: number } | null => {
   const owned = ownedTiles(view);
   if (owned.length === 0) return null;
@@ -53,8 +52,7 @@ const nearestNeutral = (view: AgentView): { tile: Tile; dist: number } | null =>
   }
   return best;
 };
-/** Extra force an align must carry to arrive at full strength from `dist` away. */
-const decayFor = (dist: number): number => DISTANCE_FORCE_DECAY * Math.max(0, dist - 1);
+
 
 /** How many of a tile's in-board neighbors the cog already owns — its blob
  *  compactness. Allied neighbors cancel enemy resistance on the upkeep bill,
@@ -84,21 +82,22 @@ const bestPocket = (view: AgentView): Tile | null => {
 export const peacefulAgent = (id: string): Agent => ({
   id,
   commit: (view) => {
-    // Settle the NEAREST neutral ground with energy — distance aligns carry the
-    // decay surcharge — keeping a few turns of bills in reserve...
+    // Settle the NEAREST neutral ground — align energy scales with distance² —
+    // keeping a few turns of bills in reserve...
     const owned = ownedTiles(view);
     const spot = nearestNeutral(view);
     if (spot) {
       const spare = myEnergy(view) - 2 * Math.max(2, owned.length);
-      const force = Math.min(spare, 4 + decayFor(spot.dist));
-      if (force - decayFor(spot.dist) >= 1) return [{ type: "align", tile: key(spot.tile.hex), force }];
+      const energy = Math.min(spare, alignCostFor(2, spot.dist)); // aim to arrive at force 2
+      if (energy > spot.dist * spot.dist) return [{ type: "align", tile: key(spot.tile.hex), energy }];
       return [];
     }
-    // ...else shore up the weakest tile from the coherence pool.
+    // ...else shore up the weakest tile (distance 0: force = floor(sqrt(energy))).
     if (owned.length > 0) {
       const target = weakest(owned);
-      const force = Math.min(cohPool(view, key(target.hex)), 4);
-      if (force >= 1) return [{ type: "align", tile: key(target.hex), force }];
+      const spare = myEnergy(view) - 2 * Math.max(2, owned.length);
+      const energy = Math.min(spare, alignCostFor(2, 0));
+      if (energy >= 1) return [{ type: "align", tile: key(target.hex), energy }];
     }
     return [];
   },
@@ -121,47 +120,44 @@ export const greedyAgent = (id: string): Agent => ({
   commit: (view) => {
     const orders: Order[] = [];
     const owned = ownedTiles(view);
-    if (owned.length === 0) return []; // off the board: no adjacency to align, no right to bid
-    // War chest: the coherence pool funds rescues and raids; keep a small reserve.
-    let pool = Math.max(0, cohPool(view) - 2);
+    if (owned.length === 0) return []; // off the board: nothing to project from, no right to bid
     let energy = myEnergy(view);
     const billsReserve = 2 * owned.length; // ~a turn of worst-ish bills stays banked
+    const afford = (cost: number): boolean => energy - billsReserve >= cost;
 
-    // 1. Rescue any core tile one Upkeep from rotting to neutral (own tile -> pool).
+    // 1. Rescue any core tile one Upkeep from rotting to neutral (force 2 at distance 0 = 4e).
     const critical = owned
       .filter((t) => t.coherence <= 1 && ownNeighborCount(view, t) >= 2)
       .sort((a, b) => a.coherence - b.coherence)[0];
-    if (critical) {
-      const force = Math.min(3, Math.max(0, cohPool(view, key(critical.hex)) - 2));
-      if (force >= 1) {
-        orders.push({ type: "align", tile: key(critical.hex), force });
-        pool -= force;
-      }
+    if (critical && afford(alignCostFor(2, 0))) {
+      orders.push({ type: "align", tile: key(critical.hex), energy: alignCostFor(2, 0) });
+      energy -= alignCostFor(2, 0);
     }
-    // 2. Settle: claim the neutral pocket that most thickens the blob (energy);
-    //    with no adjacent pocket, reach for the nearest neutral ground instead,
-    //    paying the distance decay on top.
+    // 2. Settle: claim the neutral pocket that most thickens the blob; with no
+    //    adjacent pocket, reach for the nearest neutral ground (cost rises with
+    //    distance² under the sqrt arrival curve).
     const pocket = bestPocket(view);
-    if (pocket && pocket.alignment === null && energy - billsReserve >= 3) {
-      orders.push({ type: "align", tile: key(pocket.hex), force: 3 });
-      energy -= 3;
+    if (pocket && pocket.alignment === null && afford(alignCostFor(2, 1))) {
+      orders.push({ type: "align", tile: key(pocket.hex), energy: alignCostFor(2, 1) });
+      energy -= alignCostFor(2, 1);
     } else {
       const spot = nearestNeutral(view);
-      const cost = spot ? 3 + decayFor(spot.dist) : Infinity;
-      if (spot && spot.dist > 1 && energy - billsReserve >= cost) {
-        orders.push({ type: "align", tile: key(spot.tile.hex), force: cost });
+      const cost = spot ? alignCostFor(2, spot.dist) : Infinity;
+      if (spot && spot.dist > 1 && cost > spot.dist * spot.dist && afford(cost)) {
+        orders.push({ type: "align", tile: key(spot.tile.hex), energy: cost });
         energy -= cost;
       }
     }
-    // 3. Raid: flip a weak adjacent enemy when the pool covers it comfortably.
+    // 3. Raid: flip a weak adjacent enemy when the war chest covers arriving force
+    //    coherence+2 (captures it at 2) with room to spare.
     const prey = adjacentTargets(view)
       .filter((t) => t.alignment !== null && t.coherence <= 2)
       .sort((a, b) => a.coherence - b.coherence)[0];
     if (prey) {
-      const force = prey.coherence + 2;
-      if (pool - force >= 2) {
-        orders.push({ type: "align", tile: key(prey.hex), force });
-        pool -= force;
+      const cost = alignCostFor(prey.coherence + 2, 1);
+      if (afford(cost + 4)) {
+        orders.push({ type: "align", tile: key(prey.hex), energy: cost });
+        energy -= cost;
       }
     }
 
@@ -194,12 +190,12 @@ export const randomAgent = (id: string, seed: number): Agent => {
       const owned = ownedTiles(view);
       const cands: Order[] = [];
       for (const t of owned) {
-        const amt = Math.min(cohPool(view, key(t.hex)), 2); // reinforce: pool minus the target itself
-        if (amt >= 1) cands.push({ type: "align", tile: key(t.hex), force: amt });
+        const amt = Math.min(e, alignCostFor(1, 0)); // reinforce: 1e arrives as force 1 at distance 0
+        if (amt >= 1) cands.push({ type: "align", tile: key(t.hex), energy: amt });
       }
       for (const t of adjacentTargets(view)) {
-        const amt = Math.min(t.alignment === null ? e : cohPool(view), 2); // settle: energy; raid: pool
-        if (amt >= 1) cands.push({ type: "align", tile: key(t.hex), force: amt });
+        const amt = Math.min(e, alignCostFor(1, 1)); // adjacent: 2e arrives as force 1
+        if (amt >= 2) cands.push({ type: "align", tile: key(t.hex), energy: amt });
       }
       if (e >= 1) cands.push({ type: "bid", energy: 1 });
       if (owned.length > 1) {

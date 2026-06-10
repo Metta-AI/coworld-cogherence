@@ -55,8 +55,12 @@ export const EXPLOIT_DENSITY = 0.5;
 /** Energy charged per Transfer order. */
 export const TRANSFER_FEE = 1;
 
-/** Force decays travelling beyond your borders: an Align loses this much force
- *  per hex of distance PAST 1 from the cog's closest tile (so adjacent targets
- *  arrive at full strength, and reinforcing your own tile is distance 0). An
- *  align whose force fully dissipates before arriving is rejected. */
-export const DISTANCE_FORCE_DECAY = 2;
+/** Align economics: an Align commits ENERGY (at most ALIGN_MAX_ENERGY) and the
+ *  force arriving at the tug-of-war is floor(sqrt(energy − distance²)), where
+ *  distance is to the cog's closest tile (own tile = 0). The full committed
+ *  energy is charged win or lose; an align whose force fully dissipates is
+ *  rejected. At the cap, 100e at distance 0 arrives as force 10 — exactly the
+ *  coherence cap — so a fortress costs a full turn's fortune to stamp out. */
+export const ALIGN_MAX_ENERGY = 100;
+export const alignForce = (energy: number, dist: number): number =>
+  Math.floor(Math.sqrt(Math.max(0, energy - dist * dist)));
