@@ -26,6 +26,7 @@ import {
   tileStatus,
   tileCost,
   tileDrain,
+  mintEnergyBy,
 } from "./derive";
 
 const cogIdx = (id: string): number => {
@@ -275,6 +276,7 @@ export function TurnLog({ snapshot, events }: { snapshot: GameSnapshot; events: 
   const upkeepList = [...upkeepRows.entries()]
     .filter(([, r]) => Object.keys(r.mint).length > 0 || r.rot.length > 0 || r.lost.length > 0)
     .sort((a, b) => cogIdx(a[0]) - cogIdx(b[0]));
+  const mintEnergy = mintEnergyBy(events, snapshot); // what those minerals were worth in energy
 
   const dot = (i: number): React.ReactElement => (
     <span style={{ width: 7, height: 7, borderRadius: 2, background: cogColor(i), flex: "0 0 auto", marginTop: 4 }} />
@@ -361,13 +363,14 @@ export function TurnLog({ snapshot, events }: { snapshot: GameSnapshot; events: 
             {upkeepList.length === 0 && <Quiet text="quiet turn — every bill paid, nothing minted." />}
             {upkeepList.length > 0 && (
               <div
-                style={{ display: "grid", gridTemplateColumns: "minmax(52px, auto) repeat(4, minmax(30px, auto)) 1fr", columnGap: 9, rowGap: 3, alignItems: "baseline", padding: "4px 0" }}
-                data-tip="minerals minted this upkeep (density × coherence / 5 per tile)"
+                style={{ display: "grid", gridTemplateColumns: "minmax(52px, auto) repeat(5, minmax(30px, auto)) 1fr", columnGap: 9, rowGap: 3, alignItems: "baseline", padding: "4px 0" }}
+                data-tip="minerals minted this upkeep (density × coherence / 5 per tile) and their energy value"
               >
                 <span />
                 {MINERALS.map((m) => (
                   <span key={m} className={`cg-min ${minClass(m)}`} style={{ justifySelf: "end" }}>{m}</span>
                 ))}
+                <span style={{ justifySelf: "end" }}><CGIcon name="energy" size={13} /></span>
                 <span />
                 {upkeepList.map(([cog, r]) => {
                   const ci = cogIdx(cog);
@@ -382,6 +385,9 @@ export function TurnLog({ snapshot, events }: { snapshot: GameSnapshot; events: 
                           {(r.mint[m] ?? 0) > 0 ? `+${r.mint[m]}` : "·"}
                         </span>
                       ))}
+                      <span className="cg-mono" style={{ fontSize: 10, fontWeight: 700, justifySelf: "end", color: (mintEnergy.get(cog) ?? 0) > 0 ? "var(--energy)" : "var(--muted-2)" }}>
+                        {(mintEnergy.get(cog) ?? 0) > 0 ? `+${mintEnergy.get(cog)}` : "·"}
+                      </span>
                       <span className="cg-mono" style={{ fontSize: 10, color: "var(--exploit)", minWidth: 0 }}>
                         {r.rot.length > 0 && <span data-tip="unpaid tiles under resistance — each lost 1 coherence">rot {r.rot.join(" ")}</span>}
                         {r.rot.length > 0 && r.lost.length > 0 && " · "}
