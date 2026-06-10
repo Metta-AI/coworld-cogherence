@@ -6,7 +6,7 @@ import type { GameSnapshot } from "../shared/snapshot";
 import type { StampedEvent } from "./net/feed";
 import { cogColor, cogName } from "./colors";
 import { CGIcon, CogSigil, Wallet } from "./cg/atoms";
-import { mintEnergyBy, rankedByHearts, territory, upkeepBy } from "./cg/derive";
+import { expectedMintBy, mintEnergyBy, rankedByHearts, territory, upkeepBy } from "./cg/derive";
 
 export function Roster({
   snapshot,
@@ -28,6 +28,7 @@ export function Roster({
   const terr = territory(snapshot);
   const upkeep = upkeepBy(snapshot);
   const income = events ? mintEnergyBy(events, snapshot) : null;
+  const expected = expectedMintBy(snapshot);
   return (
     <div className="cg-panel" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }} data-testid="roster">
       <div className="cg-panel-head">
@@ -101,7 +102,7 @@ export function Roster({
                   </span>
                 </div>
               </div>
-              <Wallet treasury={c.treasury} energy={c.energy} upkeep={upkeep.get(c.id) ?? 0} income={income?.get(c.id)} />
+              <Wallet treasury={c.treasury} energy={c.energy} upkeep={upkeep.get(c.id) ?? 0} income={income?.get(c.id)} expected={expected.get(c.id)} />
             </button>
           );
         })}

@@ -8,7 +8,7 @@
 import type { GameSnapshot, TileSnapshot } from "../../shared/snapshot";
 import type { TurnEvent } from "../../shared/engine/log";
 import type { StampedEvent } from "../net/feed";
-import { REGEN_COST, tileUpkeepCost } from "../../shared/engine/constants";
+import { MINT_DIVISOR, REGEN_COST, tileUpkeepCost } from "../../shared/engine/constants";
 import { maxEnergy } from "../../shared/engine/energy";
 
 export const MINERALS = ["C", "O", "Ge", "S"] as const;
@@ -158,6 +158,20 @@ export function tileCost(t: TileSnapshot, map: TileMap): number {
   const friendly = nb.filter((n) => n.alignment === t.alignment).length;
   const enemies = nb.filter((n) => n.alignment !== null && n.alignment !== t.alignment).length;
   return tileUpkeepCost(friendly, enemies);
+}
+
+/** Expected mineral income per cog at the NEXT Upkeep: Σ density × coherence /
+ *  MINT_DIVISOR over its tiles, per mineral — the stochastic mint's expected
+ *  value at current coherence. */
+export function expectedMintBy(snap: GameSnapshot): Map<string, Record<Mineral, number>> {
+  const out = new Map<string, Record<Mineral, number>>();
+  for (const c of snap.cogs) out.set(c.id, { C: 0, O: 0, Ge: 0, S: 0 });
+  for (const t of snap.tiles) {
+    if (!t.alignment) continue;
+    const r = out.get(t.alignment);
+    if (r) r[t.mineral as Mineral] += (t.density * t.coherence) / MINT_DIVISOR;
+  }
+  return out;
 }
 
 /** Energy value of each cog's mint on the turn that produced `snap` — what the

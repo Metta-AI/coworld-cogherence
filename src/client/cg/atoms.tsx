@@ -129,7 +129,7 @@ export function CogSigil({ index, size = 30, glow = true }: { index: number; siz
 /** A compact COGS wallet: the four mineral counts + energy as a fifth resource
  *  chip. The energy math (derivation, income, upkeep, net trend) lives in the
  *  chip's hover tip. */
-export function Wallet({ treasury, energy, upkeep, income }: { treasury: Treasury; energy: number; upkeep?: number; income?: number }): React.ReactElement {
+export function Wallet({ treasury, energy, upkeep, income, expected }: { treasury: Treasury; energy: number; upkeep?: number; income?: number; expected?: Record<string, number> }): React.ReactElement {
   const sets = setsOf(treasury);
   const delta = income != null ? income - (upkeep ?? 0) : null;
   const tipRow = (label: string, val: number, sign = false): string =>
@@ -145,7 +145,15 @@ export function Wallet({ treasury, energy, upkeep, income }: { treasury: Treasur
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
       {MINERALS.map((m) => (
-        <span key={m} data-tip={`${MINERAL_NAME[m]} in treasury: ${treasury[m]}`} style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+        <span
+          key={m}
+          data-tip={
+            expected != null
+              ? `${(MINERAL_NAME[m] ?? m).padEnd(11)}${String(treasury[m]).padStart(6)}\n${"mint /turn".padEnd(11)}${`+${(expected[m] ?? 0).toFixed(1)}`.padStart(6)}`
+              : `${MINERAL_NAME[m]} in treasury: ${treasury[m]}`
+          }
+          style={{ display: "inline-flex", alignItems: "center", gap: 3 }}
+        >
           <span className={`cg-min ${minClass(m)}`}>{m}</span>
           <span className="cg-mono" style={{ fontSize: 12, fontWeight: 600, color: treasury[m] ? "var(--text)" : "var(--muted-2)" }}>
             {treasury[m]}
