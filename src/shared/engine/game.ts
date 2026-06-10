@@ -12,7 +12,8 @@ import { generateBoard } from "./board";
 import { resolve } from "./resolve";
 import { upkeep } from "./upkeep";
 import { maxEnergy } from "./energy";
-import { MAX_TURNS, FIRST_COMMIT_REWARD } from "./constants";
+import { MAX_TURNS, FIRST_COMMIT_REWARD, ALIGN_REPEAT_SURCHARGE, alignEnergyCost } from "./constants";
+import { alignDistance } from "./orders";
 
 /** A fresh game at turn 1. */
 export function newGame(seed: number, numCogs: number): GameState {
@@ -54,9 +55,15 @@ export function stepTurn(
   const hearts: Record<CogId, number> = {};
   for (const id of u.state.cogOrder) hearts[id] = award.cogs[id]!.hearts;
   // every order as played, ahead of its consequences — the Turn Log pairs them
-  const played: TurnEvent[] = state.cogOrder.flatMap((id) =>
-    (ordersByCog[id] ?? []).map((order): TurnEvent => ({ type: "order", cog: id, order })),
-  );
+  // (aligns carry their billed energy: force² + distance² + the repeat surcharge)
+  const played: TurnEvent[] = state.cogOrder.flatMap((id) => {
+    let alignIdx = 0;
+    return (ordersByCog[id] ?? []).map((order): TurnEvent => {
+      if (order.type !== "align") return { type: "order", cog: id, order };
+      const cost = alignEnergyCost(order.force, alignDistance(state, id, order.tile)) + ALIGN_REPEAT_SURCHARGE * alignIdx++;
+      return { type: "order", cog: id, order, cost };
+    });
+  });
   const record: TurnRecord = {
     turn: state.turn,
     events: [...played, ...r.events, ...u.events, ...(award.event ? [award.event] : [])],

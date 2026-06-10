@@ -59,13 +59,13 @@ describe("AutopilotPanel", () => {
       vi.fn(() => Promise.resolve({ json: () => Promise.resolve({ persona: "", paused: true }) } as Response)),
     );
     const pending = [
-      { type: "align" as const, tile: "3,-4", energy: 5 },
+      { type: "align" as const, tile: "3,-4", force: 2 },
       { type: "exploit" as const, tile: "0,0" },
     ];
     const { getByTestId, getAllByText } = render(
       <AutopilotPanel cogId="cog0" pending={pending} onCancelPending={onCancel} onReady={onReady} />,
     );
-    await waitFor(() => expect(getByTestId("pending-actions").textContent).toContain("Align([3,-4], 5e)"));
+    await waitFor(() => expect(getByTestId("pending-actions").textContent).toContain("Align([3,-4], force=2)"));
     expect(getByTestId("pending-actions").textContent).toContain("Exploit([0,0])");
     fireEvent.click(getAllByText("✕")[1]!);
     expect(onCancel).toHaveBeenCalledWith(1);

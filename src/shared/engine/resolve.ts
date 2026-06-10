@@ -1,10 +1,10 @@
 // The Resolve phase: all Cogs' Commit-phase orders execute simultaneously in a
 // single LOCKED sequence — validate+budget, sealed second-price heart auction
 // (reserve 1e; only cogs holding ground may bid), charge, exploits/abandons,
-// align tug-of-war, then assemble next-turn treasuries. Aligns are paid in
-// ENERGY (at most ALIGN_MAX_ENERGY each): the force arriving at the tile is
-// floor(sqrt(energy − distance²)) — see alignForce — and the full committed
-// energy is charged win or lose. Pure: the input GameState is never mutated.
+// align tug-of-war, then assemble next-turn treasuries. Aligns commit FORCE;
+// the engine bills energy = force² + distance² (see alignEnergyCost), rejecting
+// anything beyond the ALIGN_MAX_ENERGY reach, and the full cost is charged win
+// or lose. Pure: the input GameState is never mutated.
 //
 // Two invariants drive the design:
 //  - chargeEnergy is monotonic (affordable iff maxEnergy >= need), so a Cog that
@@ -18,7 +18,7 @@ import { chargeEnergy, maxEnergy } from "./energy";
 import { resolveTile } from "./coherence";
 import { alignDistance, isLegalAlignTarget, isOwn } from "./orders";
 import type { Order } from "./orders";
-import { ALIGN_MAX_ENERGY, ALIGN_REPEAT_SURCHARGE, alignForce, EXPLOIT_MULT, EXPLOIT_DENSITY, TRANSFER_FEE } from "./constants";
+import { ALIGN_MAX_ENERGY, ALIGN_REPEAT_SURCHARGE, alignEnergyCost, COHERENCE_MAX, EXPLOIT_MULT, EXPLOIT_DENSITY, TRANSFER_FEE } from "./constants";
 
 /** Events emitted by a Resolve phase (for the turn log / replay). */
 export type ResolveEvent =
@@ -35,7 +35,7 @@ const addT = (a: Treasury, b: Treasury): Treasury => ({ C: a.C + b.C, O: a.O + b
 
 /** A validated, affordable Cog's intent, ready to apply in the locked sequence. */
 interface Plan {
-  /** [tile, energy paid, arriving force = floor(sqrt(energy − distance²))]. */
+  /** [tile, energy billed (cost + repeat surcharge), arriving force]. */
   aligns: Array<[HexKey, number, number]>;
   exploits: HexKey[];
   abandons: HexKey[];
@@ -77,16 +77,16 @@ export function resolve(
     for (const o of orders) {
       if (reject) break;
       if (o.type === "align") {
-        if (o.energy < 1) reject = `align ${o.tile} needs at least 1 energy`;
-        else if (o.energy > ALIGN_MAX_ENERGY) reject = `align ${o.tile} exceeds the ${ALIGN_MAX_ENERGY}e cap`;
+        if (o.force < 1) reject = `align ${o.tile} needs at least 1 force`;
+        else if (o.force > COHERENCE_MAX) reject = `align ${o.tile} exceeds the force cap ${COHERENCE_MAX}`;
         else if (!isLegalAlignTarget(state, cogId, o.tile)) reject = `illegal align ${o.tile}`;
         else {
-          // arriving force = floor(sqrt(energy − distance²)), distance to the closest own tile
+          // energy billed = force² + distance² to the closest own tile
           const dist = alignDistance(state, cogId, o.tile);
-          const eff = alignForce(o.energy, dist);
-          if (eff < 1) reject = `align ${o.tile} dissipates over distance ${dist}`;
+          const cost = alignEnergyCost(o.force, dist);
+          if (cost > ALIGN_MAX_ENERGY) reject = `align ${o.tile} out of reach (${cost}e > ${ALIGN_MAX_ENERGY}e)`;
           // the k-th Align this turn bills k×10e extra (pure overhead, no force)
-          else aligns.push([o.tile, o.energy + ALIGN_REPEAT_SURCHARGE * alignIdx++, eff]);
+          else aligns.push([o.tile, cost + ALIGN_REPEAT_SURCHARGE * alignIdx++, o.force]);
         }
       } else if (o.type === "exploit") {
         if (!isOwn(state, cogId, o.tile)) reject = `illegal exploit ${o.tile}`;

@@ -43,7 +43,7 @@ describe("stub agents", () => {
       for (const o of await agent.commit({ state: s, me: "A" })) {
         if (o.type === "align") {
           expect(isLegalAlignTarget(s, "A", o.tile)).toBe(true);
-          expect(o.energy).toBeLessThanOrEqual(2); // reinforce 1e (d0) / adjacent 2e (d1) — arriving force 1
+          expect(o.force).toBe(1); // randoms reinforce/settle at force 1 (1e at d0 / 2e adjacent)
         } else if (o.type === "exploit") {
           expect(isOwn(s, "A", o.tile)).toBe(true);
         } else if (o.type === "bid") {

@@ -44,7 +44,7 @@ export const gameSnapshotSchema = z
   .strict();
 
 const orderSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("align"), tile: z.string(), energy: z.number().int() }).strict(),
+  z.object({ type: z.literal("align"), tile: z.string(), force: z.number().int() }).strict(),
   z.object({ type: z.literal("exploit"), tile: z.string() }).strict(),
   z.object({ type: z.literal("abandon"), tile: z.string() }).strict(),
   z.object({ type: z.literal("transfer"), to: z.string(), mineral: mineralSchema, amount: z.number().int() }).strict(),
@@ -52,7 +52,7 @@ const orderSchema = z.discriminatedUnion("type", [
 ]);
 
 export const turnEventSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("order"), cog: z.string(), order: orderSchema }).strict(),
+  z.object({ type: z.literal("order"), cog: z.string(), order: orderSchema, cost: z.number().int().optional() }).strict(),
   z.object({ type: z.literal("rejected"), cog: z.string(), reason: z.string() }).strict(),
   z
     .object({ type: z.literal("transfer"), from: z.string(), to: z.string(), mineral: mineralSchema, amount: z.number().int() })

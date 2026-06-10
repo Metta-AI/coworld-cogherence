@@ -197,10 +197,10 @@ function orderOutcome(
   }
 }
 
-function orderLine(order: PlayedOrder): { verb: string; tone: string; action: string } {
+function orderLine(order: PlayedOrder, cost?: number): { verb: string; tone: string; action: string } {
   switch (order.type) {
     case "align":
-      return { verb: "ALIGN", tone: "align", action: `Align([${order.tile}], ${order.energy}e)` };
+      return { verb: "ALIGN", tone: "align", action: `Align([${order.tile}], force=${order.force})${cost != null ? ` · ${cost}e` : ""}` };
     case "exploit":
       return { verb: "EXPLOIT", tone: "exploit", action: `Exploit([${order.tile}])` };
     case "abandon":
@@ -239,7 +239,7 @@ export function TurnLog({ snapshot, events }: { snapshot: GameSnapshot; events: 
   const actions: LogLine[] = [];
   for (const e of evs) {
     if (e.type !== "order" || e.order.type === "bid") continue;
-    const { verb, tone, action } = orderLine(e.order);
+    const { verb, tone, action } = orderLine(e.order, e.cost);
     const { outcome, failed } = orderOutcome(e.cog, e.order, evs, rejectedBy.get(e.cog), map);
     actions.push({ cog: e.cog, verb, tone, action, outcome, failed });
   }

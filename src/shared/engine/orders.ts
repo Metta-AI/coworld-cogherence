@@ -8,15 +8,16 @@ import { z } from "zod";
 import { MINERALS } from "./types";
 import type { GameState, CogId, HexKey } from "./types";
 import { distance } from "./hex";
-import { ALIGN_MAX_ENERGY } from "./constants";
+import { COHERENCE_MAX } from "./constants";
 
 /** A heart-auction bid (energy). 0 means "no bid". */
 const BidOrder = z.object({ type: z.literal("bid"), energy: z.number().int().nonnegative() });
-/** Commit ENERGY to a tile's tug-of-war (expand / capture / reinforce) — ANY
- *  in-board tile. The force arriving = floor(sqrt(energy − distance²)), where
- *  distance is to the cog's closest tile (see alignForce). The full energy is
- *  charged win or lose; a set the cog cannot fund is rejected wholesale. */
-const AlignOrder = z.object({ type: z.literal("align"), tile: z.string(), energy: z.number().int().positive().max(ALIGN_MAX_ENERGY) });
+/** Commit FORCE (1..COHERENCE_MAX) to a tile's tug-of-war (expand / capture /
+ *  reinforce) — ANY in-board tile. The ENERGY billed = force² + distance² to
+ *  the cog's closest tile (see alignEnergyCost), rejected when it exceeds
+ *  ALIGN_MAX_ENERGY (out of reach). Full cost charged win or lose; a set the
+ *  cog cannot fund is rejected wholesale. */
+const AlignOrder = z.object({ type: z.literal("align"), tile: z.string(), force: z.number().int().positive().max(COHERENCE_MAX) });
 /** Strip-mine an owned tile for a one-time windfall. */
 const ExploitOrder = z.object({ type: z.literal("exploit"), tile: z.string() });
 /** Return an owned tile to neutral; its standing coherence comes home as energy. */

@@ -12,15 +12,16 @@ import type { Order } from "../shared/engine/orders";
 import type { Tile } from "../shared/engine/types";
 import { maxEnergy } from "../shared/engine/energy";
 import { neighbors, key, distance } from "../shared/engine/hex";
-import { ALIGN_MAX_ENERGY, ALIGN_REPEAT_SURCHARGE, upkeepBase } from "../shared/engine/constants";
+import { ALIGN_MAX_ENERGY, ALIGN_REPEAT_SURCHARGE, alignEnergyCost, upkeepBase } from "../shared/engine/constants";
 import { makeRng, randInt } from "../shared/engine/rng";
 
 const myEnergy = (view: AgentView): number => maxEnergy(view.state.cogs[view.me]!.treasury);
 const ownedTiles = (view: AgentView): Tile[] =>
   Object.values(view.state.tiles).filter((t) => t.alignment === view.me);
-/** Energy an Align must commit so `force` arrives at the tug-of-war from `dist`
- *  hexes away: arriving force = floor(sqrt(energy − dist²)) (see alignForce). */
-const alignCostFor = (force: number, dist: number): number => Math.min(ALIGN_MAX_ENERGY, force * force + dist * dist);
+/** What an Align of `force` from `dist` hexes away bills (force² + dist²); a
+ *  cost above ALIGN_MAX_ENERGY is out of reach for the engine. */
+const alignCostFor = alignEnergyCost;
+const inReach = (force: number, dist: number): boolean => alignEnergyCost(force, dist) <= ALIGN_MAX_ENERGY;
 
 /** Non-owned tiles (neutral or enemy) adjacent to the cog's territory — its legal Align targets. */
 const adjacentTargets = (view: AgentView): Tile[] => {
@@ -88,16 +89,18 @@ export const peacefulAgent = (id: string): Agent => ({
     const spot = nearestNeutral(view);
     if (spot) {
       const spare = myEnergy(view) - Math.max(2, owned.length) * (upkeepBase(owned.length) + 1);
-      const energy = Math.min(spare, alignCostFor(2, spot.dist)); // aim to arrive at force 2
-      if (energy > spot.dist * spot.dist) return [{ type: "align", tile: key(spot.tile.hex), energy }];
+      // aim to arrive at force 2; fall back to 1 when the budget is thin
+      const force = alignCostFor(2, spot.dist) <= spare ? 2 : 1;
+      if (alignCostFor(force, spot.dist) <= spare && inReach(force, spot.dist))
+        return [{ type: "align", tile: key(spot.tile.hex), force }];
       return [];
     }
-    // ...else shore up the weakest tile (distance 0: force = floor(sqrt(energy))).
+    // ...else shore up the weakest tile (distance 0: cost = force²).
     if (owned.length > 0) {
       const target = weakest(owned);
       const spare = myEnergy(view) - Math.max(2, owned.length) * (upkeepBase(owned.length) + 1);
-      const energy = Math.min(spare, alignCostFor(2, 0));
-      if (energy >= 1) return [{ type: "align", tile: key(target.hex), energy }];
+      const force = alignCostFor(2, 0) <= spare ? 2 : 1;
+      if (alignCostFor(force, 0) <= spare) return [{ type: "align", tile: key(target.hex), force }];
     }
     return [];
   },
@@ -127,9 +130,9 @@ export const greedyAgent = (id: string): Agent => ({
     // each extra Align this turn bills +10e overhead — budget it alongside the order
     let alignsMade = 0;
     const surcharge = (): number => alignsMade * ALIGN_REPEAT_SURCHARGE;
-    const queueAlign = (tile: string, e: number): void => {
-      orders.push({ type: "align", tile, energy: e });
-      energy -= e + surcharge();
+    const queueAlign = (tile: string, force: number, cost: number): void => {
+      orders.push({ type: "align", tile, force });
+      energy -= cost + surcharge();
       alignsMade++;
     };
 
@@ -138,19 +141,19 @@ export const greedyAgent = (id: string): Agent => ({
       .filter((t) => t.coherence <= 1 && ownNeighborCount(view, t) >= 2)
       .sort((a, b) => a.coherence - b.coherence)[0];
     if (critical && afford(alignCostFor(2, 0) + surcharge())) {
-      queueAlign(key(critical.hex), alignCostFor(2, 0));
+      queueAlign(key(critical.hex), 2, alignCostFor(2, 0));
     }
     // 2. Settle: claim the neutral pocket that most thickens the blob; with no
     //    adjacent pocket, reach for the nearest neutral ground (cost rises with
     //    distance² under the sqrt arrival curve).
     const pocket = bestPocket(view);
     if (pocket && pocket.alignment === null && afford(alignCostFor(2, 1) + surcharge())) {
-      queueAlign(key(pocket.hex), alignCostFor(2, 1));
+      queueAlign(key(pocket.hex), 2, alignCostFor(2, 1));
     } else {
       const spot = nearestNeutral(view);
       const cost = spot ? alignCostFor(2, spot.dist) : Infinity;
-      if (spot && spot.dist > 1 && cost > spot.dist * spot.dist && afford(cost + surcharge())) {
-        queueAlign(key(spot.tile.hex), cost);
+      if (spot && spot.dist > 1 && inReach(2, spot.dist) && afford(cost + surcharge())) {
+        queueAlign(key(spot.tile.hex), 2, cost);
       }
     }
     // 3. Raid: flip a weak adjacent enemy when the war chest covers arriving force
@@ -159,9 +162,10 @@ export const greedyAgent = (id: string): Agent => ({
       .filter((t) => t.alignment !== null && t.coherence <= 2)
       .sort((a, b) => a.coherence - b.coherence)[0];
     if (prey) {
-      const cost = alignCostFor(prey.coherence + 2, 1);
-      if (afford(cost + surcharge() + 4)) {
-        queueAlign(key(prey.hex), cost);
+      const force = prey.coherence + 2;
+      const cost = alignCostFor(force, 1);
+      if (inReach(force, 1) && afford(cost + surcharge() + 4)) {
+        queueAlign(key(prey.hex), force, cost);
       }
     }
 
@@ -194,12 +198,10 @@ export const randomAgent = (id: string, seed: number): Agent => {
       const owned = ownedTiles(view);
       const cands: Order[] = [];
       for (const t of owned) {
-        const amt = Math.min(e, alignCostFor(1, 0)); // reinforce: 1e arrives as force 1 at distance 0
-        if (amt >= 1) cands.push({ type: "align", tile: key(t.hex), energy: amt });
+        if (e >= alignCostFor(1, 0)) cands.push({ type: "align", tile: key(t.hex), force: 1 }); // 1e at distance 0
       }
       for (const t of adjacentTargets(view)) {
-        const amt = Math.min(e, alignCostFor(1, 1)); // adjacent: 2e arrives as force 1
-        if (amt >= 2) cands.push({ type: "align", tile: key(t.hex), energy: amt });
+        if (e >= alignCostFor(1, 1)) cands.push({ type: "align", tile: key(t.hex), force: 1 }); // 2e adjacent
       }
       if (e >= 1) cands.push({ type: "bid", energy: 1 });
       if (owned.length > 1) {

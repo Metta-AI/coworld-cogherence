@@ -94,18 +94,18 @@ Energy is the **sole limiter**: do as much as you can afford. Every order draws 
 ### Align — the constructive verb (expand / capture / reinforce)
 Pour energy into a tile as **pressure** toward your alignment. Resolution is a **tug-of-war**, settled simultaneously across every Cog targeting the tile:
 
-- **Aligns are paid in ENERGY** (at most **100e** per Align), and the force that arrives at the tug-of-war is **⌊√(energy − distance²)⌋**, where distance is to your **closest** tile (your own tile = 0, adjacent = 1). At the cap, 100e at distance 0 arrives as **force 10** — exactly the Coherence cap. The FULL committed energy is charged win or lose; an Align whose force fully dissipates is rejected. Reach is quadratically expensive: power projection is real, but it burns money.
+- **Aligns commit FORCE (1–10); the engine bills the energy**: cost = **force² + distance²**, where distance is to your **closest** tile (your own tile = 0, adjacent = 1). A cost above **100e** is out of reach and rejected — force 10 at distance 0 is exactly 100e, so a maxed fortress is a full fortune to stamp out. The FULL cost is charged win or lose. Reach is quadratically expensive: power projection is real, but it burns money.
 - **Repeat tax.** The k-th Align you submit in one turn bills an extra **(k−1) × 10e** — first free, then +10, +20, … Pure overhead, no force: focused strikes are efficient, shotgun turns are not.
 - **Each Cog's force** = what arrives. The **incumbent** (current owner) adds its **standing Coherence** as free defense, so incumbent force = standing Coherence + any arriving force the owner also commits.
 - **Winner** = highest total force; **Alignment = winner**. **New Coherence = winner's force − next-highest *opposing* force**, clamped to `[0, cap]` (cap = the tile's neighbor count, normally 6).
 - A winning Align **flips** the tile the instant the challenger's force exceeds the incumbent's — even from high Coherence (§4). **Ties** in top force leave the tile with its current owner, or neutral, at Coherence 0.
 
-Examples (all adjacent, distance 1, so force = ⌊√(e−1)⌋):
-- A commits **10e**, B commits **5e** on a **neutral** tile → forces 3 vs 2 → **A holds it at Coherence 1** — and both spent what they committed.
-- A's tile at Coherence 4, B attacks with **17e** (force 4), A doesn't respond → 4 vs 4 ties → the tile **annihilates to neutral**.
-- A's tile at Coherence 4, B attacks with **26e** (force 5) → **flips to B at 1** (5−4). Flipping defended ground is expensive by design.
-- Reinforcing your **own** tile is distance 0: **9e** climbs it **+3** (`⌊√9⌋`, capped at 10).
-- A Coherence-10 fortress cannot be out-forced by any single Align — the 100e cap arrives as exactly force 10.
+Examples (all adjacent, distance 1, so cost = force² + 1):
+- A commits **force 3** (10e), B commits **force 2** (5e) on a **neutral** tile → **A holds it at Coherence 1** — and both paid in full.
+- A's tile at Coherence 4, B attacks with **force 4** (17e), A doesn't respond → 4 vs 4 ties → the tile **annihilates to neutral**.
+- A's tile at Coherence 4, B attacks with **force 5** (26e) → **flips to B at 1** (5−4). Flipping defended ground is expensive by design.
+- Reinforcing your **own** tile is distance 0: **force 3** costs 9e and climbs it **+3** (capped at 10).
+- A Coherence-10 fortress cannot be out-forced by any single Align — force caps at 10.
 
 Align is also what keeps the shared economy alive: adding Coherence *is* restoring the board's order.
 
@@ -253,17 +253,17 @@ A Cog never sees another Cog's treasury, pending orders, sealed bid, or private 
 **Commit phase** — exactly one secret order set:
 ```json
 {
-  "align":    [{ "tile": "<id>", "energy": 25 }],
+  "align":    [{ "tile": "<id>", "force": 4 }],
   "exploit":  [{ "tile": "<id>" }],
   "transfer": [{ "to": "<cog_id>", "mineral": "S", "amount": 2 }],
   "bid":      3
 }
 ```
-All keys optional; omit or use `[]` / `0` for none. `1 ≤ align.energy ≤ 100`, `transfer.amount ≥ 1`, `bid ≥ 0`.
+All keys optional; omit or use `[]` / `0` for none. `1 ≤ align.force ≤ 10`, `transfer.amount ≥ 1`, `bid ≥ 0`.
 
 ### 14.3 Validation & failure (deterministic, engine-enforced)
-- **Legal targets:** Align any in-board tile (you must hold ground to project from; arriving force = ⌊√(energy − distance²)⌋ from your closest tile, and a fully-dissipated Align is rejected); Exploit / Abandon only tiles the Cog currently owns; Transfer only minerals it holds. An illegal entry rejects the **whole order set** (logged), never errors.
-- **Budget (Commit):** committed **energy** = Σ `align.energy` + the repeat-align tax (+10e, +20e, … for the 2nd, 3rd, … Align) + (1 per transfer) + `bid`, drawn from the treasury converted on demand (§6). Windfalls (Exploit, Abandon) are **next-turn money** and cannot fund this turn's spend. A set that exceeds the budget is **rejected wholesale** and logged — never partially applied. A bid only needs to be *covered* at commit — only the **winner** actually pays, and only the **clearing price** (§8); losers pay nothing.
+- **Legal targets:** Align any in-board tile (you must hold ground to project from; the bill is force² + distance² from your closest tile, and a cost above 100e is out of reach — rejected); Exploit / Abandon only tiles the Cog currently owns; Transfer only minerals it holds. An illegal entry rejects the **whole order set** (logged), never errors.
+- **Budget (Commit):** committed **energy** = Σ (align force² + distance²) + the repeat-align tax (+10e, +20e, … for the 2nd, 3rd, … Align) + (1 per transfer) + `bid`, drawn from the treasury converted on demand (§6). Windfalls (Exploit, Abandon) are **next-turn money** and cannot fund this turn's spend. A set that exceeds the budget is **rejected wholesale** and logged — never partially applied. A bid only needs to be *covered* at commit — only the **winner** actually pays, and only the **clearing price** (§8); losers pay nothing.
 - **Upkeep** is separate (step 5 below): each owned tile bills by its neighborhood (§6); any shortfall is paid in **Coherence loss**, not order failure.
 - **Malformed / missing output** (timeout, invalid JSON, unknown tile id): the Cog is treated as **no orders, bid 0** for the turn, and it's logged. The game never stalls on one agent.
 
@@ -308,9 +308,9 @@ t1 is A's frontier O-tile (B eyes it); t2 is unclaimed **S** that A badly needs;
 - **DM (A→B):** "You're starved for O — I'll send 2 O this turn if you leave t1 alone." B: "Deal."
 
 ### 2. Commit (secret, simultaneous §7)
-- **A** (13e): Align **t2** ← **10e** *(adjacent → force ⌊√9⌋ = 3)* · **Exploit t3** · **Transfer 2 O → B** (1e) · **bid 2.** Energy committed: 10 + 1 + 2 = all 13. *(A intends to keep its word.)*
-- **B** (14e): Align **t1** ← **10e** *(adjacent → force 3)* · **bid 4.** All-in. *(Betrayal — attacks the truce tile.)*
-- **C** (10e): Align **t2** ← **5e** *(force 2)* · **bid 2.**
+- **A** (13e): Align **t2** ← **force 3** *(adjacent: bills 3² + 1 = 10e)* · **Exploit t3** · **Transfer 2 O → B** (1e) · **bid 2.** Energy committed: 10 + 1 + 2 = all 13. *(A intends to keep its word.)*
+- **B** (14e): Align **t1** ← **force 3** *(10e)* · **bid 4.** All-in. *(Betrayal — attacks the truce tile.)*
+- **C** (10e): Align **t2** ← **force 2** *(5e)* · **bid 2.**
 
 ### 3. Resolve (canonical order §14.4)
 **① Exploit** — A scorches t3 (Coh 2, Ge, D1) before losing it: windfall = 2 × Coherence × Density = 2 × 2 × 1 = **4 Ge** to A (minted now, can fund the rest of A's turn); t3 → **neutral @ 0**, Density **1 → 0** (scarred, §12).

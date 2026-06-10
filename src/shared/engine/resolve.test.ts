@@ -40,7 +40,7 @@ describe("resolve", () => {
       cogOrder: ["A"], treasuries: { A: T(1, 1, 1, 1) },
     });
     const orders: Record<CogId, Order[]> = {
-      A: [ { type: "align", tile: "9,9", energy: 1 }, { type: "exploit", tile: "0,0" } ], // (9,9) off-board -> illegal
+      A: [ { type: "align", tile: "9,9", force: 1 }, { type: "exploit", tile: "0,0" } ], // (9,9) off-board -> illegal
     };
     const { state, events } = resolve(s, orders);
     expect(at(state, 0, 0)).toMatchObject({ alignment: "A", coherence: 3, density: 2 }); // untouched
@@ -48,81 +48,81 @@ describe("resolve", () => {
     expect(events.some((e) => e.type === "rejected" && e.cog === "A")).toBe(true);
   });
 
-  it("rejects an align above the 100e cap (programmatic orders bypass the schema)", () => {
+  it("rejects an align above the force cap (programmatic orders bypass the schema)", () => {
     const s = makeState({
       tiles: [tile(0, 0, "A", 3)], cogOrder: ["A"], treasuries: { A: T(11, 11, 11, 11) },
     });
-    const { state, events } = resolve(s, { A: [{ type: "align", tile: "0,0", energy: 101 }] });
+    const { state, events } = resolve(s, { A: [{ type: "align", tile: "0,0", force: 11 }] });
     expect(at(state, 0, 0).coherence).toBe(3); // untouched
-    expect(events.some((e) => e.type === "rejected" && /cap/.test(e.reason))).toBe(true);
+    expect(events.some((e) => e.type === "rejected" && /force cap/.test(e.reason))).toBe(true);
   });
 
-  it("arriving force = floor(sqrt(energy − distance²)): reach is quadratically expensive", () => {
+  it("an align bills force² + distance²: reach is quadratically expensive", () => {
     // A's only tile is (0,0); the neutral target (3,0) is 3 hexes out ->
-    // arriving force = floor(sqrt(25 − 9)) = 4. The FULL 25e is charged.
+    // force 4 bills 16 + 9 = 25e, charged in full.
     const s = makeState({
       tiles: [tile(0, 0, "A", 5), tile(3, 0, null, 0, "S", 2)],
       cogOrder: ["A"], treasuries: { A: T(25, 0, 0, 0) },
     });
-    const { state, events } = resolve(s, { A: [{ type: "align", tile: "3,0", energy: 25 }] });
-    expect(at(state, 3, 0)).toMatchObject({ alignment: "A", coherence: 4 }); // sqrt'd force arrives
+    const { state, events } = resolve(s, { A: [{ type: "align", tile: "3,0", force: 4 }] });
+    expect(at(state, 3, 0)).toMatchObject({ alignment: "A", coherence: 4 }); // the committed force arrives
     expect(at(state, 0, 0).coherence).toBe(5); // no coherence is ever drained
-    expect(tre(state, "A")).toEqual(T(0, 0, 0, 0)); // paid the full committed 25e
+    expect(tre(state, "A")).toEqual(T(0, 0, 0, 0)); // billed the full 25e
     expect(events.some((e) => e.type === "capture" && e.tile === "3,0" && e.coherence === 4 && e.spent === 25)).toBe(true);
   });
 
   it("the k-th Align in a turn bills k×10e extra — first free, surcharge buys no force", () => {
-    // two adjacent neutral claims at 4e each: total = 4 + (4 + 10) = 18e
+    // two adjacent force-1 claims (2e each): total = 2 + (2 + 10) = 14e
     const s = makeState({
       tiles: [tile(0, 0, "A", 5), tile(1, 0, null, 0), tile(-1, 0, null, 0)],
-      cogOrder: ["A"], treasuries: { A: T(18, 0, 0, 0) },
+      cogOrder: ["A"], treasuries: { A: T(14, 0, 0, 0) },
     });
     const { state, events } = resolve(s, {
       A: [
-        { type: "align", tile: "1,0", energy: 4 },
-        { type: "align", tile: "-1,0", energy: 4 },
+        { type: "align", tile: "1,0", force: 1 },
+        { type: "align", tile: "-1,0", force: 1 },
       ],
     });
-    expect(at(state, 1, 0)).toMatchObject({ alignment: "A", coherence: 1 }); // floor(sqrt(3)) each
+    expect(at(state, 1, 0)).toMatchObject({ alignment: "A", coherence: 1 });
     expect(at(state, -1, 0)).toMatchObject({ alignment: "A", coherence: 1 }); // same force — the tax bought none
-    expect(tre(state, "A")).toEqual(T(0, 0, 0, 0)); // 4 + 14 charged
-    expect(events.some((e) => e.type === "capture" && e.tile === "-1,0" && e.spent === 14)).toBe(true);
+    expect(tre(state, "A")).toEqual(T(0, 0, 0, 0)); // 2 + 12 charged
+    expect(events.some((e) => e.type === "capture" && e.tile === "-1,0" && e.spent === 12)).toBe(true);
   });
 
   it("a set that cannot cover the repeat-align surcharge is rejected", () => {
     const s = makeState({
       tiles: [tile(0, 0, "A", 5), tile(1, 0, null, 0), tile(-1, 0, null, 0)],
-      cogOrder: ["A"], treasuries: { A: T(17, 0, 0, 0) }, // 1e short of 4 + 14
+      cogOrder: ["A"], treasuries: { A: T(13, 0, 0, 0) }, // 1e short of 2 + 12
     });
     const { state, events } = resolve(s, {
       A: [
-        { type: "align", tile: "1,0", energy: 4 },
-        { type: "align", tile: "-1,0", energy: 4 },
+        { type: "align", tile: "1,0", force: 1 },
+        { type: "align", tile: "-1,0", force: 1 },
       ],
     });
     expect(at(state, 1, 0).alignment).toBeNull();
     expect(events.some((e) => e.type === "rejected" && e.cog === "A" && /afford/.test(e.reason))).toBe(true);
   });
 
-  it("an align whose force fully dissipates before arriving is rejected", () => {
-    // 9e over distance 3 -> floor(sqrt(9 − 9)) = 0 arrives -> bounced at validation
+  it("an align whose cost exceeds the 100e reach cap is rejected", () => {
+    // force 1 at distance 10 -> 1 + 100 = 101e -> out of reach
     const s = makeState({
-      tiles: [tile(0, 0, "A", 5), tile(3, 0, null, 0)],
-      cogOrder: ["A"], treasuries: { A: T(9, 0, 0, 0) },
+      tiles: [tile(0, 0, "A", 5), tile(10, 0, null, 0)],
+      cogOrder: ["A"], treasuries: { A: T(101, 0, 0, 0) },
     });
-    const { state, events } = resolve(s, { A: [{ type: "align", tile: "3,0", energy: 9 }] });
-    expect(at(state, 3, 0).alignment).toBeNull();
-    expect(tre(state, "A")).toEqual(T(9, 0, 0, 0)); // nothing charged
-    expect(events.some((e) => e.type === "rejected" && /dissipates/.test(e.reason))).toBe(true);
+    const { state, events } = resolve(s, { A: [{ type: "align", tile: "10,0", force: 1 }] });
+    expect(at(state, 10, 0).alignment).toBeNull();
+    expect(tre(state, "A")).toEqual(T(101, 0, 0, 0)); // nothing charged
+    expect(events.some((e) => e.type === "rejected" && /out of reach/.test(e.reason))).toBe(true);
   });
 
-  it("rejects an align that commits less than 1 energy (no free captures)", () => {
-    // a programmatically-built 0-energy align (bypassing the schema's positive() guard) on A's own
-    // tile is a legal target, so the only reason to bounce it is the energy floor.
+  it("rejects an align that commits less than 1 force (no free captures)", () => {
+    // a programmatically-built 0-force align (bypassing the schema's positive() guard) on A's own
+    // tile is a legal target, so the only reason to bounce it is the force floor.
     const s = makeState({ tiles: [tile(0, 0, "A", 3)], cogOrder: ["A"], treasuries: { A: T(1, 1, 1, 1) } });
-    const { state, events } = resolve(s, { A: [{ type: "align", tile: "0,0", energy: 0 }] });
+    const { state, events } = resolve(s, { A: [{ type: "align", tile: "0,0", force: 0 }] });
     expect(at(state, 0, 0).coherence).toBe(3); // untouched
-    expect(events.some((e) => e.type === "rejected" && /1 energy/.test(e.reason))).toBe(true);
+    expect(events.some((e) => e.type === "rejected" && /1 force/.test(e.reason))).toBe(true);
   });
 
   it("transfer moves minerals to the recipient (next-turn money) and costs the sender 1 energy + the sent minerals", () => {
@@ -151,7 +151,7 @@ describe("resolve", () => {
     });
     const { state } = resolve(s, {
       A: [{ type: "exploit", tile: "0,0" }],
-      B: [{ type: "align", tile: "0,0", energy: 10 }], // d1 -> floor(sqrt(9)) = 3 arrives at the husk
+      B: [{ type: "align", tile: "0,0", force: 3 }], // bills 9 + 1 = 10e; force 3 lands on the husk
     });
     expect(at(state, 0, 0)).toMatchObject({ alignment: "B", coherence: 3 });
     expect(at(state, 1, 0).coherence).toBe(4); // coherence is never drained now
@@ -160,14 +160,14 @@ describe("resolve", () => {
   });
 
   it("a contested neutral tile goes to the larger arriving force; both pay in full", () => {
-    // both adjacent (d1): A 10e -> floor(sqrt(9)) = 3; B 5e -> floor(sqrt(4)) = 2 -> A wins, margin 1
+    // both adjacent (d1): A force 3 bills 10e; B force 2 bills 5e -> A wins, margin 1
     const s = makeState({
       tiles: [tile(0, 0, null, 0), tile(1, 0, "A", 6), tile(-1, 0, "B", 4)], cogOrder: ["A", "B"],
       treasuries: { A: T(10, 0, 0, 0), B: T(5, 0, 0, 0) },
     });
     const { state, events } = resolve(s, {
-      A: [{ type: "align", tile: "0,0", energy: 10 }],
-      B: [{ type: "align", tile: "0,0", energy: 5 }],
+      A: [{ type: "align", tile: "0,0", force: 3 }],
+      B: [{ type: "align", tile: "0,0", force: 2 }],
     });
     expect(at(state, 0, 0)).toMatchObject({ alignment: "A", coherence: 1 }); // 3 vs 2 -> margin 1
     expect(at(state, 1, 0).coherence).toBe(6); // coherence untouched
@@ -246,8 +246,8 @@ describe("resolve", () => {
       treasuries: { A: T(56, 0, 0, 0), B: T(6, 0, 0, 0) },
     });
     const { state, events } = resolve(s, {
-      A: [{ type: "align", tile: "1,0", energy: 50 }, { type: "bid", energy: 4 }],
-      B: [{ type: "align", tile: "1,0", energy: 4 }, { type: "bid", energy: 2 }],
+      A: [{ type: "align", tile: "1,0", force: 7 }, { type: "bid", energy: 4 }], // d1: bills 49 + 1 = 50e
+      B: [{ type: "align", tile: "1,0", force: 2 }, { type: "bid", energy: 2 }], // own tile: bills 4e
     });
     expect(at(state, 1, 0)).toMatchObject({ alignment: "A", coherence: 1 }); // 7 vs 4+2
     expect(at(state, 0, 0).coherence).toBe(9); // A's fortress is untouched — sieges cost energy now
@@ -264,7 +264,7 @@ describe("resolve", () => {
       treasuries: { A: T(), B: T(5, 1, 1, 1) },
     });
     const { state, events } = resolve(s, {
-      A: [{ type: "align", tile: "0,0", energy: 1 }], // 1e align with an empty wallet -> unaffordable -> rejected
+      A: [{ type: "align", tile: "0,0", force: 1 }], // a 1e bill with an empty wallet -> unaffordable -> rejected
       B: [{ type: "transfer", to: "A", mineral: "C", amount: 4 }],
     });
     expect(events.some((e) => e.type === "rejected" && e.cog === "A")).toBe(true);
@@ -278,7 +278,7 @@ describe("resolve", () => {
       treasuries: { A: T() },
     });
     const { state, events } = resolve(s, {
-      A: [{ type: "exploit", tile: "0,0" }, { type: "align", tile: "1,0", energy: 5 }],
+      A: [{ type: "exploit", tile: "0,0" }, { type: "align", tile: "1,0", force: 2 }],
     });
     expect(events.some((e) => e.type === "rejected" && e.cog === "A")).toBe(true);
     expect(at(state, 0, 0)).toMatchObject({ alignment: "A", coherence: 5, density: 4 }); // exploit did NOT happen
@@ -308,19 +308,19 @@ describe("resolve", () => {
       tiles: [tile(0, 0, "A", 5), tile(1, 0, "B", 1)], cogOrder: ["A", "B"], treasuries: { A: T() },
     });
     const { state, events } = resolve(s, {
-      A: [{ type: "abandon", tile: "0,0" }, { type: "align", tile: "1,0", energy: 5 }],
+      A: [{ type: "abandon", tile: "0,0" }, { type: "align", tile: "1,0", force: 2 }],
     });
     expect(events.some((e) => e.type === "rejected" && e.cog === "A")).toBe(true);
     expect(at(state, 0, 0)).toMatchObject({ alignment: "A", coherence: 5 });
   });
 
-  it("reinforcing your own tile is distance 0: force = floor(sqrt(energy))", () => {
+  it("reinforcing your own tile is distance 0: force f bills f²", () => {
     const s = makeState({
       tiles: [tile(0, 0, "A", 2)], cogOrder: ["A"], treasuries: { A: T(9, 0, 0, 0) },
     });
-    const { state } = resolve(s, { A: [{ type: "align", tile: "0,0", energy: 9 }] });
+    const { state } = resolve(s, { A: [{ type: "align", tile: "0,0", force: 3 }] });
     expect(at(state, 0, 0)).toMatchObject({ alignment: "A", coherence: 5 }); // standing 2 + arriving 3
-    expect(tre(state, "A")).toEqual(T(0, 0, 0, 0)); // the full 9e charged
+    expect(tre(state, "A")).toEqual(T(0, 0, 0, 0)); // billed the full 9e
   });
 
   it("an incumbent's coherence participates in a tie: equal force annihilates the tile to neutral (capture to null)", () => {
@@ -329,7 +329,7 @@ describe("resolve", () => {
       treasuries: { A: T(), B: T(10, 0, 0, 0) },
     });
     const { state, events } = resolve(s, {
-      B: [{ type: "align", tile: "0,0", energy: 10 }], // d1 -> arrives 3 == A's defending coherence 3
+      B: [{ type: "align", tile: "0,0", force: 3 }], // bills 10e; 3 == A's defending coherence 3
     });
     expect(at(state, 0, 0)).toMatchObject({ alignment: null, coherence: 0 });
     expect(events.some((e) => e.type === "capture" && e.tile === "0,0" && e.from === "A" && e.to === null)).toBe(true);

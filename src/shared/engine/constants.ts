@@ -57,16 +57,14 @@ export const EXPLOIT_DENSITY = 0.5;
 /** Energy charged per Transfer order. */
 export const TRANSFER_FEE = 1;
 
-/** Align economics: an Align commits ENERGY (at most ALIGN_MAX_ENERGY) and the
- *  force arriving at the tug-of-war is floor(sqrt(energy − distance²)), where
- *  distance is to the cog's closest tile (own tile = 0). The full committed
- *  energy is charged win or lose; an align whose force fully dissipates is
- *  rejected. At the cap, 100e at distance 0 arrives as force 10 — exactly the
- *  coherence cap — so a fortress costs a full turn's fortune to stamp out. */
+/** Align economics: an Align commits FORCE (1..COHERENCE_MAX) and the engine
+ *  bills the energy: cost = force² + distance², where distance is to the cog's
+ *  closest tile (own tile = 0). A cost above ALIGN_MAX_ENERGY is out of reach
+ *  and rejected; the full cost is charged win or lose. Force 10 at distance 0
+ *  costs exactly 100e — a maxed fortress is a full fortune to stamp out. */
 export const ALIGN_MAX_ENERGY = 100;
+export const alignEnergyCost = (force: number, dist: number): number => force * force + dist * dist;
 /** Repeat-align tax: the k-th Align a cog submits in ONE turn (0-indexed)
  *  costs an extra k × this much energy — first free, then +10, +20, … The
  *  surcharge is pure overhead: it buys no force. */
 export const ALIGN_REPEAT_SURCHARGE = 10;
-export const alignForce = (energy: number, dist: number): number =>
-  Math.floor(Math.sqrt(Math.max(0, energy - dist * dist)));

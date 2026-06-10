@@ -50,7 +50,7 @@ describe("steerableAgent", () => {
 
   it("a MANUAL cog waits during Commit until the operator hits Ready (queue submits then)", async () => {
     const store = new SteeringStore();
-    store.update("cog0", { paused: true, pending: [{ type: "align", tile: "1,0", energy: 9 }] });
+    store.update("cog0", { paused: true, pending: [{ type: "align", tile: "1,0", force: 3 }] });
     let called = false;
     const spy: Agent = { id: "cog0", commit: () => ((called = true), [{ type: "bid", energy: 7 }]), negotiate: () => ((called = true), []) };
     const a = steerableAgent(spy, store);
@@ -61,7 +61,7 @@ describe("steerableAgent", () => {
     await new Promise((r) => setTimeout(r, 10));
     expect(resolved).toBe(false); // parked — waiting for the operator
     store.markReady("cog0");
-    expect(await orders).toEqual([{ type: "align", tile: "1,0", energy: 9 }]);
+    expect(await orders).toEqual([{ type: "align", tile: "1,0", force: 3 }]);
     expect(called).toBe(false); // the model was never invoked
     expect(store.get("cog0").pending).toEqual([]); // consumed
   });
@@ -85,11 +85,11 @@ describe("steerableAgent", () => {
 
   it("on AUTOPILOT, queued operator orders override the agent's commit and submit once", () => {
     const store = new SteeringStore();
-    store.update("cog0", { pending: [{ type: "align", tile: "1,0", energy: 9 }] });
+    store.update("cog0", { pending: [{ type: "align", tile: "1,0", force: 3 }] });
     let calls = 0;
     const spy: Agent = { id: "cog0", commit: () => (calls++, [{ type: "bid", energy: 7 }]) };
     const a = steerableAgent(spy, store);
-    expect(a.commit(view)).toEqual([{ type: "align", tile: "1,0", energy: 9 }]); // queue wins
+    expect(a.commit(view)).toEqual([{ type: "align", tile: "1,0", force: 3 }]); // queue wins
     expect(calls).toBe(0);
     expect(a.commit(view)).toEqual([{ type: "bid", energy: 7 }]); // consumed; agent resumes
   });

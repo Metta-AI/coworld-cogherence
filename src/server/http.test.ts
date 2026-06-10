@@ -65,18 +65,18 @@ describe("http", () => {
       await fetch(`${url}/cog/cog0/steering`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ persona: "betray everyone", paused: true, pending: [{ type: "align", tile: "0,0", energy: 9 }] }),
+        body: JSON.stringify({ persona: "betray everyone", paused: true, pending: [{ type: "align", tile: "0,0", force: 3 }] }),
       })
     ).json();
     // malformed pending orders bounce at the boundary
     const bad = await fetch(`${url}/cog/cog0/steering`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ pending: [{ type: "align", tile: "0,0", energy: 0 }] }),
+      body: JSON.stringify({ pending: [{ type: "align", tile: "0,0", force: 0 }] }),
     });
     srv.close();
-    expect(posted).toEqual({ persona: "betray everyone", paused: true, pending: [{ type: "align", tile: "0,0", energy: 9 }] });
-    expect(steering.get("cog0").pending).toEqual([{ type: "align", tile: "0,0", energy: 9 }]);
+    expect(posted).toEqual({ persona: "betray everyone", paused: true, pending: [{ type: "align", tile: "0,0", force: 3 }] });
+    expect(steering.get("cog0").pending).toEqual([{ type: "align", tile: "0,0", force: 3 }]);
     expect(bad.status).toBe(400);
   });
 

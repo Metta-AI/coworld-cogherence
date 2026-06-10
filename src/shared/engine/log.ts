@@ -14,6 +14,9 @@ export interface OrderEvent {
   type: "order";
   cog: CogId;
   order: Order;
+  /** Energy billed for an Align (force² + distance² + repeat surcharge) —
+   *  computed at record time so the Turn Log can show the price. */
+  cost?: number;
 }
 
 /** A single order / Resolve- / Upkeep-phase event within a turn. */

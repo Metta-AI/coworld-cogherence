@@ -10,10 +10,12 @@ import { cogName } from "../colors";
 
 type Saved = "idle" | "saving" | "saved";
 
-const orderText = (o: Order): string => {
+/** One pending order as text; aligns show force AND the energy they will bill
+ *  (force² + distance² + the repeat surcharge by queue position). */
+const orderText = (o: Order, cost?: number): string => {
   switch (o.type) {
     case "align":
-      return `Align([${o.tile}], ${o.energy}e)`;
+      return `Align([${o.tile}], force=${o.force})${cost != null ? ` · ${cost}e` : ""}`;
     case "exploit":
       return `Exploit([${o.tile}])`;
     case "abandon":
@@ -25,8 +27,10 @@ const orderText = (o: Order): string => {
   }
 };
 
-/** Operator orders queued for the NEXT Commit — each cancelable. */
-function PendingActions({ pending, onCancel }: { pending: Order[]; onCancel?: (i: number) => void }): React.ReactElement {
+/** Operator orders queued for the NEXT Commit — each cancelable. `costs` maps
+ *  queue index → billed energy for aligns (computed by the owner from the
+ *  board: force² + distance² + repeat surcharge). */
+function PendingActions({ pending, costs, onCancel }: { pending: Order[]; costs?: Array<number | undefined>; onCancel?: (i: number) => void }): React.ReactElement {
   return (
     <div data-testid="pending-actions" style={{ marginTop: 8 }}>
       <div className="cg-label" style={{ fontSize: 8.5, letterSpacing: "0.12em", paddingBottom: 3, borderBottom: "1px solid var(--border)" }}>
@@ -40,7 +44,7 @@ function PendingActions({ pending, onCancel }: { pending: Order[]; onCancel?: (i
         pending.map((o, i) => (
           <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 0", borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
             <span className="cg-mono" style={{ fontSize: 10.5, color: "var(--text-dim)", flex: 1 }}>
-              {orderText(o)}
+              {orderText(o, costs?.[i])}
             </span>
             {onCancel && (
               <button
@@ -69,6 +73,7 @@ export function AutopilotPanel({
   cogId,
   atLatest = true,
   pending = [],
+  pendingCosts,
   onCancelPending,
   onReady,
 }: {
@@ -76,6 +81,8 @@ export function AutopilotPanel({
   atLatest?: boolean;
   /** Operator orders queued for the next Commit (server-side state). */
   pending?: Order[];
+  /** Billed energy per queue index (aligns) — see PendingActions. */
+  pendingCosts?: Array<number | undefined>;
   onCancelPending?: (i: number) => void;
   /** Manual mode: submit the queue for this Commit and mark the cog ready. */
   onReady?: () => void;
@@ -126,7 +133,7 @@ export function AutopilotPanel({
         <div className="cg-mono" style={{ fontSize: 9, color: "var(--muted)", marginTop: 6 }}>
           viewing a past turn — jump to the latest to steer
         </div>
-        <PendingActions pending={pending} />
+        <PendingActions pending={pending} costs={pendingCosts} />
       </div>
     );
   }
@@ -160,7 +167,7 @@ export function AutopilotPanel({
         </>
       ) : (
         <>
-          <PendingActions pending={pending} onCancel={onCancelPending} />
+          <PendingActions pending={pending} costs={pendingCosts} onCancel={onCancelPending} />
           <div className="steer-actions" style={{ marginTop: 8 }}>
             <button type="button" data-testid="ready-btn" onClick={onReady} data-tip="submit the queued actions for this Commit and mark this cog ready (empty queue = hold)">
               Ready

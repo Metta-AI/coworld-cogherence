@@ -8,7 +8,7 @@ import type { StampedEvent } from "../net/feed";
 import type { LatticeMode } from "../HexBoard";
 import type { Order } from "../../shared/engine/orders";
 import { distance } from "../../shared/engine/hex";
-import { ALIGN_MAX_ENERGY, ALIGN_REPEAT_SURCHARGE, COHERENCE_MAX, EXPLOIT_MULT } from "../../shared/engine/constants";
+import { ALIGN_MAX_ENERGY, ALIGN_REPEAT_SURCHARGE, COHERENCE_MAX, EXPLOIT_MULT, alignEnergyCost } from "../../shared/engine/constants";
 import { cogColor, cogName } from "../colors";
 import { EnergyChip, CGIcon, Mineral } from "../cg/atoms";
 import { LatticePanel, ChannelMessage, TurnLog } from "../cg/panels";
@@ -138,21 +138,24 @@ function TileMenu({
   // incumbent (enemy tiles) or simply adds (own/neutral); energy = force² + dist².
   // On enemy tiles, under-powered aligns still DAMAGE: arriving force f < defender
   // coherence removes f (a tie annihilates the tile to neutral).
-  const options: Array<{ coh: number; energy: number }> = [];
-  const damage: Array<{ removed: number; energy: number; annihilates: boolean }> = [];
+  const options: Array<{ coh: number; force: number; energy: number }> = [];
+  const damage: Array<{ removed: number; force: number; energy: number; annihilates: boolean }> = [];
   if (mine) {
     for (let target = t.coherence + 1; target <= COHERENCE_MAX; target++) {
-      options.push({ coh: target, energy: (target - t.coherence) ** 2 });
+      const force = target - t.coherence;
+      options.push({ coh: target, force, energy: alignEnergyCost(force, 0) });
     }
   } else {
     const incumbent = t.alignment ? t.coherence : 0;
     for (let f = 1; f <= incumbent; f++) {
-      const energy = f * f + dist * dist;
-      if (energy <= ALIGN_MAX_ENERGY) damage.push({ removed: f, energy, annihilates: f === incumbent });
+      const energy = alignEnergyCost(f, dist);
+      if (energy <= ALIGN_MAX_ENERGY) damage.push({ removed: f, force: f, energy, annihilates: f === incumbent });
     }
     for (let final = 1; final <= COHERENCE_MAX; final++) {
-      const energy = (final + incumbent) ** 2 + dist * dist;
-      if (energy <= ALIGN_MAX_ENERGY) options.push({ coh: final, energy });
+      const force = final + incumbent;
+      if (force > COHERENCE_MAX) break; // force caps at 10
+      const energy = alignEnergyCost(force, dist);
+      if (energy <= ALIGN_MAX_ENERGY) options.push({ coh: final, force, energy });
     }
   }
 
@@ -202,7 +205,7 @@ function TileMenu({
           <>
             <div className="cg-label" style={{ fontSize: 8, padding: "2px 0" }}>weaken (defender coh {t.coherence}) · dist {dist}</div>
             {damage.map((o) => (
-              <button key={`d${o.removed}`} type="button" className="cg-menu-row" onClick={() => onPick({ type: "align", tile: tileKey, energy: o.energy })}>
+              <button key={`d${o.removed}`} type="button" className="cg-menu-row" onClick={() => onPick({ type: "align", tile: tileKey, force: o.force })}>
                 <span style={row}>
                   <span className="cg-mono" style={{ fontSize: 10.5, color: "var(--exploit)" }}>
                     {o.annihilates ? "−" + o.removed + " coh ⌀ annihilates" : `−${o.removed} coh`}
@@ -224,7 +227,7 @@ function TileMenu({
           </div>
         )}
         {options.map((o) => (
-          <button key={o.coh} type="button" className="cg-menu-row" onClick={() => onPick({ type: "align", tile: tileKey, energy: o.energy })}>
+          <button key={o.coh} type="button" className="cg-menu-row" onClick={() => onPick({ type: "align", tile: tileKey, force: o.force })}>
             <span style={row}>
               <span className="cg-mono" style={{ fontSize: 10.5, color: "var(--coherence)" }}>coh={o.coh}</span>
               <span className="cg-mono" style={{ fontSize: 10.5, color: "var(--energy)" }}>{o.energy + repeatTax}e</span>
@@ -294,6 +297,18 @@ export function CogView({
       on = false;
     };
   }, [live, cogId, snapshot.turn]);
+  // billed energy per queued align: force² + distance² + the repeat surcharge
+  const ownTiles = snapshot.tiles.filter((x) => x.alignment === cogId);
+  let alignIdx = 0;
+  const pendingCosts = pending.map((o) => {
+    if (o.type !== "align") return undefined;
+    const t = snapshot.tiles.find((x) => `${x.q},${x.r}` === o.tile);
+    const d =
+      !t || t.alignment === cogId
+        ? 0
+        : ownTiles.reduce((m, x) => Math.min(m, distance({ q: x.q, r: x.r }, { q: t.q, r: t.r })), Infinity);
+    return alignEnergyCost(o.force, d) + ALIGN_REPEAT_SURCHARGE * alignIdx++;
+  });
   const postPending = useCallback(
     (next: Order[]): void => {
       setPending(next);
@@ -320,6 +335,7 @@ export function CogView({
                 cogId={cogId}
                 atLatest={atLatest}
                 pending={pending}
+                pendingCosts={pendingCosts}
                 onCancelPending={(i) => postPending(pending.filter((_, j) => j !== i))}
                 onReady={() => {
                   void fetch(`/cog/${cogId}/ready`, { method: "POST" });
