@@ -34,8 +34,11 @@ export function CGIcon({ name, size = 16, title }: { name: IconName; size?: numb
 /** The energy badge — a glowing blue circle with the bolt, sized like a mineral chip. */
 export function EnergyChip(): React.ReactElement {
   return (
-    <span className="cg-min energy">
-      <CGIcon name="energy" size={11} />
+    <span className="cg-min energy" style={{ filter: "none" }}>
+      {/* the icon art is light — brightness(0) stamps it black on the white chip */}
+      <span style={{ display: "inline-flex", filter: "brightness(0)" }}>
+        <CGIcon name="energy" size={14} />
+      </span>
     </span>
   );
 }
@@ -54,90 +57,6 @@ export function Mineral({ m, label }: { m: string; label?: boolean }): React.Rea
   );
 }
 
-const hexPath = (cx: number, cy: number, R: number): string => {
-  let d = "";
-  for (let i = 0; i < 6; i++) {
-    const a = (Math.PI / 180) * (60 * i - 30);
-    d += `${i ? "L" : "M"}${(cx + R * Math.cos(a)).toFixed(1)},${(cy + R * Math.sin(a)).toFixed(1)} `;
-  }
-  return d + "Z";
-};
-
-/** One distinct inner glyph per seat index (0..5) — steward, expansionist, … */
-function Glyph({ idx, color }: { idx: number; color: string }): React.ReactElement {
-  const s = { stroke: color, strokeWidth: 2, fill: "none", strokeLinecap: "round", strokeLinejoin: "round" } as const;
-  switch (idx % 6) {
-    case 0: // concentric, solid core
-      return (
-        <g>
-          <path d={hexPath(32, 32, 13)} {...s} />
-          <circle cx="32" cy="32" r="5" fill={color} />
-        </g>
-      );
-    case 1: // radiating arms
-      return (
-        <g {...s}>
-          {[0, 60, 120, 180, 240, 300].map((a) => {
-            const rad = (a * Math.PI) / 180;
-            return (
-              <line
-                key={a}
-                x1={32 + 5 * Math.cos(rad)}
-                y1={32 + 5 * Math.sin(rad)}
-                x2={32 + 16 * Math.cos(rad)}
-                y2={32 + 16 * Math.sin(rad)}
-              />
-            );
-          })}
-          <circle cx="32" cy="32" r="3.5" fill={color} stroke="none" />
-        </g>
-      );
-    case 2: // split disc
-      return (
-        <g>
-          <circle cx="32" cy="32" r="13" {...s} />
-          <path d="M32 19 A13 13 0 0 1 32 45 Z" fill={color} opacity="0.9" />
-        </g>
-      );
-    case 3: // jagged shard
-      return (
-        <g {...s}>
-          <path d="M24 40 L30 22 L34 33 L41 24 L38 41 Z" />
-        </g>
-      );
-    case 4: // eccentric orbit
-      return (
-        <g {...s}>
-          <circle cx="32" cy="32" r="5" fill={color} stroke="none" />
-          <ellipse cx="32" cy="32" rx="15" ry="8" transform="rotate(28 32 32)" />
-          <circle cx="46" cy="26" r="3" fill={color} stroke="none" />
-        </g>
-      );
-    default: // lone core
-      return <circle cx="32" cy="32" r="6" fill={color} />;
-  }
-}
-
-/** A Cog's luminous sigil, tinted by its seat color. */
-export function CogSigil({ index, size = 30, glow = true }: { index: number; size?: number; glow?: boolean }): React.ReactElement {
-  const color = cogColor(index);
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 64 64"
-      style={{ flex: "0 0 auto", filter: glow ? `drop-shadow(0 0 5px ${color}88)` : "none" }}
-    >
-      <path d={hexPath(32, 32, 28)} fill="#0c0c15" stroke={color} strokeWidth="2" strokeOpacity="0.55" />
-      <path d={hexPath(32, 32, 28)} fill={color} fillOpacity="0.08" />
-      <Glyph idx={index} color={color} />
-    </svg>
-  );
-}
-
-/** A compact COGS wallet: the four mineral counts + energy as a fifth resource
- *  chip. The energy math (derivation, income, upkeep, net trend) lives in the
- *  chip's hover tip. */
 export function Wallet({ treasury, energy, upkeep, income, expected }: { treasury: Treasury; energy: number; upkeep?: number; income?: number; expected?: Record<string, number> }): React.ReactElement {
   const sets = setsOf(treasury);
   const delta = income != null ? income - (upkeep ?? 0) : null;

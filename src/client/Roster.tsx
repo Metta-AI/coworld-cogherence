@@ -5,7 +5,7 @@ import React from "react";
 import type { GameSnapshot } from "../shared/snapshot";
 import type { StampedEvent } from "./net/feed";
 import { cogColor, cogName } from "./colors";
-import { CGIcon, CogSigil, Wallet } from "./cg/atoms";
+import { CGIcon, Wallet } from "./cg/atoms";
 import { expectedMintBy, mintEnergyBy, rankedByHearts, territory, upkeepBy } from "./cg/derive";
 
 export function Roster({
@@ -85,7 +85,6 @@ export function Roster({
                 <span className="cg-num" data-tip={`hearts rank #${i + 1} of ${ranked.length}`} style={{ fontSize: 13, color: i === 0 ? color : "var(--muted)", width: 16 }}>
                   {i + 1}
                 </span>
-                <CogSigil index={c.index} size={28} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontFamily: "var(--f-ui)", fontWeight: 700, fontSize: 13, color: "var(--text)", letterSpacing: "0.03em" }}>
                     {cogName(c.index)}

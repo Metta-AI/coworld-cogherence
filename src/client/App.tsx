@@ -99,6 +99,7 @@ export function App({ replay: injected, live: liveProp }: { replay?: Replay; liv
 
   const snapshot = snaps.length ? snaps[Math.min(index, snaps.length - 1)]! : null;
   const cogs = snapshot ? snapshot.cogs.map((c) => ({ id: c.id, index: c.index })) : [];
+  const paused = store.status?.paused ?? false;
 
   // Sync the activity ticker + chat to the scrubber: a tile's resolve/upkeep
   // events landed when the board advanced PAST their turn (event.turn < turn now
@@ -155,8 +156,12 @@ export function App({ replay: injected, live: liveProp }: { replay?: Replay; liv
               setFollow(false);
               setIndex(i);
             }}
-            playing={playing}
-            onTogglePlay={() => setPlaying((p) => !p)}
+            playing={liveMode ? !paused : playing}
+            onTogglePlay={() => {
+              // live: the transport's play/pause IS the game's pause/resume
+              if (liveMode) void fetch(paused ? "/resume" : "/pause", { method: "POST" });
+              else setPlaying((p) => !p);
+            }}
             live={liveMode && follow}
           />
         </>

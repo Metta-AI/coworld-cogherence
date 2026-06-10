@@ -10,7 +10,7 @@ import type { StampedEvent } from "../net/feed";
 import { cogColor, cogName } from "../colors";
 import { MINT_DIVISOR, TRANSFER_FEE, UPKEEP_BASE, REGEN_COST, RESISTANCE_COST } from "../../shared/engine/constants";
 import { HexBoard, type LatticeMode } from "../HexBoard";
-import { CGIcon, CogSigil, CogText, EnergyChip, Mineral } from "./atoms";
+import { CGIcon, CogText, EnergyChip, Mineral } from "./atoms";
 import {
   MINERALS,
   minClass,
@@ -55,7 +55,7 @@ export function AuctionPanel({ snapshot, events }: { snapshot: GameSnapshot; eve
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
           <CGIcon name="heart" size={34} />
           {winnerIdx != null ? (
-            <CogSigil index={winnerIdx} size={26} />
+            <span style={{ width: 12, height: 12, borderRadius: 3, background: cogColor(winnerIdx) }} />
           ) : (
             <span className="cg-mono" style={{ fontSize: 9, color: "var(--muted)" }}>
               unsold
@@ -187,7 +187,7 @@ function orderOutcome(
     }
     case "abandon": {
       const ev = evs.find((e) => e.type === "abandon" && e.cog === cog && e.tile === order.tile);
-      if (ev && ev.type === "abandon") return { outcome: `+${ev.refund}e, tile neutral`, failed: false };
+      if (ev && ev.type === "abandon") return { outcome: `+${ev.refund}e`, failed: false };
       return { outcome: "failed, tile already gone", failed: true };
     }
     case "transfer":
@@ -441,7 +441,7 @@ export function ChannelMessage({ m, onSeekTurn }: { m: Message; onSeekTurn?: (tu
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
-        <CogSigil index={fi} size={18} glow={false} />
+        <span style={{ width: 9, height: 9, borderRadius: 2, background: cogColor(fi) }} />
         <span style={{ fontFamily: "var(--f-ui)", fontWeight: 700, fontSize: 11, color: cogColor(fi) }}>{cogName(fi)}</span>
         {isPublic ? (
           <span className="cg-mono" style={{ fontSize: 8.5, color: "var(--coherence)" }}>
@@ -532,11 +532,7 @@ export function TileInspector({ tileKey: key, snapshot }: { tileKey: string; sna
       </div>
       <div className="cg-panel-body" style={{ padding: 11, display: "flex", flexDirection: "column", gap: 9 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-          {ownerIdx != null ? (
-            <CogSigil index={ownerIdx} size={26} />
-          ) : (
-            <div style={{ width: 26, height: 26, borderRadius: 6, border: "1px solid var(--border)", background: "var(--panel-2)" }} />
-          )}
+          <div style={{ width: 13, height: 13, borderRadius: 4, border: "1px solid var(--border)", background: ownerIdx != null ? ownerColor : "var(--panel-2)" }} />
           <div style={{ flex: 1 }}>
             <div style={{ fontFamily: "var(--f-ui)", fontWeight: 700, fontSize: 12, color: ownerColor }}>
               {ownerIdx != null ? cogName(ownerIdx) : "Unaligned"}

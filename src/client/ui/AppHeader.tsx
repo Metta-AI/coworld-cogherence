@@ -7,7 +7,6 @@ import type { ServerStatus } from "../../shared/protocol";
 import { MAX_TURNS } from "../../shared/engine/constants";
 import { Brand, PhaseStripCG } from "../cg/atoms";
 import { ViewSwitcher } from "./ViewSwitcher";
-import { LiveMenu } from "./LiveMenu";
 import type { View } from "./nav";
 
 /** A 500ms ticking wall-clock so the header countdowns stay current. */
@@ -89,7 +88,13 @@ export function AppHeader({
             <span className="cg-mono" style={{ fontSize: 12, color: "var(--muted)" }}>/{MAX_TURNS}</span>
           </span>
         )}
-        {connected ? <LiveMenu paused={paused} /> : <span className="cg-live cg-replay">▷ REPLAY</span>}
+        {connected ? (
+          <span className={`conn conn-live ${paused ? "is-paused" : ""}`} data-testid="live-badge">
+            {paused ? "❚❚ paused" : "● live"}
+          </span>
+        ) : (
+          <span className="cg-live cg-replay">▷ REPLAY</span>
+        )}
       </div>
     </header>
   );
