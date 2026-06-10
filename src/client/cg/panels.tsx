@@ -13,6 +13,7 @@ import { HexBoard, type LatticeMode } from "../HexBoard";
 import { CGIcon, CogSigil, CogText, Mineral } from "./atoms";
 import {
   MINERALS,
+  minClass,
   auctionAt,
   heartSpend,
   eventsAt,
@@ -360,9 +361,12 @@ export function TurnLog({ snapshot, events }: { snapshot: GameSnapshot; events: 
                   <span className="cg-mono" style={{ fontSize: 10, color: "var(--text-dim)", lineHeight: 1.5 }}>
                     <b style={{ color: cogColor(ci) }}>{cogName(ci)}</b>
                     {Object.keys(r.mint).length > 0 && (
-                      <span data-tip="minerals minted this upkeep (density × coherence / 5 per tile)">
+                      <span data-tip="minerals minted this upkeep (density × coherence / 5 per tile)" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginLeft: 6 }}>
                         {MINERALS.filter((m) => (r.mint[m] ?? 0) > 0).map((m) => (
-                          <span key={m} style={{ color: "var(--coherence)" }}> +{r.mint[m]}{m}</span>
+                          <span key={m} style={{ display: "inline-flex", alignItems: "center", gap: 2, color: "var(--coherence)" }}>
+                            +{r.mint[m]}
+                            <span className={`cg-min ${minClass(m)}`}>{m}</span>
+                          </span>
                         ))}
                       </span>
                     )}
