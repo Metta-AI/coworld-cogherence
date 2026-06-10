@@ -35,7 +35,7 @@ export function GlobalView({
         defaultRight={332}
         left={
           <div className="cg-col">
-            <Roster snapshot={snapshot} focus={focus} onToggleFocus={toggleFocus} live={live} />
+            <Roster snapshot={snapshot} events={events} focus={focus} onToggleFocus={toggleFocus} live={live} />
             <AuctionPanel snapshot={snapshot} events={events} />
           </div>
         }

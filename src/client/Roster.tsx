@@ -3,17 +3,21 @@
 // button: clicking it spotlights that Cog's territory on the lattice (toggle).
 import React from "react";
 import type { GameSnapshot } from "../shared/snapshot";
+import type { StampedEvent } from "./net/feed";
 import { cogColor, cogName } from "./colors";
 import { CGIcon, CogSigil, Wallet } from "./cg/atoms";
-import { rankedByHearts, territory, upkeepBy } from "./cg/derive";
+import { mintEnergyBy, rankedByHearts, territory, upkeepBy } from "./cg/derive";
 
 export function Roster({
   snapshot,
+  events,
   focus = null,
   onToggleFocus,
   live = false,
 }: {
   snapshot: GameSnapshot;
+  /** Event stream (for last-mint income in the energy math); omit to hide it. */
+  events?: StampedEvent[];
   /** The currently spotlighted cog id (its territory is highlighted on the board). */
   focus?: string | null;
   onToggleFocus?: (cogId: string) => void;
@@ -23,6 +27,7 @@ export function Roster({
   const ranked = rankedByHearts(snapshot.cogs);
   const terr = territory(snapshot);
   const upkeep = upkeepBy(snapshot);
+  const income = events ? mintEnergyBy(events, snapshot) : null;
   return (
     <div className="cg-panel" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }} data-testid="roster">
       <div className="cg-panel-head">
@@ -96,7 +101,7 @@ export function Roster({
                   </span>
                 </div>
               </div>
-              <Wallet treasury={c.treasury} energy={c.energy} upkeep={upkeep.get(c.id) ?? 0} />
+              <Wallet treasury={c.treasury} energy={c.energy} upkeep={upkeep.get(c.id) ?? 0} income={income?.get(c.id)} />
             </button>
           );
         })}

@@ -9,6 +9,7 @@ import type { GameSnapshot, TileSnapshot } from "../../shared/snapshot";
 import type { TurnEvent } from "../../shared/engine/log";
 import type { StampedEvent } from "../net/feed";
 import { REGEN_COST, tileUpkeepCost } from "../../shared/engine/constants";
+import { maxEnergy } from "../../shared/engine/energy";
 
 export const MINERALS = ["C", "O", "Ge", "S"] as const;
 export type Mineral = (typeof MINERALS)[number];
@@ -157,6 +158,26 @@ export function tileCost(t: TileSnapshot, map: TileMap): number {
   const friendly = nb.filter((n) => n.alignment === t.alignment).length;
   const enemies = nb.filter((n) => n.alignment !== null && n.alignment !== t.alignment).length;
   return tileUpkeepCost(friendly, enemies);
+}
+
+/** Energy value of each cog's mint on the turn that produced `snap` — what the
+ *  last Upkeep's minerals actually added to the derived-energy wallet (exact:
+ *  maxEnergy with the mint minus maxEnergy without it, so set-completions count
+ *  at full value). */
+export function mintEnergyBy(events: StampedEvent[], snap: GameSnapshot): Map<string, number> {
+  const turn = lastResolvedTurn(snap);
+  const out = new Map<string, number>();
+  for (const c of snap.cogs) out.set(c.id, 0);
+  for (const e of events) {
+    const ev = e.event;
+    if (e.turn !== turn || ev.type !== "mint") continue;
+    const cog = snap.cogs.find((c) => c.id === ev.cog);
+    if (!cog) continue;
+    const g = ev.gained;
+    const before = { C: cog.treasury.C - g.C, O: cog.treasury.O - g.O, Ge: cog.treasury.Ge - g.Ge, S: cog.treasury.S - g.S };
+    out.set(cog.id, maxEnergy(cog.treasury) - maxEnergy(before));
+  }
+  return out;
 }
 
 /** Total upkeep owed per cog this turn (sum of its tiles' bills). */
