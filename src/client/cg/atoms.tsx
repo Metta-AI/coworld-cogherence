@@ -126,11 +126,18 @@ export function CogSigil({ index, size = 30, glow = true }: { index: number; siz
   );
 }
 
-/** A compact COGS wallet: the four mineral counts + the energy math —
- *  total +income −upkeep (net/turn) when income is known. */
+/** A compact COGS wallet: the four mineral counts + energy as a fifth resource
+ *  chip. The energy math (derivation, income, upkeep, net trend) lives in the
+ *  chip's hover tip. */
 export function Wallet({ treasury, energy, upkeep, income }: { treasury: Treasury; energy: number; upkeep?: number; income?: number }): React.ReactElement {
   const sets = setsOf(treasury);
   const delta = income != null ? income - (upkeep ?? 0) : null;
+  const energyTip = [
+    `${energy} energy — ${sets > 0 ? `${sets} full COGS set${sets > 1 ? "s" : ""} ×10e + ` : ""}leftover singles ×1e`,
+    ...(income != null ? [`+${income}e minted last upkeep`] : []),
+    ...(upkeep != null && upkeep > 0 ? [`−${upkeep}e tile bills per turn`] : []),
+    ...(delta != null ? [`net ${delta >= 0 ? "+" : ""}${delta}e/turn`] : []),
+  ].join(" · ");
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
       {MINERALS.map((m) => (
@@ -141,43 +148,11 @@ export function Wallet({ treasury, energy, upkeep, income }: { treasury: Treasur
           </span>
         </span>
       ))}
-      <span
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 4,
-          marginLeft: 2,
-          paddingLeft: 8,
-          borderLeft: "1px solid var(--border)",
-        }}
-      >
+      <span data-tip={energyTip} style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
         <CGIcon name="energy" size={13} />
-        <span
-          className="cg-mono"
-          data-tip={`energy derived from the treasury — ${sets > 0 ? `${sets} full COGS set${sets > 1 ? "s" : ""} ×10e + ` : ""}leftover singles ×1e`}
-          style={{ fontSize: 13, fontWeight: 700, color: "var(--energy)" }}
-        >
+        <span className="cg-mono" style={{ fontSize: 12, fontWeight: 600, color: "var(--energy)" }}>
           {energy}
         </span>
-        {income != null && (
-          <span className="cg-mono" data-tip="income — the energy last upkeep's mint actually added to the wallet" style={{ fontSize: 10, color: "var(--coherence)" }}>
-            +{income}
-          </span>
-        )}
-        {upkeep != null && upkeep > 0 && (
-          <span className="cg-mono" data-tip="tile upkeep billed each turn (base + resistance, per tile)" style={{ fontSize: 10, color: "var(--exploit)" }}>
-            −{upkeep}
-          </span>
-        )}
-        {delta != null && (
-          <span
-            className="cg-mono"
-            data-tip="net per-turn trend: mint income − upkeep bills"
-            style={{ fontSize: 10, color: delta >= 0 ? "var(--coherence)" : "var(--exploit)" }}
-          >
-            ({delta >= 0 ? "+" : ""}{delta}/turn)
-          </span>
-        )}
       </span>
     </div>
   );

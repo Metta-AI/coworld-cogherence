@@ -25,22 +25,22 @@ const FLOOR = () => 0.999999; // rng never below any fractional part -> mint = f
 const CEIL = () => 0; // rng below every positive fractional part -> mint = ceil(raw)
 
 // Bills under the base + resistance model (see tileUpkeepCost):
-//   any tile:                              1e base
-//   + max(0, ceil(enemies - allies/2))     each ally offsets HALF an enemy
+//   any tile:                                    1e base
+//   + 10e x max(0, ceil(enemies - allies/2))     each ally offsets HALF an enemy
 //   (neutral neighbors count for neither side; rounding goes against the defender)
 // Regen is a flat 3e on top of a paid bill (+1 coherence, max 1/turn).
 
 describe("upkeep", () => {
-  it("tileUpkeepCost: flat base + enemies, each ally offsetting half an enemy", () => {
+  it("tileUpkeepCost: flat base + 10e per net enemy, each ally offsetting half", () => {
     expect(tileUpkeepCost(0, 0)).toBe(1); // lone tile in the wilderness — just the base
     expect(tileUpkeepCost(1, 0)).toBe(1); // friendly pair
-    expect(tileUpkeepCost(0, 1)).toBe(2); // enemy pair: base + 1 enemy
+    expect(tileUpkeepCost(0, 1)).toBe(11); // enemy pair: base + 1 enemy x 10e
     expect(tileUpkeepCost(6, 0)).toBe(1); // blob interior stays cheap
-    expect(tileUpkeepCost(1, 1)).toBe(2); // 1v1 front: the ally only half-covers -> ceil(0.5) = 1
+    expect(tileUpkeepCost(1, 1)).toBe(11); // 1v1 front: the ally only half-covers -> ceil(0.5) = 1
     expect(tileUpkeepCost(2, 1)).toBe(1); // two allies fully cover one enemy
-    expect(tileUpkeepCost(3, 3)).toBe(3); // even front line: 3 - 1.5 -> +2
-    expect(tileUpkeepCost(2, 4)).toBe(4); // outnumbered 4v2: 4 - 1 -> +3
-    expect(tileUpkeepCost(0, 3)).toBe(4); // salient ringed by 3 enemies
+    expect(tileUpkeepCost(3, 3)).toBe(21); // even front line: ceil(3 - 1.5) = 2
+    expect(tileUpkeepCost(2, 4)).toBe(31); // outnumbered 4v2: 4 - 1 = 3
+    expect(tileUpkeepCost(0, 3)).toBe(31); // salient ringed by 3 enemies: 1 + 3x10
   });
 
   it("a paid tile holds; paying the 3e regen grows it +1", () => {
@@ -66,14 +66,14 @@ describe("upkeep", () => {
   });
 
   it("unpaid tiles under resistance rot -1, heartland funded first (lowest coherence starves)", () => {
-    // three A tiles, each pressed by one B neighbor -> 2e bills; A's T(2) funds
-    // exactly the strongest. B can pay all of its own 2e bills.
+    // three A tiles, each pressed by one B neighbor -> 11e bills; A's T(11)
+    // funds exactly the strongest. B can pay all of its own 11e bills.
     const s = makeState({
       tiles: [
         tile(0, 0, "A", 5), tile(10, 0, "A", 3), tile(20, 0, "A", 1),
         tile(1, 0, "B", 5), tile(11, 0, "B", 5), tile(21, 0, "B", 5),
       ],
-      cogOrder: ["A", "B"], treasuries: { A: T(2, 0, 0, 0), B: T(6, 0, 0, 0) },
+      cogOrder: ["A", "B"], treasuries: { A: T(11, 0, 0, 0), B: T(33, 0, 0, 0) },
     });
     const { state, events } = upkeep(s, FLOOR);
     expect(at(state, 0, 0).coherence).toBe(5); // funded -> holds
@@ -81,7 +81,7 @@ describe("upkeep", () => {
     expect(at(state, 20, 0)).toMatchObject({ coherence: 0, alignment: null }); // 1 -> 0 -> neutral
     expect(events.some((e) => e.type === "starved" && e.tile === "10,0")).toBe(true);
     expect(events).toContainEqual({ type: "lost", cog: "A", tile: "20,0" });
-    expect(tre(state, "A")).toEqual(T(1, 0, 0, 0)); // 2e spent; mints 5/5=1 + floor(2/5)=0
+    expect(tre(state, "A")).toEqual(T(1, 0, 0, 0)); // 11e spent; mints 5/5=1 + floor(2/5)=0
   });
 
   it("a friendly pair is cheap to hold and to grow", () => {
@@ -132,16 +132,16 @@ describe("upkeep", () => {
     expect(events.some((e) => e.type === "starved" || e.type === "lost")).toBe(false);
   });
 
-  it("an enemy pair bills 2e each; the broke side rots", () => {
+  it("an enemy pair bills 11e each; the broke side rots", () => {
     const s = makeState({
       tiles: [tile(0, 0, "A", 5), tile(1, 0, "B", 5)],
-      cogOrder: ["A", "B"], treasuries: { A: T(2, 0, 0, 0), B: T(1, 0, 0, 0) },
+      cogOrder: ["A", "B"], treasuries: { A: T(11, 0, 0, 0), B: T(10, 0, 0, 0) },
     });
     const { state } = upkeep(s, FLOOR);
-    expect(at(state, 0, 0).coherence).toBe(5); // A affords the 2e bill -> holds
+    expect(at(state, 0, 0).coherence).toBe(5); // A affords the 11e bill -> holds
     expect(at(state, 1, 0).coherence).toBe(4); // B cannot -> under resistance, rots
-    expect(tre(state, "A")).toEqual(T(1, 0, 0, 0)); // charged 2; mint 5/5 = 1 C
-    expect(tre(state, "B")).toEqual(T(1, 0, 0, 0)); // unpaid bills charge nothing; mint floor(4/5)=0
+    expect(tre(state, "A")).toEqual(T(1, 0, 0, 0)); // charged 11; mint 5/5 = 1 C
+    expect(tre(state, "B")).toEqual(T(10, 0, 0, 0)); // unpaid bills charge nothing; mint floor(4/5)=0
   });
 
   it("two allies fully cover an enemy; one only half-covers (rounded against you)", () => {

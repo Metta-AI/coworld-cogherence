@@ -8,7 +8,7 @@ import type { Message } from "../../shared/messages";
 import type { TurnEvent } from "../../shared/engine/log";
 import type { StampedEvent } from "../net/feed";
 import { cogColor, cogName } from "../colors";
-import { MINT_DIVISOR, TRANSFER_FEE, UPKEEP_BASE, REGEN_COST } from "../../shared/engine/constants";
+import { MINT_DIVISOR, TRANSFER_FEE, UPKEEP_BASE, REGEN_COST, RESISTANCE_COST } from "../../shared/engine/constants";
 import { HexBoard, type LatticeMode } from "../HexBoard";
 import { CGIcon, CogSigil, CogText, Mineral } from "./atoms";
 import {
@@ -475,7 +475,7 @@ export function TileInspector({ tileKey: key, snapshot }: { tileKey: string; sna
   const enemies = t.alignment ? nb.filter((n) => n.alignment !== null && n.alignment !== t.alignment).length : 0;
   const bill = t.alignment ? tileCost(t, map) : 0;
   const resistance = bill - UPKEEP_BASE;
-  const resistanceTip = `${enemies} enemy − ${friendly}/2 allied neighbors (each ally offsets half an enemy; neutral counts for neither)`;
+  const resistanceTip = `(${enemies} enemy − ${friendly}/2 allied neighbors) × ${RESISTANCE_COST}e — each ally offsets half an enemy; neutral counts for neither`;
   const scarred = t.density < t.density0; // an exploit halved the deposit
   const mint = (t.density * t.coherence) / MINT_DIVISOR; // expected mineral/turn
   const row = (label: string, value: React.ReactNode): React.ReactElement => (
