@@ -93,15 +93,16 @@ Energy is the **sole limiter**: do as much as you can afford. Every order draws 
 ### Align — the constructive verb (expand / capture / reinforce)
 Pour energy into a tile as **pressure** toward your alignment. Resolution is a **tug-of-war**, settled simultaneously across every Cog targeting the tile:
 
-- **Each Cog's force** = the COHERENCE it commits to the tile — **transferred out of its other tiles, largest first** (donors never drop below 1; a set whose Aligns exceed the spare pool is rejected wholesale). The **incumbent** (current owner) adds its **standing Coherence** as free defense, so incumbent force = standing Coherence + any Align coherence the owner also commits.
+- **Funding splits by target.** Settling **NEUTRAL** ground is paid in **energy** (1 per point of force) — that is what the starting bank is for. An Align against a **standing alignment** (an attack, or reinforcing your own tile) is paid in **Coherence transferred out of your other tiles, largest first** (donors never drop below 1; a set whose war Aligns exceed the spare pool is rejected wholesale).
+- **Each Cog's force** = what it commits. The **incumbent** (current owner) adds its **standing Coherence** as free defense, so incumbent force = standing Coherence + any force the owner also commits.
 - **Winner** = highest total force; **Alignment = winner**. **New Coherence = winner's force − next-highest *opposing* force**, clamped to `[0, cap]` (cap = the tile's neighbor count, normally 6).
 - A winning Align **flips** the tile the instant the challenger's force exceeds the incumbent's — even from high Coherence (§4). **Ties** in top force leave the tile with its current owner, or neutral, at Coherence 0.
 
 Examples:
-- A commits 5, B commits 3 on a **neutral** tile (standing 0) → **A holds it at Coherence 2** (5−3).
+- A commits 5, B commits 3 on a **neutral** tile (standing 0; both pay energy) → **A holds it at Coherence 2** (5−3) — and both spent what they committed.
 - A's tile at Coherence 4, B attacks with 3, A doesn't respond → incumbent force 4 beats 3, **A holds at 1** (4−3) — a defended grind.
 - A's tile at Coherence 4, B attacks with 5 → challenger 5 beats incumbent 4, **flips to B at 1** (5−4).
-- Reinforcing your **own** uncontested tile climbs its Coherence to `min(standing + committed, cap)`.
+- Reinforcing your **own** uncontested tile climbs its Coherence to `min(standing + committed, cap)` — coherence-funded: you are consolidating order, not creating it.
 
 Align is also what keeps the shared economy alive: adding Coherence *is* restoring the board's order.
 
@@ -114,6 +115,9 @@ On a tile you hold:
 
 A huge one-time burst that abandons the tile and **scars the land forever**. Good for cashing a frontier you're about to lose, scorched-earth retreats, or a war chest before an auction. Repeated Exploiting is an **irreversible death spiral** for the board. Exploit pays for itself (it mints), so it is the cheap emergency liquidity move.
 
+### Abandon — the orderly retreat
+On a tile you hold: return it to **neutral** and recover its standing **Coherence as energy** (a windfall — next-turn money, paid as units of your most abundant mineral). **No scarring** — Density is untouched. The disciplined counterpart to Exploit: a smaller payout, but the land stays whole for whoever settles it next (including you).
+
 ### Deal — politics (free) + Transfer (1 energy)
 - **Talk** is free and non-binding (§9).
 - **Transfer** actually sends minerals to another Cog (costs **1 energy**). This makes deals *real* and *betrayable*: promise Sulfur, then quietly don't send — the reveal exposes it.
@@ -122,7 +126,7 @@ A huge one-time burst that abandons the tile and **scars the land forever**. Goo
 
 ## 6. Economy — minerals, treasury, energy
 
-**Mineral production (every Upkeep):** each aligned tile mints **Density × Coherence ÷ 10** of its mineral into its Cog's **treasury**, *stochastically rounded* (a raw 2.3 mints 2, plus 1 with probability 0.3 — unbiased on average). On the 0–10 Coherence scale this means a tile at full Coherence yields its Density and weaker tiles yield proportionally less, so output rewards *both* good geography (Density) *and* stable, consolidated holdings (Coherence) while staying on a tractable scale.
+**Mineral production (every Upkeep):** each aligned tile mints **Density × Coherence ÷ 5** of its mineral into its Cog's **treasury**, *stochastically rounded* (a raw 2.3 mints 2, plus 1 with probability 0.3 — unbiased on average). On the 0–10 Coherence scale this means a tile at full Coherence yields **double its Density** and weaker tiles yield proportionally less, so output rewards *both* good geography (Density) *and* stable, consolidated holdings (Coherence) — and a calm interior tile (1e bill) turns profitable from mid Coherence up, making empire viable.
 
 **Energy is derived, not stored.** Whenever energy is needed, the engine auto-converts treasury minerals, greedily forming sets first:
 - A full **COGS set** (1 C + 1 O + 1 Ge + 1 S) → **10 energy.**
@@ -149,7 +153,7 @@ Four phases — the first three are the Diplomacy heartbeat; the fourth is the w
 
 ## 8. Hearts & Victory
 
-- **Every turn, one heart** is auctioned: **sealed-bid, second-price (Vickrey)**, paid in **energy**, settled during Resolve. Highest bid wins the heart and pays the **second** price; bid ties break deterministically (§14).
+- **Every turn, one heart** is auctioned: **sealed-bid, second-price (Vickrey)**, paid in **energy**, settled during Resolve. Highest bid wins the heart and pays the **second** price; bid ties break deterministically (§14). Two guards keep hearts honest: a **reserve price of 1 energy** (a sole bidder still pays 1 — hearts are never free) and **only Cogs holding at least one tile may bid** (wiped off the board = out of the running).
 - **Win:** most hearts at turn 100. Ties break by **remaining treasury value** (energy-equivalent, §6), then by **total Coherence held**.
 
 Why it works:
@@ -246,26 +250,26 @@ A Cog never sees another Cog's treasury, pending orders, sealed bid, or private 
 **Commit phase** — exactly one secret order set:
 ```json
 {
-  "align":    [{ "tile": "<id>", "energy": 5 }],
+  "align":    [{ "tile": "<id>", "force": 5 }],
   "exploit":  [{ "tile": "<id>" }],
   "transfer": [{ "to": "<cog_id>", "mineral": "S", "amount": 2 }],
   "bid":      3
 }
 ```
-All four keys optional; omit or use `[]` / `0` for none. `align.energy ≥ 1`, `transfer.amount ≥ 1`, `bid ≥ 0`.
+All keys optional; omit or use `[]` / `0` for none. `align.force ≥ 1`, `transfer.amount ≥ 1`, `bid ≥ 0`.
 
 ### 14.3 Validation & failure (deterministic, engine-enforced)
-- **Legal targets:** Align any tile; Exploit only tiles the Cog currently owns; Transfer only minerals it holds. Illegal entries are **dropped and logged**, never errored.
-- **Energy budget (Commit):** committed energy = Σ `align.energy` + (1 per transfer) + `bid`, drawn from the treasury converted on demand (§6). **Exploit resolves first and *mints* energy** (§5), so it can fund the rest and never fails for cost. If commitments still exceed available energy at Resolve, they are paid in priority order — **transfers → aligns (submitted order) → bid** — and anything unaffordable is **dropped** (a dropped or partial bid counts as **0**). A bid only needs to be *covered* at commit — only the **winner** actually pays, and only the **second price** (§8); losers and the winner's overage are refunded.
+- **Legal targets:** Align only tiles you own or that touch your territory; Exploit / Abandon only tiles the Cog currently owns; Transfer only minerals it holds. An illegal entry rejects the **whole order set** (logged), never errors.
+- **Budget (Commit):** committed **energy** = Σ neutral-target `align.force` + (1 per transfer) + `bid`, drawn from the treasury converted on demand (§6). Committed **war force** (targets with a standing alignment) must fit the spare Coherence pool — Σ max(0, coherence − 1) over the Cog's OTHER tiles, excluding any tile it is Exploiting or Abandoning away this turn. Windfalls (Exploit, Abandon) are **next-turn money** and cannot fund this turn's spend. A set that exceeds either budget is **rejected wholesale** and logged — never partially applied. A bid only needs to be *covered* at commit — only the **winner** actually pays, and only the **clearing price** (§8); losers pay nothing.
 - **Upkeep** is separate (step 5 below): each owned tile bills by its neighborhood (§6); any shortfall is paid in **Coherence loss**, not order failure.
 - **Malformed / missing output** (timeout, invalid JSON, unknown tile id): the Cog is treated as **no orders, bid 0** for the turn, and it's logged. The game never stalls on one agent.
 
 ### 14.4 Execution order (canonical — resolves the §6/§12 ambiguity)
 Steps 1–4 are **Resolve** (phase 3); step 5 is **Upkeep** (phase 4):
-1. **Exploit** — mint windfalls, drop tiles to neutral @ Coherence 0, reduce density.
+1. **Exploit / Abandon** — mint windfalls (Exploit scars Density; Abandon does not), drop the tiles to neutral @ Coherence 0.
 2. **Align** — tug-of-war on every contested tile, all simultaneously (§5).
 3. **Transfer** — move minerals between treasuries.
-4. **Heart auction** — Vickrey settle (§8); winner pays the second price. **Bid ties break deterministically** (e.g. lowest `cog_id`).
+4. **Heart auction** — Vickrey settle (§8); winner pays the second price, floored at the **1-energy reserve**; only Cogs holding ground may bid. **Bid ties break deterministically** (e.g. lowest `cog_id`).
 5. **Upkeep** — bill every tile (§6): pay-or-rot, double-pay-to-grow, heartland funded first; then mint minerals.
 
 ### 14.5 Time & token budget (LLM-specific)
@@ -301,9 +305,9 @@ t1 is A's frontier O-tile (B eyes it); t2 is unclaimed **S** that A badly needs;
 - **DM (A→B):** "You're starved for O — I'll send 2 O this turn if you leave t1 alone." B: "Deal."
 
 ### 2. Commit (secret, simultaneous §7)
-- **A** (13e): Align **t2** ← 5 · **Exploit t3** · **Transfer 2 O → B** (1e) · **bid 3.** *(A intends to keep its word.)*
-- **B** (9e): Align **t1** ← 5 · **bid 4.** *(Betrayal — attacks the truce tile; tapped out at 5 + 4 = 9.)*
-- **C** (10e): Align **t2** ← 3 · **bid 2.**
+- **A** (13e): Align **t2** ← 5 *(neutral — paid in energy)* · **Exploit t3** · **Transfer 2 O → B** (1e) · **bid 3.** Energy committed: 5 + 1 + 3 = 9 of 13. *(A intends to keep its word.)*
+- **B** (9e): Align **t1** ← 5 *(war — paid by pulling 5 Coherence out of B's interior tiles, largest first)* · **bid 4.** *(Betrayal — attacks the truce tile.)*
+- **C** (10e): Align **t2** ← 3 *(energy)* · **bid 2.**
 
 ### 3. Resolve (canonical order §14.4)
 **① Exploit** — A scorches t3 (Coh 2, Ge, D1) before losing it: windfall = 2 × Coherence × Density = 2 × 2 × 1 = **4 Ge** to A (minted now, can fund the rest of A's turn); t3 → **neutral @ 0**, Density **1 → 0** (scarred, §12).
@@ -314,12 +318,11 @@ t1 is A's frontier O-tile (B eyes it); t2 is unclaimed **S** that A badly needs;
 
 **③ Transfer** — 2 O lands in B's treasury. **A kept its promise; B broke its.** The reveal shows both at once — the whole point of simultaneous resolution.
 
-**④ Heart auction** (Vickrey, second-price §8): bids A 3, B 4, C 2 → **B wins**, pays the **second price = 3** energy (A's bid). B: hearts +1. *(B had 9 − 5 = 4 left, so 3 is covered; an uncovered bid would be zeroed, §14.3. A and C lose, so pay nothing — A's 3 reserved energy is freed.)*
+**④ Heart auction** (Vickrey, second-price §8): bids A 3, B 4, C 2 → **B wins**, pays the **second price = 3** energy (A's bid; above the 1e reserve, which only binds for a sole bidder). B: hearts +1. *(B's Align was coherence-funded, so its full 9e covered the bid; an uncovered bid would have rejected the set, §14.3. A and C lose, so pay nothing — A's 3 reserved energy is freed.)*
 
 ### 4. Upkeep — the world breathes (§14.5)
-- **Mint** (Density × Coherence → owner, for *next* turn): t1 → 2 O to B; t2 → **6 S to A** (A finally has S income); t3 (neutral) → nothing.
-- **Bills (§6):** t2 sits inside A's cluster (4 of 6 neighbors A) → calm rate; A double-pays → **+1 → 3.** t1 is now a lone **B** salient ringed by A → contested + 6 surcharges, a bill B can't sustain → **−1 → 0.** *B's prize is already rotting; A can retake the husk next turn for a trickle.*
-- **Upkeep skim:** each tile bills by its neighborhood (calm 1 / contested 3, +1 per enemy neighbor); a Cog that can't pay loses Coherence instead.
+- **Bills (§6):** each tile bills by its neighborhood (calm 1 / contested 3, +1 per enemy neighbor); a Cog that can't pay loses Coherence instead. t2 sits inside A's cluster (4 of 6 neighbors A) → calm rate; A double-pays → **+1 → 3.** t1 is now a lone **B** salient ringed by A → contested + 6 surcharges, a bill B can't sustain → **−1 → 0.** *B's prize is already rotting; A can retake the husk next turn for a trickle.*
+- **Mint** (Density × Coherence ÷ 5 → owner, for *next* turn, stochastically rounded): t2 @ Coherence 3, Density 3 → **9/5 ≈ 2 S to A** (A finally has S income); t1 rotted to 0 → nothing; t3 (neutral) → nothing.
 - **Total Coherence:** across these tiles, aligned Coherence went 4 + 2 = **6 → 0 + 3 = 3.** War + Exploit **frayed the board** even though the tiles only changed hands.
 
 ### What this turn demonstrates

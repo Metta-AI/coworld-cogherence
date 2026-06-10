@@ -27,8 +27,8 @@ describe("stub agents", () => {
     if (o.type === "align") expect(o.tile).not.toBe("1,0"); // never the enemy tile
   });
 
-  it("greedyAgent claims the adjacent pocket from its coherence pool and bids", async () => {
-    // A's tile at coherence 8 -> spare pool 7, reserve 2 -> 5 to spend (>= 4 gate)
+  it("greedyAgent raids the weak adjacent enemy from its coherence pool and bids", async () => {
+    // A's tile at coherence 8 -> pool 7, reserve 2 -> raid force 1+2=3 fits comfortably
     const s = stateWith([tile(0, 0, "A", 8), tile(1, 0, "B", 1)], ["A", "B"], { A: T(2, 2, 2, 2) });
     const orders = await greedyAgent("A").commit({ state: s, me: "A" });
     expect(orders.some((o) => o.type === "align" && o.tile === "1,0")).toBe(true);
@@ -43,7 +43,7 @@ describe("stub agents", () => {
       for (const o of await agent.commit({ state: s, me: "A" })) {
         if (o.type === "align") {
           expect(isLegalAlignTarget(s, "A", o.tile)).toBe(true);
-          expect(o.coherence).toBeLessThanOrEqual(2); // the spare pool: coherence 3 tile -> 2
+          expect(o.force).toBeLessThanOrEqual(2); // settles cap at 2e; raids cap at the pool (coherence 3 tile -> 2)
         } else if (o.type === "exploit") {
           expect(isOwn(s, "A", o.tile)).toBe(true);
         } else if (o.type === "bid") {

@@ -23,10 +23,10 @@ const stateWith = (tiles: Tile[]): GameState => {
 
 describe("OrderSchema", () => {
   it("parses a valid align order", () =>
-    expect(OrderSchema.parse({ type: "align", tile: "0,0", coherence: 3 }).type).toBe("align"));
-  it("rejects zero or negative align coherence", () => {
-    expect(() => OrderSchema.parse({ type: "align", tile: "0,0", coherence: 0 })).toThrow();
-    expect(() => OrderSchema.parse({ type: "align", tile: "0,0", coherence: -1 })).toThrow();
+    expect(OrderSchema.parse({ type: "align", tile: "0,0", force: 3 }).type).toBe("align"));
+  it("rejects zero or negative align force", () => {
+    expect(() => OrderSchema.parse({ type: "align", tile: "0,0", force: 0 })).toThrow();
+    expect(() => OrderSchema.parse({ type: "align", tile: "0,0", force: -1 })).toThrow();
   });
   it("parses exploit", () =>
     expect(OrderSchema.parse({ type: "exploit", tile: "0,0" }).type).toBe("exploit"));

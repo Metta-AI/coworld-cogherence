@@ -44,21 +44,21 @@ describe("upkeep", () => {
     const s = makeState({ tiles: [tile(0, 0, "A", 8, "Ge", 3)], cogOrder: ["A"], treasuries: { A: T(7, 0, 0, 0) } });
     const { state } = upkeep(s, FLOOR);
     expect(at(state, 0, 0).coherence).toBe(9); // 8 -> double-paid -> 9
-    expect(tre(state, "A")).toEqual(T(1, 0, 2, 0)); // 7-6=1 C; mint floor(3*9/10)=2 Ge
+    expect(tre(state, "A")).toEqual(T(1, 0, 5, 0)); // 7-6=1 C; mint floor(3*9/5)=5 Ge
   });
 
   it("base upkeep paid but no double -> coherence simply holds", () => {
     const s = makeState({ tiles: [tile(0, 0, "A", 8, "C", 3)], cogOrder: ["A"], treasuries: { A: T(4, 0, 0, 0) } });
     const { state } = upkeep(s, FLOOR);
     expect(at(state, 0, 0).coherence).toBe(8); // paid 3, 1 left < 3 -> no growth
-    expect(tre(state, "A")).toEqual(T(3, 0, 0, 0)); // 4-3=1 C + mint floor(3*8/10)=2 C
+    expect(tre(state, "A")).toEqual(T(5, 0, 0, 0)); // 4-3=1 C + mint floor(3*8/5)=4 C
   });
 
-  it("mints density*coherence/10, stochastically rounded by its fractional part", () => {
-    // lone tile bills 3e, paid exactly; coherence holds at 7 -> raw mint 3*7/10 = 2.1
+  it("mints density*coherence/MINT_DIVISOR, stochastically rounded by its fractional part", () => {
+    // lone tile bills 3e, paid exactly; coherence holds at 7 -> raw mint 3*7/5 = 4.2
     const s = makeState({ tiles: [tile(0, 0, "A", 7, "C", 3)], cogOrder: ["A"], treasuries: { A: T(3, 0, 0, 0) } });
-    expect(tre(upkeep(s, FLOOR).state, "A")).toEqual(T(2, 0, 0, 0)); // 2.1 -> floor -> 2 C
-    expect(tre(upkeep(s, CEIL).state, "A")).toEqual(T(3, 0, 0, 0)); // 2.1 -> +1 (prob 0.1) -> 3 C
+    expect(tre(upkeep(s, FLOOR).state, "A")).toEqual(T(4, 0, 0, 0)); // 4.2 -> floor -> 4 C
+    expect(tre(upkeep(s, CEIL).state, "A")).toEqual(T(5, 0, 0, 0)); // 4.2 -> +1 (prob 0.2) -> 5 C
   });
 
   it("unpaid tiles rot -1, heartland funded first (lowest coherence starves)", () => {
@@ -73,7 +73,7 @@ describe("upkeep", () => {
     expect(at(state, 20, 0)).toMatchObject({ coherence: 0, alignment: null }); // 1 -> 0 -> neutral
     expect(events.some((e) => e.type === "starved" && e.tile === "10,0")).toBe(true);
     expect(events).toContainEqual({ type: "lost", cog: "A", tile: "20,0" });
-    expect(tre(state, "A")).toEqual(T(0, 0, 0, 0)); // 3e spent; mints floor(.5)+floor(.2)=0
+    expect(tre(state, "A")).toEqual(T(1, 0, 0, 0)); // 3e spent; mints 5/5=1 + floor(2/5)=0
   });
 
   it("a calm pair is cheap to hold and to grow", () => {
@@ -108,8 +108,20 @@ describe("upkeep", () => {
     });
     const { state } = upkeep(s, FLOOR);
     expect(at(state, 0, 0).coherence).toBe(COHERENCE_MAX);
-    // 8 - 2 base = 6 C left, + each maxed d1 tile mints 1*10/10 = 1 C -> 8
-    expect(tre(state, "A")).toEqual(T(8, 0, 0, 0));
+    // 8 - 2 base = 6 C left, + each maxed d1 tile mints 10/5 = 2 C -> 10
+    expect(tre(state, "A")).toEqual(T(10, 0, 0, 0));
+  });
+
+  it("calm unpaid tiles HOLD — collapse stays on the frontier", () => {
+    // a broke cog's friendly pair (calm, 1e bills it can't pay) keeps its coherence
+    const s = makeState({
+      tiles: [tile(0, 0, "A", 3), tile(1, 0, "A", 2)],
+      cogOrder: ["A"], treasuries: { A: T() },
+    });
+    const { state, events } = upkeep(s, FLOOR);
+    expect(at(state, 0, 0).coherence).toBe(3); // held, not rotted
+    expect(at(state, 1, 0).coherence).toBe(2);
+    expect(events.some((e) => e.type === "starved" || e.type === "lost")).toBe(false);
   });
 
   it("contested ground is expensive: an enemy pair bills 4e each", () => {
@@ -119,9 +131,9 @@ describe("upkeep", () => {
     });
     const { state } = upkeep(s, FLOOR);
     expect(at(state, 0, 0).coherence).toBe(5); // A affords the 4e bill -> holds
-    expect(at(state, 1, 0).coherence).toBe(4); // B cannot -> rots
-    expect(tre(state, "A")).toEqual(T(0, 0, 0, 0));
-    expect(tre(state, "B")).toEqual(T(3, 0, 0, 0)); // unpaid bills charge nothing
+    expect(at(state, 1, 0).coherence).toBe(4); // B cannot -> rots (contested, no calm shelter)
+    expect(tre(state, "A")).toEqual(T(1, 0, 0, 0)); // charged 4; mint 5/5 = 1 C
+    expect(tre(state, "B")).toEqual(T(3, 0, 0, 0)); // unpaid bills charge nothing; mint floor(4/5)=0
   });
 
   it("does not mutate the input state", () => {
@@ -140,12 +152,12 @@ describe("upkeep", () => {
     expect(at(state, 5, 0)).toMatchObject({ alignment: null, coherence: 0, density: 2 });
   });
 
-  it("a starved tile mints density x its REDUCED coherence (over /10)", () => {
-    // lone tile, no funds: rot 4 -> 3; mint floor(5*3/10) = 1 O — post-upkeep coherence.
+  it("a starved tile mints density x its REDUCED coherence", () => {
+    // lone tile, no funds: rot 4 -> 3; mint floor(5*3/5) = 3 O — post-upkeep coherence.
     const s = makeState({ tiles: [tile(0, 0, "A", 4, "O", 5)], cogOrder: ["A"], treasuries: { A: T() } });
     const { state } = upkeep(s, FLOOR);
     expect(at(state, 0, 0).coherence).toBe(3);
-    expect(tre(state, "A")).toEqual(T(0, 1, 0, 0));
+    expect(tre(state, "A")).toEqual(T(0, 3, 0, 0));
   });
 
   it("a tile starved to Coherence 0 goes neutral and is reported lost", () => {

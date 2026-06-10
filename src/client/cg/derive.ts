@@ -61,7 +61,7 @@ export interface Territory {
   tiles: number;
   fortresses: number;
   salients: number;
-  /** Total coherence across the cog's tiles — the pool Aligns draw from. */
+  /** Total coherence across the cog's tiles — the pool war Aligns draw from. */
   coherence: number;
 }
 /** Per-cog territory shape: tiles held, fortresses (maxed coherence), and rotting

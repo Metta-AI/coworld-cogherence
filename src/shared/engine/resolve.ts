@@ -1,9 +1,11 @@
 // The Resolve phase: all Cogs' Commit-phase orders execute simultaneously in a
-// single LOCKED sequence — validate+budget, sealed second-price heart auction,
-// charge, exploits, align coherence-donation + tug-of-war, then assemble
-// next-turn treasuries. Aligns are paid in COHERENCE, not energy: the committed
-// amount is transferred out of the aligner's own tiles (largest first, donors
-// floored at 1) into the contest. Pure: the input GameState is never mutated.
+// single LOCKED sequence — validate+budget, sealed second-price heart auction
+// (reserve 1e; only cogs holding ground may bid), charge, exploits/abandons,
+// align funding + tug-of-war, then assemble next-turn treasuries. Align funding
+// splits by target: settling NEUTRAL ground is paid in energy (that is what the
+// starting bank is for); Aligns against standing alignments are paid in
+// COHERENCE transferred out of the aligner's other tiles (largest first, donors
+// floored at 1). Pure: the input GameState is never mutated.
 //
 // Two invariants drive the design:
 //  - chargeEnergy is monotonic (affordable iff maxEnergy >= need), so a Cog that
@@ -70,9 +72,9 @@ export function resolve(
     for (const o of orders) {
       if (reject) break;
       if (o.type === "align") {
-        if (o.coherence < 1) reject = `align ${o.tile} needs at least 1 coherence`;
+        if (o.force < 1) reject = `align ${o.tile} needs at least 1 force`;
         else if (!isLegalAlignTarget(state, cogId, o.tile)) reject = `illegal align ${o.tile}`;
-        else aligns.push([o.tile, o.coherence]);
+        else aligns.push([o.tile, o.force]);
       } else if (o.type === "exploit") {
         if (!isOwn(state, cogId, o.tile)) reject = `illegal exploit ${o.tile}`;
         else exploits.push(o.tile);
@@ -99,28 +101,29 @@ export function resolve(
     }
 
     // affordability: must hold the minerals it is sending, then afford worst-case
-    // ENERGY spend (= #transfers×FEE + bid) from treasury − sent. Aligns are paid
-    // in coherence instead: the committed total must fit the donatable pool —
-    // Σ max(0, coherence − 1) across the cog's tiles it is NOT exploiting away.
+    // ENERGY spend (= settling Aligns on neutral ground + #transfers×FEE + bid)
+    // from treasury − sent. WAR Aligns (non-neutral targets, classified by the
+    // pre-resolve board) are paid in coherence instead: the committed total must
+    // fit the donatable pool — Σ max(0, coherence − 1) across the cog's OTHER
+    // tiles (not the align targets, not tiles it is exploiting/abandoning away).
     if (MINERALS.some((m) => cog.treasury[m] < sent[m])) {
       events.push({ type: "rejected", cog: cogId, reason: "insufficient minerals to transfer" });
       continue;
     }
-    const spendBase = transfers.length * TRANSFER_FEE;
+    const settleCost = aligns.reduce((s, [k, f]) => s + (state.tiles[k]!.alignment === null ? f : 0), 0);
+    const spendBase = transfers.length * TRANSFER_FEE + settleCost;
     if (maxEnergy(subT(cog.treasury, sent)) < spendBase + bid) {
       events.push({ type: "rejected", cog: cogId, reason: "cannot afford committed spend" });
       continue;
     }
-    const alignTotal = aligns.reduce((s, [, c]) => s + c, 0);
-    if (alignTotal > 0) {
-      // donors are the cog's OTHER tiles: not the align targets themselves, and
-      // not tiles it is exploiting away this same turn
+    const warTotal = aligns.reduce((s, [k, f]) => s + (state.tiles[k]!.alignment !== null ? f : 0), 0);
+    if (warTotal > 0) {
       const excluded = new Set([...exploits, ...abandons, ...aligns.map(([k]) => k)]);
       let pool = 0;
       for (const [k, t] of Object.entries(state.tiles)) {
         if (t.alignment === cogId && !excluded.has(k)) pool += Math.max(0, t.coherence - 1);
       }
-      if (alignTotal > pool) {
+      if (warTotal > pool) {
         events.push({ type: "rejected", cog: cogId, reason: "insufficient coherence to fund Aligns" });
         continue;
       }
@@ -130,11 +133,15 @@ export function resolve(
 
   // 2. heart auction — sealed second-price among valid Cogs with a positive bid.
   // Highest bid wins (ties => lowest cog index, via cogOrder iteration), pays the
-  // second-highest bid (0 if sole bidder).
+  // second-highest bid, floored at the 1e reserve.
+  // Only cogs holding ground may buy hearts — a cog wiped off the board is out
+  // of the game, not a free-heart zombie.
+  const holdsGround = new Set<CogId>();
+  for (const t of Object.values(state.tiles)) if (t.alignment !== null) holdsGround.add(t.alignment);
   const bids: Array<[CogId, number]> = [];
   for (const cogId of state.cogOrder) {
     const p = plans.get(cogId);
-    if (p && p.bid > 0) bids.push([cogId, p.bid]);
+    if (p && p.bid > 0 && holdsGround.has(cogId)) bids.push([cogId, p.bid]);
   }
   let winner: CogId | null = null;
   let clearingPrice = 0;
@@ -143,6 +150,7 @@ export function resolve(
     for (let i = 1; i < bids.length; i++) if (bids[i]![1] > bids[wi]![1]) wi = i;
     winner = bids[wi]![0];
     for (let i = 0; i < bids.length; i++) if (i !== wi && bids[i]![1] > clearingPrice) clearingPrice = bids[i]![1];
+    if (clearingPrice < 1) clearingPrice = 1; // reserve price — hearts are never free
   }
 
   // 3. apply effects -> new tiles + treasuries.
@@ -226,7 +234,8 @@ export function resolve(
   for (const cogId of state.cogOrder) {
     const p = plans.get(cogId);
     if (!p) continue;
-    let need = p.aligns.reduce((s, [, c]) => s + c, 0);
+    // war Aligns only — settling neutral ground was charged in energy above
+    let need = p.aligns.reduce((s, [k, f]) => s + (state.tiles[k]!.alignment === null ? 0 : f), 0);
     if (need === 0) continue;
     const targets = new Set(p.aligns.map(([k]) => k));
     const donors = Object.entries(tiles)

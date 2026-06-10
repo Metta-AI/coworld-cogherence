@@ -8,7 +8,7 @@ import type { Message } from "../../shared/messages";
 import type { TurnEvent } from "../../shared/engine/log";
 import type { StampedEvent } from "../net/feed";
 import { cogColor, cogName } from "../colors";
-import { TRANSFER_FEE } from "../../shared/engine/constants";
+import { MINT_DIVISOR, TRANSFER_FEE } from "../../shared/engine/constants";
 import { HexBoard, type LatticeMode } from "../HexBoard";
 import { CGIcon, CogSigil, CogText, Mineral } from "./atoms";
 import {
@@ -168,7 +168,8 @@ function actorOf(e: TurnEvent): string | null {
 function eventText(e: TurnEvent): React.ReactNode {
   switch (e.type) {
     case "capture": {
-      const cost = e.to && e.spent > 0 ? ` · −${e.spent} coh` : "";
+      // settling neutral ground is paid in energy; flips spend transferred coherence
+      const cost = e.to && e.spent > 0 ? (e.from ? ` · −${e.spent} coh` : ` · −${e.spent}e`) : "";
       return e.from
         ? `flipped ${e.tile} from ${cogName(cogIdx(e.from))} → coherence ${e.coherence}${cost}`
         : `claimed ${e.tile} → coherence ${e.coherence}${cost}`;
@@ -317,7 +318,7 @@ export function TileInspector({ tileKey: key, snapshot }: { tileKey: string; sna
   const status = tileStatus(t, map, snapshot.coherenceMax, ownerColor);
   const drain = tileDrain(t, snapshot);
   const scarred = t.density < t.density0; // an exploit halved the deposit
-  const mint = (t.density * t.coherence) / 10; // expected mineral/turn
+  const mint = (t.density * t.coherence) / MINT_DIVISOR; // expected mineral/turn
   const row = (label: string, value: React.ReactNode): React.ReactElement => (
     <tr key={label}>
       <td className="cg-label" style={{ fontSize: 9, padding: "3px 0" }}>{label}</td>
@@ -361,7 +362,7 @@ export function TileInspector({ tileKey: key, snapshot }: { tileKey: string; sna
                     <span style={{ color: "var(--exploit)" }}> {t.density}</span>
                   </span>
                 ) : (
-                  <span data-tip="deposit density — mints density × coherence / 10 per turn">{t.density}</span>
+                  <span data-tip={`deposit density — mints density × coherence / ${MINT_DIVISOR} per turn`}>{t.density}</span>
                 )}
               </span>,
             )}

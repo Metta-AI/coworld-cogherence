@@ -23,10 +23,10 @@ export const tileUpkeepCost = (friendly: number, aligned: number, inBoard: numbe
   (friendly * 2 > inBoard ? UPKEEP_CALM : UPKEEP_CONTESTED) + (aligned - friendly) * UPKEEP_PER_ENEMY_NEIGHBOR;
 
 /** Mineral minted per Upkeep = density × coherence / MINT_DIVISOR, stochastically
- *  rounded: a raw 2.3 mints 2, plus 1 with probability 0.3. With COHERENCE_MAX 10
- *  a tile at full coherence yields its density; weaker tiles yield proportionally
- *  less. Keeps mineral output (and so the whole economy) on a tractable scale. */
-export const MINT_DIVISOR = 10;
+ *  rounded: a raw 2.3 mints 2, plus 1 with probability 0.3. At 5 a tile at full
+ *  coherence (10) yields DOUBLE its density — sized so a calm interior tile
+ *  (1e bill) is profitable from mid coherence up, making empire viable. */
+export const MINT_DIVISOR = 5;
 
 /** Energy yielded by a full COGS set (1×C + 1×O + 1×Ge + 1×S). */
 export const SET_ENERGY = 10;

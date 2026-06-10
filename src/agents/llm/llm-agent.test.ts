@@ -17,8 +17,8 @@ const toolUse = (input: unknown): ConverseResult => ({
 
 describe("llmDecide", () => {
   it("parses a submit_orders tool call into Order[]", async () => {
-    const orders = await llmDecide(view, fake(toolUse({ aligns: [{ tile: "0,0", coherence: 2 }], bid: 4 })));
-    expect(orders).toContainEqual({ type: "align", tile: "0,0", coherence: 2 });
+    const orders = await llmDecide(view, fake(toolUse({ aligns: [{ tile: "0,0", force: 2 }], bid: 4 })));
+    expect(orders).toContainEqual({ type: "align", tile: "0,0", force: 2 });
     expect(orders).toContainEqual({ type: "bid", energy: 4 });
   });
   it("returns [] when the model only emits text (no tool call)", async () => {
@@ -29,11 +29,11 @@ describe("llmDecide", () => {
     expect(await llmDecide(view, fake(new Error("timeout")))).toEqual([]);
   });
   it("returns [] on malformed tool input", async () => {
-    expect(await llmDecide(view, fake(toolUse({ aligns: [{ tile: "0,0", coherence: -5 }] })))).toEqual([]);
+    expect(await llmDecide(view, fake(toolUse({ aligns: [{ tile: "0,0", force: -5 }] })))).toEqual([]);
   });
   it("reports the prompt + decision to the reporter", async () => {
     const reports: { turn: number; content: string }[] = [];
-    const orders = await llmDecide(view, fake(toolUse({ aligns: [{ tile: "0,0", coherence: 2 }], bid: 4 })), {
+    const orders = await llmDecide(view, fake(toolUse({ aligns: [{ tile: "0,0", force: 2 }], bid: 4 })), {
       report: (turn, content) => reports.push({ turn, content }),
     });
     expect(orders).toContainEqual({ type: "bid", energy: 4 });

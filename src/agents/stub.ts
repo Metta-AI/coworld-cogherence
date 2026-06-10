@@ -17,10 +17,10 @@ import { makeRng, randInt } from "../shared/engine/rng";
 const myEnergy = (view: AgentView): number => maxEnergy(view.state.cogs[view.me]!.treasury);
 const ownedTiles = (view: AgentView): Tile[] =>
   Object.values(view.state.tiles).filter((t) => t.alignment === view.me);
-/** Coherence available to fund Aligns: Σ max(0, coherence − 1) across owned tiles
- *  (donors never drop below 1 — see resolve's align funding). */
-const cohPool = (view: AgentView): number =>
-  ownedTiles(view).reduce((s, t) => s + Math.max(0, t.coherence - 1), 0);
+/** Coherence available to fund WAR Aligns: Σ max(0, coherence − 1) across owned
+ *  tiles, optionally excluding one (the align target can't donate to itself). */
+const cohPool = (view: AgentView, excludeKey?: string): number =>
+  ownedTiles(view).reduce((s, t) => (key(t.hex) === excludeKey ? s : s + Math.max(0, t.coherence - 1)), 0);
 
 /** Non-owned tiles (neutral or enemy) adjacent to the cog's territory — its legal Align targets. */
 const adjacentTargets = (view: AgentView): Tile[] => {
@@ -64,13 +64,21 @@ const bestPocket = (view: AgentView): Tile | null => {
 export const peacefulAgent = (id: string): Agent => ({
   id,
   commit: (view) => {
-    const pool = cohPool(view);
-    if (pool < 1) return [];
-    const spend = Math.min(pool, 4); // up to 4: enough to claim/hold a tile without bleeding the core
+    // Settle neutral land with energy (keep a few turns of bills in reserve)...
     const neutral = adjacentTargets(view).filter((t) => t.alignment === null);
-    if (neutral.length > 0) return [{ type: "align", tile: key(weakest(neutral).hex), coherence: spend }];
     const owned = ownedTiles(view);
-    if (owned.length > 0) return [{ type: "align", tile: key(weakest(owned).hex), coherence: spend }];
+    if (neutral.length > 0) {
+      const spare = myEnergy(view) - 2 * Math.max(2, owned.length);
+      const force = Math.min(spare, 4);
+      if (force >= 1) return [{ type: "align", tile: key(weakest(neutral).hex), force }];
+      return [];
+    }
+    // ...else shore up the weakest tile from the coherence pool.
+    if (owned.length > 0) {
+      const target = weakest(owned);
+      const force = Math.min(cohPool(view, key(target.hex)), 4);
+      if (force >= 1) return [{ type: "align", tile: key(target.hex), force }];
+    }
     return [];
   },
   negotiate: (view) => {
@@ -92,33 +100,43 @@ export const greedyAgent = (id: string): Agent => ({
   commit: (view) => {
     const orders: Order[] = [];
     const owned = ownedTiles(view);
-    if (owned.length === 0) {
-      if (myEnergy(view) >= 1) orders.push({ type: "bid", energy: 1 });
-      return orders;
-    }
-    // Aligns spend coherence from the blob's pool; never drain it entirely (keep
-    // some standing order so the core can still double-pay at Upkeep).
+    if (owned.length === 0) return []; // off the board: no adjacency to align, no right to bid
+    // War chest: the coherence pool funds rescues and raids; keep a small reserve.
     let pool = Math.max(0, cohPool(view) - 2);
-    const align = (t: Tile, want: number): void => {
-      const coherence = Math.min(want, pool);
-      if (coherence >= 1) {
-        orders.push({ type: "align", tile: key(t.hex), coherence });
-        pool -= coherence;
-      }
-    };
+    let energy = myEnergy(view);
+    const billsReserve = 2 * owned.length; // ~a turn of worst-ish bills stays banked
 
-    // 1. Rescue any core tile one Upkeep from rotting to neutral.
+    // 1. Rescue any core tile one Upkeep from rotting to neutral (own tile -> pool).
     const critical = owned
       .filter((t) => t.coherence <= 1 && ownNeighborCount(view, t) >= 2)
       .sort((a, b) => a.coherence - b.coherence)[0];
-    if (critical) align(critical, 3);
-    // 2. Grow: when the pool is flush, claim the pocket that most thickens the blob.
+    if (critical) {
+      const force = Math.min(3, Math.max(0, cohPool(view, key(critical.hex)) - 2));
+      if (force >= 1) {
+        orders.push({ type: "align", tile: key(critical.hex), force });
+        pool -= force;
+      }
+    }
+    // 2. Settle: claim the neutral pocket that most thickens the blob (energy).
     const pocket = bestPocket(view);
-    if (pocket && pool >= 4) align(pocket, 3);
+    if (pocket && pocket.alignment === null && energy - billsReserve >= 3) {
+      orders.push({ type: "align", tile: key(pocket.hex), force: 3 });
+      energy -= 3;
+    }
+    // 3. Raid: flip a weak adjacent enemy when the pool covers it comfortably.
+    const prey = adjacentTargets(view)
+      .filter((t) => t.alignment !== null && t.coherence <= 2)
+      .sort((a, b) => a.coherence - b.coherence)[0];
+    if (prey) {
+      const force = prey.coherence + 2;
+      if (pool - force >= 2) {
+        orders.push({ type: "align", tile: key(prey.hex), force });
+        pool -= force;
+      }
+    }
 
-    // 3. Bid energy, scaling with wealth (richer cogs take the second-price auction).
-    const budget = myEnergy(view);
-    if (budget >= 1) orders.push({ type: "bid", energy: Math.min(budget, 1 + Math.floor(budget / 10)) });
+    // 4. Bid the spare energy, scaling with wealth (it is a second-price auction).
+    if (energy >= 1) orders.push({ type: "bid", energy: Math.min(energy, 1 + Math.floor(energy / 10)) });
     return orders;
   },
   negotiate: (view) => {
@@ -145,10 +163,13 @@ export const randomAgent = (id: string, seed: number): Agent => {
       const e = myEnergy(view);
       const owned = ownedTiles(view);
       const cands: Order[] = [];
-      const amt = Math.min(cohPool(view), 2);
-      if (amt >= 1) {
-        for (const t of owned) cands.push({ type: "align", tile: key(t.hex), coherence: amt });
-        for (const t of adjacentTargets(view)) cands.push({ type: "align", tile: key(t.hex), coherence: amt });
+      for (const t of owned) {
+        const amt = Math.min(cohPool(view, key(t.hex)), 2); // reinforce: pool minus the target itself
+        if (amt >= 1) cands.push({ type: "align", tile: key(t.hex), force: amt });
+      }
+      for (const t of adjacentTargets(view)) {
+        const amt = Math.min(t.alignment === null ? e : cohPool(view), 2); // settle: energy; raid: pool
+        if (amt >= 1) cands.push({ type: "align", tile: key(t.hex), force: amt });
       }
       if (e >= 1) cands.push({ type: "bid", energy: 1 });
       if (owned.length > 1) {
