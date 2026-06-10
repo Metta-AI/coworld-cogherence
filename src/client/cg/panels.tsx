@@ -211,11 +211,14 @@ function orderLine(order: PlayedOrder): { verb: string; tone: string; action: st
   }
 }
 
-function SectionHead({ label, right }: { label: string; right?: React.ReactNode }): React.ReactElement {
+function Section({ label, right, children }: { label: string; right?: React.ReactNode; children: React.ReactNode }): React.ReactElement {
   return (
-    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", padding: "7px 0 2px", borderBottom: "1px solid var(--border)" }}>
-      <span className="cg-label" style={{ fontSize: 8.5, letterSpacing: "0.12em" }}>{label}</span>
-      {right != null && <span className="cg-mono" style={{ fontSize: 9, color: "var(--muted)" }}>{right}</span>}
+    <div style={{ background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 8, padding: "5px 10px 7px", display: "flex", flexDirection: "column", gap: 2 }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", padding: "2px 0 3px", borderBottom: "1px solid var(--border)", marginBottom: 3 }}>
+        <span className="cg-label" style={{ fontSize: 8.5, letterSpacing: "0.12em" }}>{label}</span>
+        {right != null && <span className="cg-mono" style={{ fontSize: 9, color: "var(--muted)" }}>{right}</span>}
+      </div>
+      {children}
     </div>
   );
 }
@@ -285,12 +288,12 @@ export function TurnLog({ snapshot, events }: { snapshot: GameSnapshot; events: 
           {turn >= 1 ? `T${String(turn).padStart(2, "0")}` : "awaiting first turn"}
         </span>
       </div>
-      <div className="cg-panel-body cg-scroll" style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 2, padding: "2px 12px 10px" }}>
+      <div className="cg-panel-body cg-scroll" style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8, padding: "10px 12px" }}>
         {turn < 1 ? (
           <Quiet text="nothing has resolved yet." />
         ) : (
           <>
-            <SectionHead label="Actions" right={`${actions.length}`} />
+            <Section label="Actions" right={`${actions.length}`}>
             {actions.length === 0 && <Quiet text="no board orders — everyone held." />}
             {actions.map((l, i) => {
               const ai = cogIdx(l.cog);
@@ -313,15 +316,16 @@ export function TurnLog({ snapshot, events }: { snapshot: GameSnapshot; events: 
                 <b style={{ color: cogColor(cogIdx(tempo.cog)) }}>{cogName(cogIdx(tempo.cog))}</b> committed first · +{tempo.reward}⚡ · wins bid ties
               </div>
             )}
+            </Section>
 
-            <SectionHead
+            <Section
               label="Auction"
               right={
                 auction?.type === "auction" && auction.winner
                   ? <>♥ {cogName(cogIdx(auction.winner))} · {auction.price}e</>
                   : "unsold"
               }
-            />
+            >
             {bidders.length === 0 ? (
               <Quiet text="no bids — the heart goes unsold." />
             ) : (
@@ -351,7 +355,9 @@ export function TurnLog({ snapshot, events }: { snapshot: GameSnapshot; events: 
               </div>
             )}
 
-            <SectionHead label="Upkeep" />
+            </Section>
+
+            <Section label="Upkeep">
             {upkeepList.length === 0 && <Quiet text="quiet turn — every bill paid, nothing minted." />}
             {upkeepList.length > 0 && (
               <div
@@ -386,6 +392,7 @@ export function TurnLog({ snapshot, events }: { snapshot: GameSnapshot; events: 
                 })}
               </div>
             )}
+            </Section>
           </>
         )}
       </div>
