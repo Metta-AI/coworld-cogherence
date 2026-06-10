@@ -35,7 +35,10 @@ export function ViewSwitcher({
   const row = (active: boolean, accent: string, name: string, href: string): React.ReactElement => (
     <a
       key={name}
-      href={href}
+      // Absolute same-origin URL: embedded previews (e.g. Claude Code's pane)
+      // validate the raw href attribute and block ones they can't parse as
+      // absolute localhost URLs, so a root-relative "/feed" never navigates.
+      href={new URL(href, window.location.href).href}
       className={`vs-row ${active ? "is-active" : ""}`}
       style={{ borderLeftColor: active ? accent : "transparent", ...(active ? { color: accent } : {}) }}
     >
