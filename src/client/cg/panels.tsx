@@ -10,7 +10,7 @@ import type { StampedEvent } from "../net/feed";
 import { cogColor, cogName } from "../colors";
 import { MINT_DIVISOR, TRANSFER_FEE, UPKEEP_BASE, REGEN_COST, RESISTANCE_COST } from "../../shared/engine/constants";
 import { HexBoard, type LatticeMode } from "../HexBoard";
-import { CGIcon, CogSigil, CogText, Mineral } from "./atoms";
+import { CGIcon, CogSigil, CogText, EnergyChip, Mineral } from "./atoms";
 import {
   MINERALS,
   minClass,
@@ -109,7 +109,7 @@ export function AuctionPanel({ snapshot, events }: { snapshot: GameSnapshot; eve
           </div>
           {spend.total > 0 && (
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 9, paddingTop: 8, borderTop: "1px solid var(--border)" }} data-testid="heart-spend">
-              <CGIcon name="energy" size={13} />
+              <EnergyChip />
               <span className="cg-mono" style={{ fontSize: 9.5, color: "var(--muted)" }}>
                 spent on hearts
               </span>
@@ -259,22 +259,25 @@ export function TurnLog({ snapshot, events }: { snapshot: GameSnapshot; events: 
     })
     .sort((a, b) => b.amount - a.amount);
 
-  // — UPKEEP: one dense row per cog — mint income, rotting tiles, losses
-  const upkeepRows = new Map<string, { mint: Partial<Record<string, number>>; rot: string[]; lost: string[] }>();
+  // — PRODUCTION: one dense row per cog — mint income + net tiles gained/lost
+  const upkeepRows = new Map<string, { mint: Partial<Record<string, number>>; gained: string[]; lostT: string[] }>();
   const upkeepRow = (cog: string) => {
     let r = upkeepRows.get(cog);
-    if (!r) upkeepRows.set(cog, (r = { mint: {}, rot: [], lost: [] }));
+    if (!r) upkeepRows.set(cog, (r = { mint: {}, gained: [], lostT: [] }));
     return r;
   };
   for (const e of evs) {
     if (e.type === "mint") {
       const r = upkeepRow(e.cog);
       for (const m of MINERALS) if (e.gained[m] > 0) r.mint[m] = (r.mint[m] ?? 0) + e.gained[m];
-    } else if (e.type === "starved" && e.coherence > 0) upkeepRow(e.cog).rot.push(`[${e.tile}]→${e.coherence}`);
-    else if (e.type === "lost") upkeepRow(e.cog).lost.push(`[${e.tile}]`);
+    } else if (e.type === "capture") {
+      if (e.to) upkeepRow(e.to).gained.push(`[${e.tile}]`);
+      if (e.from) upkeepRow(e.from).lostT.push(`[${e.tile}]`);
+    } else if (e.type === "exploit" || e.type === "abandon") upkeepRow(e.cog).lostT.push(`[${e.tile}]`);
+    else if (e.type === "lost") upkeepRow(e.cog).lostT.push(`[${e.tile}]`);
   }
   const upkeepList = [...upkeepRows.entries()]
-    .filter(([, r]) => Object.keys(r.mint).length > 0 || r.rot.length > 0 || r.lost.length > 0)
+    .filter(([, r]) => Object.keys(r.mint).length > 0 || r.gained.length > 0 || r.lostT.length > 0)
     .sort((a, b) => cogIdx(a[0]) - cogIdx(b[0]));
   const mintEnergy = mintEnergyBy(events, snapshot); // what those minerals were worth in energy
 
@@ -363,14 +366,15 @@ export function TurnLog({ snapshot, events }: { snapshot: GameSnapshot; events: 
             {upkeepList.length === 0 && <Quiet text="quiet turn — every bill paid, nothing minted." />}
             {upkeepList.length > 0 && (
               <div
-                style={{ display: "grid", gridTemplateColumns: "minmax(52px, auto) repeat(5, minmax(30px, auto)) 1fr", columnGap: 9, rowGap: 3, alignItems: "baseline", padding: "4px 0" }}
-                data-tip="minerals minted this upkeep (density × coherence / 5 per tile) and their energy value"
+                style={{ display: "grid", gridTemplateColumns: "minmax(52px, auto) repeat(6, minmax(30px, auto)) 1fr", columnGap: 9, rowGap: 3, alignItems: "center", padding: "4px 0" }}
+                data-tip="minerals minted this upkeep (density × coherence / 5 per tile), their energy value, and net tiles gained/lost"
               >
                 <span />
                 {MINERALS.map((m) => (
                   <span key={m} className={`cg-min ${minClass(m)}`} style={{ justifySelf: "end" }}>{m}</span>
                 ))}
-                <span style={{ justifySelf: "end" }}><CGIcon name="energy" size={13} /></span>
+                <span style={{ justifySelf: "end" }}><EnergyChip /></span>
+                <span style={{ justifySelf: "end", fontSize: 14, lineHeight: 1, color: "var(--muted)" }}>⬡</span>
                 <span />
                 {upkeepList.map(([cog, r]) => {
                   const ci = cogIdx(cog);
@@ -388,11 +392,23 @@ export function TurnLog({ snapshot, events }: { snapshot: GameSnapshot; events: 
                       <span className="cg-mono" style={{ fontSize: 10, fontWeight: 700, justifySelf: "end", color: (mintEnergy.get(cog) ?? 0) > 0 ? "var(--energy)" : "var(--muted-2)" }}>
                         {(mintEnergy.get(cog) ?? 0) > 0 ? `+${mintEnergy.get(cog)}` : "·"}
                       </span>
-                      <span className="cg-mono" style={{ fontSize: 10, color: "var(--exploit)", minWidth: 0 }}>
-                        {r.rot.length > 0 && <span data-tip="unpaid tiles under resistance — each lost 1 coherence">rot {r.rot.join(" ")}</span>}
-                        {r.rot.length > 0 && r.lost.length > 0 && " · "}
-                        {r.lost.length > 0 && <span data-tip="rotted to 0 — the tile fell neutral">lost {r.lost.join(" ")}</span>}
+                      <span
+                        className="cg-mono"
+                        data-tip={
+                          r.gained.length + r.lostT.length > 0
+                            ? [r.gained.length > 0 ? `gained ${r.gained.join(" ")}` : null, r.lostT.length > 0 ? `lost ${r.lostT.join(" ")}` : null].filter(Boolean).join("\n")
+                            : "no tiles changed hands"
+                        }
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 700,
+                          justifySelf: "end",
+                          color: r.gained.length - r.lostT.length > 0 ? "var(--coherence)" : r.gained.length - r.lostT.length < 0 ? "var(--exploit)" : "var(--muted-2)",
+                        }}
+                      >
+                        {r.gained.length - r.lostT.length === 0 ? "·" : `${r.gained.length - r.lostT.length > 0 ? "+" : ""}${r.gained.length - r.lostT.length}`}
                       </span>
+                      <span />
                     </React.Fragment>
                   );
                 })}

@@ -7,7 +7,7 @@ import type { Message } from "../../shared/messages";
 import type { StampedEvent } from "../net/feed";
 import type { LatticeMode } from "../HexBoard";
 import { cogColor, cogName } from "../colors";
-import { CGIcon, CogSigil, Mineral } from "../cg/atoms";
+import { EnergyChip, CGIcon, CogSigil, Mineral } from "../cg/atoms";
 import { LatticePanel, ChannelMessage } from "../cg/panels";
 import { ResizableColumns } from "../cg/ResizableColumns";
 import {
@@ -79,7 +79,7 @@ function Identity({ snapshot, cogId }: { snapshot: GameSnapshot; cogId: string }
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 9, paddingTop: 9, borderTop: "1px solid var(--border)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                <CGIcon name="energy" size={16} />
+                <EnergyChip />
                 <span className="cg-num" style={{ fontSize: 22, color: "var(--energy)" }}>{me.energy}</span>
                 <span className="cg-mono" style={{ fontSize: 9, color: "var(--muted)" }}>energy</span>
               </div>

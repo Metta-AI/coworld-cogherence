@@ -365,6 +365,11 @@ button:focus-visible {
   background: #ffc23c;
   box-shadow: 0 0 8px rgba(255, 194, 60, 0.5);
 }
+.cg-min.energy {
+  background: #42d4f4;
+  border-radius: 999px;
+  box-shadow: 0 0 8px rgba(66, 212, 244, 0.5);
+}
 
 /* ===== verb tag ========================================= */
 .cg-verb {

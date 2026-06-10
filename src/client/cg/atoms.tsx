@@ -31,6 +31,15 @@ export function CGIcon({ name, size = 16, title }: { name: IconName; size?: numb
   return <Icon name={name} size={size} data-tip={title} />;
 }
 
+/** The energy badge — a glowing blue circle with the bolt, sized like a mineral chip. */
+export function EnergyChip(): React.ReactElement {
+  return (
+    <span className="cg-min energy">
+      <CGIcon name="energy" size={11} />
+    </span>
+  );
+}
+
 /** A mineral chip — a glowing rounded square stamped with its letter (C/O/Ge/S). */
 export function Mineral({ m, label }: { m: string; label?: boolean }): React.ReactElement {
   return (
@@ -161,7 +170,7 @@ export function Wallet({ treasury, energy, upkeep, income, expected }: { treasur
         </span>
       ))}
       <span data-tip={energyTip} style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
-        <CGIcon name="energy" size={13} />
+        <EnergyChip />
         <span className="cg-mono" style={{ fontSize: 12, fontWeight: 600, color: "var(--energy)" }}>
           {energy}
         </span>
