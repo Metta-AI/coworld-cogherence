@@ -19,7 +19,12 @@ import type { ReplayRecorder } from "./replay-recorder";
 /** Inbound operator steering patch (validated at the boundary; invalid → 400).
  *  `pending` REPLACES the cog's queued operator orders wholesale. */
 const steeringPatchSchema = z
-  .object({ persona: z.string().optional(), paused: z.boolean().optional(), pending: z.array(OrderSchema).optional() })
+  .object({
+    persona: z.string().optional(),
+    paused: z.boolean().optional(),
+    pending: z.array(OrderSchema).optional(),
+    standingBid: z.number().int().min(0).optional(),
+  })
   .strict();
 
 export function createApp(
@@ -76,7 +81,7 @@ export function createApp(
   });
 
   // Operator steering (Phase D): read + edit a cog's persona / paused flag live.
-  app.get("/cog/:id/steering", (req, res) => res.json(steering?.get(req.params.id) ?? { persona: "", paused: false, pending: [] }));
+  app.get("/cog/:id/steering", (req, res) => res.json(steering?.get(req.params.id) ?? { persona: "", paused: false, pending: [], standingBid: 0 }));
   // Operator READY (manual mode): submit the queued orders for this Commit now.
   app.post("/cog/:id/ready", (req, res) => {
     if (!steering) return res.status(404).json({ error: "steering unavailable" });

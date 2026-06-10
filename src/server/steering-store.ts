@@ -16,9 +16,12 @@ export interface CogSteering {
   persona: string;
   paused: boolean;
   pending: Order[];
+  /** Standing heart bid: while > 0, every commit this cog submits carries a
+   *  bid of this amount (replacing any bid the autopilot chose itself). */
+  standingBid: number;
 }
 
-const empty = (): CogSteering => ({ persona: "", paused: false, pending: [] });
+const empty = (): CogSteering => ({ persona: "", paused: false, pending: [], standingBid: 0 });
 
 /** A manual cog's parked commit: its resolver plus the autopilot thunk to run
  *  if the operator flips the cog back to autopilot mid-window. */
@@ -94,15 +97,22 @@ export class SteeringStore {
 
 /** Wrap an agent under operator steering: MANUAL cogs wait for the operator's
  *  Ready; on autopilot, queued PENDING orders override the agent's commit for
- *  that turn, otherwise the agent plays. Manual cogs stay silent in Negotiate. */
+ *  that turn, otherwise the agent plays. A standing bid (> 0) rides along with
+ *  every commit, replacing any bid the underlying agent chose. Manual cogs
+ *  stay silent in Negotiate. */
 export function steerableAgent(agent: Agent, store: SteeringStore): Agent {
+  const withStandingBid = (orders: Order[]): Order[] => {
+    const bid = store.get(agent.id).standingBid;
+    if (bid <= 0) return orders;
+    return [...orders.filter((o) => o.type !== "bid"), { type: "bid", energy: bid }];
+  };
   return {
     id: agent.id,
     commit: (view) => {
-      if (store.paused(agent.id)) return store.awaitOrders(agent.id, () => agent.commit(view));
+      if (store.paused(agent.id)) return store.awaitOrders(agent.id, () => agent.commit(view)).then(withStandingBid);
       const pending = store.takePending(agent.id);
-      if (pending.length > 0) return pending;
-      return agent.commit(view);
+      if (pending.length > 0) return withStandingBid(pending);
+      return Promise.resolve(agent.commit(view)).then(withStandingBid);
     },
     negotiate: agent.negotiate ? (view) => (store.paused(agent.id) ? [] : agent.negotiate!(view)) : undefined,
   };

@@ -105,7 +105,6 @@ export function AutopilotPanel({
   pendingNotes,
   pendingCommitted,
   onCancelPending,
-  onSetBid,
   onReady,
   committed = null,
 }: {
@@ -118,8 +117,6 @@ export function AutopilotPanel({
   /** Total energy the queue spends at Commit. */
   pendingCommitted?: number;
   onCancelPending?: (i: number) => void;
-  /** Manual mode: set/replace the queued heart bid (0 clears it). */
-  onSetBid?: (energy: number) => void;
   /** Manual mode: submit the queue for this Commit and mark the cog ready. */
   onReady?: () => void;
   /** The orders submitted via Ready this turn — displayed frozen until Resolve. */
@@ -127,23 +124,25 @@ export function AutopilotPanel({
 }): React.ReactElement {
   const [persona, setPersona] = useState("");
   const [paused, setPaused] = useState(false);
+  const [standingBid, setStandingBid] = useState(0);
   const [saved, setSaved] = useState<Saved>("idle");
 
   useEffect(() => {
     let live = true;
     void fetch(`/cog/${cogId}/steering`)
       .then((r) => r.json())
-      .then((s: { persona: string; paused: boolean }) => {
+      .then((s: { persona: string; paused: boolean; standingBid?: number }) => {
         if (!live) return;
         setPersona(s.persona);
         setPaused(s.paused);
+        setStandingBid(s.standingBid ?? 0);
       });
     return () => {
       live = false;
     };
   }, [cogId]);
 
-  const post = (patch: { persona?: string; paused?: boolean }): void => {
+  const post = (patch: { persona?: string; paused?: boolean; standingBid?: number }): void => {
     setSaved("saving");
     void fetch(`/cog/${cogId}/steering`, {
       method: "POST",
@@ -151,9 +150,10 @@ export function AutopilotPanel({
       body: JSON.stringify(patch),
     })
       .then((r) => r.json())
-      .then((s: { persona: string; paused: boolean }) => {
+      .then((s: { persona: string; paused: boolean; standingBid?: number }) => {
         setPersona(s.persona);
         setPaused(s.paused);
+        setStandingBid(s.standingBid ?? 0);
         setSaved("saved");
       });
   };
@@ -186,6 +186,21 @@ export function AutopilotPanel({
         </span>
         <span>Auto Pilot</span>
       </label>
+      <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}>
+        <span className="cg-mono" data-tip="standing heart bid — auto-bid this amount at every auction while > 0 (replaces the autopilot's own bid; 0 = let it decide)" style={{ fontSize: 10, color: "var(--muted)" }}>
+          Heart bid
+        </span>
+        <input
+          type="number"
+          min={0}
+          data-testid="bid-input"
+          value={standingBid}
+          onChange={(e) => post({ standingBid: Math.max(0, Number(e.target.value) || 0) })}
+          className="cg-mono"
+          style={{ width: 64, background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 6, color: "var(--text)", padding: "3px 6px", fontSize: 11 }}
+        />
+        <span className="cg-mono" style={{ fontSize: 10, color: "var(--muted)" }}>e</span>
+      </div>
       {!paused ? (
         <>
           <textarea
@@ -220,21 +235,6 @@ export function AutopilotPanel({
       ) : (
         <>
           <PendingActions pending={pending} notes={pendingNotes} committed={pendingCommitted} onCancel={onCancelPending} />
-          <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 8 }}>
-            <span className="cg-mono" data-tip="sealed second-price heart bid sent with this Commit (0 = no bid)" style={{ fontSize: 10, color: "var(--muted)" }}>
-              Heart bid
-            </span>
-            <input
-              type="number"
-              min={0}
-              data-testid="bid-input"
-              value={pending.find((o) => o.type === "bid")?.energy ?? 0}
-              onChange={(e) => onSetBid?.(Math.max(0, Number(e.target.value) || 0))}
-              className="cg-mono"
-              style={{ width: 64, background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 6, color: "var(--text)", padding: "3px 6px", fontSize: 11 }}
-            />
-            <span className="cg-mono" style={{ fontSize: 10, color: "var(--muted)" }}>e</span>
-          </div>
           <div className="steer-actions" style={{ marginTop: 8 }}>
             <button type="button" data-testid="ready-btn" onClick={onReady} data-tip="submit the queued actions for this Commit and mark this cog ready (empty queue = hold)">
               Ready

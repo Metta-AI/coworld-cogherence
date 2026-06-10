@@ -357,10 +357,6 @@ export function CogView({
                 pendingNotes={pendingNotes}
                 pendingCommitted={pendingCommitted}
                 onCancelPending={(i) => postPending(pending.filter((_, j) => j !== i))}
-                onSetBid={(energy) => {
-                  const rest = pending.filter((o) => o.type !== "bid");
-                  postPending(energy > 0 ? [...rest, { type: "bid", energy }] : rest);
-                }}
                 onReady={() => {
                   void fetch(`/cog/${cogId}/ready`, { method: "POST" });
                   setCommitted({ turn: snapshot.turn, orders: pending, notes: pendingNotes, total: pendingCommitted });
