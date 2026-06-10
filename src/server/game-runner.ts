@@ -203,7 +203,7 @@ export class GameRunner {
         ),
       );
       const ordersByCog = await collected;
-      const firstCommitter = coord.first() ?? undefined; // the tempo winner this turn
+      const commitOrder = coord.submissionOrder(); // tempo winner + auction tie-breaks
       this.coord = null;
       this.livePhase = null;
       this.phaseDeadlineAt = undefined;
@@ -224,7 +224,7 @@ export class GameRunner {
       this.livePhase = null;
       if (gen !== this.generation) return scoreGame(this.state);
 
-      this.state = stepTurn(this.state, ordersByCog, firstCommitter);
+      this.state = stepTurn(this.state, ordersByCog, commitOrder);
       const rec = this.state.log[this.state.log.length - 1]!;
       for (const ev of rec.events) {
         this.recent.push({ turn: rec.turn, event: ev });

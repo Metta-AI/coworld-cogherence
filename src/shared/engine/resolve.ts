@@ -45,10 +45,14 @@ interface Plan {
   spendBase: number; // transfer fees (always paid, regardless of auction) — aligns cost coherence, not energy
 }
 
-/** Execute one simultaneous Resolve phase. Pure: returns a new state + events. */
+/** Execute one simultaneous Resolve phase. Pure: returns a new state + events.
+ *  `commitOrder` (cogs in the order they locked their Commits) breaks auction
+ *  ties first-bidder-first; absent cogs rank after all present ones, in seat
+ *  order — so scripted games tie-break by seat. */
 export function resolve(
   state: GameState,
   ordersByCog: Record<CogId, Order[]>,
+  commitOrder: CogId[] = [],
 ): { state: GameState; events: ResolveEvent[] } {
   const events: ResolveEvent[] = [];
   const plans = new Map<CogId, Plan>();
@@ -132,7 +136,7 @@ export function resolve(
   }
 
   // 2. heart auction — sealed second-price among valid Cogs with a positive bid.
-  // Highest bid wins (ties => lowest cog index, via cogOrder iteration), pays the
+  // Highest bid wins (ties => the FIRST bidder by commit order), pays the
   // second-highest bid, floored at the 1e reserve.
   // Only cogs holding ground may buy hearts — a cog wiped off the board is out
   // of the game, not a free-heart zombie.
@@ -146,8 +150,11 @@ export function resolve(
   let winner: CogId | null = null;
   let clearingPrice = 0;
   if (bids.length > 0) {
+    const commitRank = new Map<CogId, number>(commitOrder.map((id, i) => [id, i]));
+    const rank = (id: CogId): number => commitRank.get(id) ?? commitOrder.length + state.cogOrder.indexOf(id);
     let wi = 0;
-    for (let i = 1; i < bids.length; i++) if (bids[i]![1] > bids[wi]![1]) wi = i;
+    for (let i = 1; i < bids.length; i++)
+      if (bids[i]![1] > bids[wi]![1] || (bids[i]![1] === bids[wi]![1] && rank(bids[i]![0]) < rank(bids[wi]![0]))) wi = i;
     winner = bids[wi]![0];
     for (let i = 0; i < bids.length; i++) if (i !== wi && bids[i]![1] > clearingPrice) clearingPrice = bids[i]![1];
     if (clearingPrice < 1) clearingPrice = 1; // reserve price — hearts are never free

@@ -40,16 +40,17 @@ function awardFirstCommit(
 }
 
 /** Run one full turn: Resolve -> Upkeep -> first-mover bonus -> advance the turn,
- *  appending a TurnRecord. `firstCommitter` (the first Cog to lock its Commit, from
- *  the live runner; omitted for scripted replays) earns the tempo bonus. Pure. */
+ *  appending a TurnRecord. `commitOrder` (cogs in the order they locked their
+ *  Commits, from the live runner; omitted for scripted replays) breaks auction
+ *  ties first-bidder-first, and its head earns the tempo bonus. Pure. */
 export function stepTurn(
   state: GameState,
   ordersByCog: Record<CogId, Order[]>,
-  firstCommitter?: CogId,
+  commitOrder?: CogId[],
 ): GameState {
-  const r = resolve(state, ordersByCog);
+  const r = resolve(state, ordersByCog, commitOrder);
   const u = upkeep(r.state);
-  const award = awardFirstCommit(u.state.cogs, firstCommitter);
+  const award = awardFirstCommit(u.state.cogs, commitOrder?.[0]);
   const hearts: Record<CogId, number> = {};
   for (const id of u.state.cogOrder) hearts[id] = award.cogs[id]!.hearts;
   // every order as played, ahead of its consequences — the Turn Log pairs them

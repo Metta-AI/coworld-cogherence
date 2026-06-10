@@ -154,7 +154,7 @@ Four phases — the first three are the Diplomacy heartbeat; the fourth is the w
 
 ## 8. Hearts & Victory
 
-- **Every turn, one heart** is auctioned: **sealed-bid, second-price (Vickrey)**, paid in **energy**, settled during Resolve. Highest bid wins the heart and pays the **second** price; bid ties break deterministically (§14). Two guards keep hearts honest: a **reserve price of 1 energy** (a sole bidder still pays 1 — hearts are never free) and **only Cogs holding at least one tile may bid** (wiped off the board = out of the running).
+- **Every turn, one heart** is auctioned: **sealed-bid, second-price (Vickrey)**, paid in **energy**, settled during Resolve. Highest bid wins the heart and pays the **second** price; **tied bids go to the first bidder** (commit order — decisiveness wins twice, §14). Two guards keep hearts honest: a **reserve price of 1 energy** (a sole bidder still pays 1 — hearts are never free) and **only Cogs holding at least one tile may bid** (wiped off the board = out of the running).
 - **Win:** most hearts at turn 100. Ties break by **remaining treasury value** (energy-equivalent, §6), then by **total Coherence held**.
 
 Why it works:
@@ -270,7 +270,7 @@ Steps 1–4 are **Resolve** (phase 3); step 5 is **Upkeep** (phase 4):
 1. **Exploit / Abandon** — mint windfalls (Exploit scars Density; Abandon does not), drop the tiles to neutral @ Coherence 0.
 2. **Align** — tug-of-war on every contested tile, all simultaneously (§5).
 3. **Transfer** — move minerals between treasuries.
-4. **Heart auction** — Vickrey settle (§8); winner pays the second price, floored at the **1-energy reserve**; only Cogs holding ground may bid. **Bid ties break deterministically** (e.g. lowest `cog_id`).
+4. **Heart auction** — Vickrey settle (§8); winner pays the second price, floored at the **1-energy reserve**; only Cogs holding ground may bid. **Tied bids go to the first Cog to lock its Commit** (scripted games fall back to seat order).
 5. **Upkeep** — bill every tile (§6): pay-or-rot (rot only under resistance), pay-regen-to-grow, heartland funded first; then mint minerals.
 
 ### 14.5 Time & token budget (LLM-specific)

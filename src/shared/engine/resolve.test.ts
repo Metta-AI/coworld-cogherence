@@ -157,7 +157,19 @@ describe("resolve", () => {
     expect(events.find((e) => e.type === "auction")).toMatchObject({ winner: "A", price: 1, bids: [["A", 2]] });
   });
 
-  it("tie bids resolve to the lower cog index, who pays the tied price", () => {
+  it("tied bids go to the FIRST bidder (commit order), who pays the tied price", () => {
+    const s = makeState({
+      tiles: [tile(0, 0, "A", 1), tile(2, 0, "B", 1)], cogOrder: ["A", "B"],
+      treasuries: { A: T(2, 2, 2, 2), B: T(2, 2, 2, 2) },
+    });
+    const orders = { A: [{ type: "bid", energy: 5 } as const], B: [{ type: "bid", energy: 5 } as const] };
+    const { state, events } = resolve(s, orders, ["B", "A"]); // B locked its commit first
+    expect(state.cogs.B!.hearts).toBe(1);
+    expect(state.cogs.A!.hearts).toBe(0);
+    expect(events.find((e) => e.type === "auction")).toMatchObject({ winner: "B", price: 5 });
+  });
+
+  it("with no commit order, tie bids fall back to seat order", () => {
     const s = makeState({
       tiles: [tile(0, 0, "A", 1), tile(2, 0, "B", 1)], cogOrder: ["A", "B"],
       treasuries: { A: T(2, 2, 2, 2), B: T(2, 2, 2, 2) },

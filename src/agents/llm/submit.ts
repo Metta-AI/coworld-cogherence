@@ -65,7 +65,7 @@ export const SUBMIT_ORDERS_TOOL: ToolDef = {
           additionalProperties: false,
         },
       },
-      bid: { type: "integer", minimum: 0, description: "Sealed second-price heart bid, in energy (reserve price 1e — hearts are never free, and you must hold at least one tile to buy). 0 = no bid." },
+      bid: { type: "integer", minimum: 0, description: "Sealed second-price heart bid, in energy (reserve price 1e — hearts are never free, and you must hold at least one tile to buy; tied bids go to whoever committed first). 0 = no bid." },
     },
     additionalProperties: false,
   },

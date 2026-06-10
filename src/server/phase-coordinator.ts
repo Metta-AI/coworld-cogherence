@@ -38,6 +38,11 @@ export class PhaseCoordinator<T = unknown> {
   first(): CogId | null {
     return this.firstId;
   }
+  /** Cogs in the order they submitted (the Set preserves insertion order) —
+   *  feeds the auction's first-bidder tie-break. */
+  submissionOrder(): CogId[] {
+    return [...this.answered];
+  }
   pending(): CogId[] {
     return this.cogIds.filter((id) => !this.answered.has(id));
   }

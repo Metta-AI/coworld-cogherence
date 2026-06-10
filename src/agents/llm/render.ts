@@ -18,7 +18,7 @@ YOUR ACTIONS each turn (via the submit_orders tool):
 - exploit {tile}: strip-mine a tile you own for a 2×coherence×density windfall — but it goes neutral and its density permanently halves. Scorched earth.
 - abandon {tile}: return a tile you own to neutral; its standing coherence comes home as energy (next-turn money, full value, no scarring). The orderly retreat — cash out ground you cannot afford to hold.
 - transfer {to, mineral, amount}: send minerals to another Cog (1 energy). Deals are non-binding.
-- bid: a sealed second-price heart bid, in energy. Highest bidder wins the heart and pays the second price.
+- bid: a sealed second-price heart bid, in energy. Highest bidder wins the heart and pays the second price; tied bids go to whoever committed first.
 
 Spend only energy you can afford — an unaffordable order set is rejected wholesale. Think briefly, then call submit_orders exactly once.`;
 
