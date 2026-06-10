@@ -49,6 +49,15 @@ describe("game", () => {
     expect(g2.log[0]!.events.some((e) => e.type === "firstCommit")).toBe(false);
   });
 
+  it("records every order as played, ahead of its consequences (for the Turn Log)", () => {
+    const g = newGame(7, 4);
+    const next = stepTurn(g, { cog0: [{ type: "bid", energy: 3 }], cog2: [{ type: "bid", energy: 1 }] });
+    const events = next.log[0]!.events;
+    expect(events[0]).toEqual({ type: "order", cog: "cog0", order: { type: "bid", energy: 3 } });
+    expect(events[1]).toEqual({ type: "order", cog: "cog2", order: { type: "bid", energy: 1 } });
+    expect(events.findIndex((e) => e.type === "auction")).toBeGreaterThan(1);
+  });
+
   it("runGame plays MAX_TURNS turns, returns a winner, and is fully deterministic for (seed, agents)", async () => {
     const agents = ["cog0", "cog1", "cog2", "cog3"].map(noop);
     const a = await runGame(7, 4, agents);

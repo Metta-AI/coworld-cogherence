@@ -21,9 +21,9 @@ describe("App", () => {
     expect(getByTestId("turn-label").textContent).not.toBe(before);
   });
 
-  it("syncs the resolve log to the scrubber — empty at turn 1, populated as you advance", async () => {
+  it("syncs the turn log to the scrubber — empty at turn 1, populated as you advance", async () => {
     const { getByLabelText, getByTestId } = render(<App replay={await replay()} />);
-    const log = getByTestId("resolve-log");
+    const log = getByTestId("turn-log");
     // Turn 1 is the opening board: nothing has resolved yet.
     expect(log.textContent).toContain("nothing has resolved yet");
     expect(log.querySelectorAll(".cg-verb")).toHaveLength(0);

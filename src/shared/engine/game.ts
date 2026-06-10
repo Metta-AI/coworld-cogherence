@@ -52,9 +52,13 @@ export function stepTurn(
   const award = awardFirstCommit(u.state.cogs, firstCommitter);
   const hearts: Record<CogId, number> = {};
   for (const id of u.state.cogOrder) hearts[id] = award.cogs[id]!.hearts;
+  // every order as played, ahead of its consequences — the Turn Log pairs them
+  const played: TurnEvent[] = state.cogOrder.flatMap((id) =>
+    (ordersByCog[id] ?? []).map((order): TurnEvent => ({ type: "order", cog: id, order })),
+  );
   const record: TurnRecord = {
     turn: state.turn,
-    events: [...r.events, ...u.events, ...(award.event ? [award.event] : [])],
+    events: [...played, ...r.events, ...u.events, ...(award.event ? [award.event] : [])],
     hearts,
   };
   return { ...u.state, cogs: award.cogs, turn: state.turn + 1, phase: "negotiate", log: [...u.state.log, record] };

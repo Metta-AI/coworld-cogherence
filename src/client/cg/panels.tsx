@@ -129,104 +129,145 @@ export function AuctionPanel({ snapshot, events }: { snapshot: GameSnapshot; eve
   );
 }
 
-// ===== Resolve log ========================================================
-const EVENT_ORDER: Record<string, number> = { exploit: 0, abandon: 1, capture: 2, lost: 3, transfer: 4, auction: 5, starved: 6, firstCommit: 7, rejected: 8 };
+// ===== Turn log ===========================================================
+// Each line is an ACTION a cog played, paired with its consequence — derived by
+// joining the recorded order events with the resolve/upkeep events of the same
+// turn (and the AFTER-board snapshot for outcomes that emit no event, e.g. a
+// reinforce or a repelled attack). World events without an order (tiles lost to
+// upkeep, the first-commit bonus) keep their own lines.
 
-function EventTag({ e }: { e: TurnEvent }): React.ReactElement {
-  if (e.type === "capture") return <span className={`cg-verb ${e.from ? "exploit" : "align"}`}>{e.from ? "FLIP" : "ALIGN"}</span>;
-  if (e.type === "exploit") return <span className="cg-verb exploit">EXPLOIT</span>;
-  if (e.type === "transfer") return <span className="cg-verb transfer">TRANSFER</span>;
-  if (e.type === "lost") return <span className="cg-verb exploit">LOST</span>;
-  if (e.type === "abandon") return <span className="cg-verb transfer">ABANDON</span>;
-  if (e.type === "auction") return <span className="cg-verb bid">AUCTION</span>;
-  return (
-    <span className="cg-mono" style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "var(--muted)", padding: "2px 6px", background: "var(--panel-2)", borderRadius: 5 }}>
-      {e.type === "starved" ? "STARVE" : e.type.toUpperCase()}
-    </span>
-  );
+function VerbTag({ verb, tone }: { verb: string; tone: string }): React.ReactElement {
+  return <span className={`cg-verb ${tone}`}>{verb}</span>;
 }
 
-function actorOf(e: TurnEvent): string | null {
-  switch (e.type) {
-    case "capture":
-      return e.to;
-    case "exploit":
-    case "abandon":
-    case "lost":
-    case "starved":
-    case "firstCommit":
-    case "rejected":
-      return e.cog;
-    case "transfer":
-      return e.from;
-    case "auction":
-      return e.winner;
-    default:
-      return null;
-  }
+interface LogLine {
+  cog: string | null;
+  verb: string;
+  tone: string; // cg-verb class: align / exploit / transfer / bid
+  action: string;
+  outcome: React.ReactNode;
+  failed?: boolean;
 }
 
-function eventText(e: TurnEvent): React.ReactNode {
-  switch (e.type) {
-    case "capture": {
-      // settling neutral ground is paid in energy; flips spend transferred coherence
-      const cost = e.to && e.spent > 0 ? (e.from ? ` · −${e.spent} coh` : ` · −${e.spent}e`) : "";
-      return e.from
-        ? `flipped ${e.tile} from ${cogName(cogIdx(e.from))} → coherence ${e.coherence}${cost}`
-        : `claimed ${e.tile} → coherence ${e.coherence}${cost}`;
+/** The consequence of one played order, joined from the turn's events + the after-board. */
+function orderOutcome(
+  cog: string,
+  order: Extract<TurnEvent, { type: "order" }>["order"],
+  evs: TurnEvent[],
+  rejection: string | undefined,
+  map: ReturnType<typeof tileMap>,
+): { outcome: string; failed: boolean } {
+  if (rejection) return { outcome: `not executed — set rejected: ${rejection}`, failed: true };
+  switch (order.type) {
+    case "align": {
+      const cap = evs.find((e) => e.type === "capture" && e.tile === order.tile);
+      if (cap && cap.type === "capture") {
+        if (cap.to === cog)
+          return {
+            outcome: cap.from
+              ? `flipped from ${cogName(cogIdx(cap.from))} → coherence ${cap.coherence} · −${cap.spent} coh`
+              : `claimed → coherence ${cap.coherence} · −${cap.spent}e`,
+            failed: false,
+          };
+        if (cap.to === null) return { outcome: "annihilated — equal force, the tile went neutral", failed: true };
+        return { outcome: `lost the contest — ${cogName(cogIdx(cap.to))} took it`, failed: true };
+      }
+      // no capture: the tile's alignment didn't change — reinforce or repelled
+      const after = map.get(order.tile);
+      if (after?.alignment === cog) return { outcome: `reinforced → coherence ${after.coherence} · −${order.force} coh`, failed: false };
+      return {
+        outcome: after?.alignment
+          ? `repelled — ${cogName(cogIdx(after.alignment))} held at ${after.coherence} · −${order.force} coh`
+          : `failed — the tile stands neutral · −${order.force}e`,
+        failed: true,
+      };
     }
-    case "exploit":
-      return `strip-mined ${e.tile} → +${e.minted} ${e.mineral}, land scarred`;
+    case "exploit": {
+      const ev = evs.find((e) => e.type === "exploit" && e.cog === cog && e.tile === order.tile);
+      if (ev && ev.type === "exploit") return { outcome: `+${ev.minted} ${ev.mineral} windfall · land scarred`, failed: false };
+      return { outcome: "nothing to strip — the tile was already gone", failed: true };
+    }
+    case "abandon": {
+      const ev = evs.find((e) => e.type === "abandon" && e.cog === cog && e.tile === order.tile);
+      if (ev && ev.type === "abandon") return { outcome: `+${ev.refund}e recovered · tile neutral`, failed: false };
+      return { outcome: "nothing to abandon — the tile was already gone", failed: true };
+    }
     case "transfer":
-      return `${e.amount} ${e.mineral} → ${cogName(cogIdx(e.to))} · −${TRANSFER_FEE}e fee`;
-    case "auction":
-      return e.winner ? `wins the heart, pays 2nd-price ${e.price}e` : "heart unsold";
-    case "abandon":
-      return `abandoned ${e.tile} → +${e.refund}e recovered`;
-    case "lost":
-      return `lost ${e.tile} — upkeep unpaid, rotted to neutral`;
-    case "starved":
-      return `${e.tile} starved → coherence ${e.coherence}`;
-    case "firstCommit":
-      return `committed first · +${e.reward}⚡`;
-    case "rejected":
-      return `order rejected — ${e.reason}`;
-    default:
-      return e.type;
+      return { outcome: `delivered · −${TRANSFER_FEE}e fee`, failed: false };
+    case "bid": {
+      const a = evs.find((e) => e.type === "auction");
+      if (!a || a.type !== "auction") return { outcome: "no auction settled", failed: true };
+      if (a.winner === cog) return { outcome: `won the heart — paid ${a.price}e`, failed: false };
+      if (!a.bids.some(([id]) => id === cog)) return { outcome: "void — holds no ground", failed: true };
+      return {
+        outcome: a.winner ? `outbid — ${cogName(cogIdx(a.winner))} took it at ${a.price}e` : "no sale",
+        failed: true,
+      };
+    }
   }
 }
 
-export function ResolveLog({ snapshot, events }: { snapshot: GameSnapshot; events: StampedEvent[] }): React.ReactElement {
+function orderLine(cog: string, order: Extract<TurnEvent, { type: "order" }>["order"]): { verb: string; tone: string; action: string } {
+  switch (order.type) {
+    case "align":
+      return { verb: "ALIGN", tone: "align", action: `${order.tile} · force ${order.force}` };
+    case "exploit":
+      return { verb: "EXPLOIT", tone: "exploit", action: order.tile };
+    case "abandon":
+      return { verb: "ABANDON", tone: "transfer", action: order.tile };
+    case "transfer":
+      return { verb: "TRANSFER", tone: "transfer", action: `${order.amount} ${order.mineral} → ${cogName(cogIdx(order.to))}` };
+    case "bid":
+      return { verb: "BID", tone: "bid", action: `${order.energy}e for the heart` };
+  }
+}
+
+export function TurnLog({ snapshot, events }: { snapshot: GameSnapshot; events: StampedEvent[] }): React.ReactElement {
   const turn = lastResolvedTurn(snapshot);
-  // Starve rows are upkeep noise at scale — the board shows rot directly.
-  const evs = eventsAt(events, turn)
-    .filter((e) => e.type !== "starved")
-    .sort((a, b) => (EVENT_ORDER[a.type] ?? 9) - (EVENT_ORDER[b.type] ?? 9));
+  const evs = eventsAt(events, turn);
+  const map = tileMap(snapshot);
+  const rejectedBy = new Map<string, string>();
+  for (const e of evs) if (e.type === "rejected") rejectedBy.set(e.cog, e.reason);
+
+  const lines: LogLine[] = [];
+  for (const e of evs) {
+    if (e.type !== "order") continue;
+    const { verb, tone, action } = orderLine(e.cog, e.order);
+    const { outcome, failed } = orderOutcome(e.cog, e.order, evs, rejectedBy.get(e.cog), map);
+    lines.push({ cog: e.cog, verb, tone, action, outcome, failed });
+  }
+  lines.sort((a, b) => cogIdx(a.cog!) - cogIdx(b.cog!));
+  // world events with no originating order: upkeep losses + the tempo bonus
+  for (const e of evs) {
+    if (e.type === "lost") lines.push({ cog: e.cog, verb: "LOST", tone: "exploit", action: e.tile, outcome: "upkeep unpaid — rotted to neutral", failed: true });
+    else if (e.type === "firstCommit") lines.push({ cog: e.cog, verb: "TEMPO", tone: "bid", action: "committed first", outcome: `+${e.reward}⚡`, failed: false });
+  }
+
   return (
-    <div className="cg-panel" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }} data-testid="resolve-log">
+    <div className="cg-panel" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }} data-testid="turn-log">
       <div className="cg-panel-head">
-        <span className="cg-panel-title">Resolve Log</span>
+        <span className="cg-panel-title">Turn Log</span>
         <span className="cg-mono" style={{ fontSize: 9, color: "var(--muted)" }}>
-          {turn >= 1 ? `T${String(turn).padStart(2, "0")} · ${evs.length}` : "awaiting first turn"}
+          {turn >= 1 ? `T${String(turn).padStart(2, "0")} · ${lines.length}` : "awaiting first turn"}
         </span>
       </div>
       <div className="cg-panel-body cg-scroll" style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 5, padding: "8px 12px" }}>
-        {evs.length === 0 && (
+        {lines.length === 0 && (
           <div className="cg-mono" style={{ fontSize: 10, color: "var(--muted)" }}>
             nothing has resolved yet.
           </div>
         )}
-        {evs.map((e, i) => {
-          const actor = actorOf(e);
-          const ai = actor != null ? cogIdx(actor) : null;
+        {lines.map((l, i) => {
+          const ai = l.cog != null ? cogIdx(l.cog) : null;
           return (
             <div key={i} style={{ display: "grid", gridTemplateColumns: "74px 1fr", gap: 8, alignItems: "start", padding: "3px 0", borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
-              <EventTag e={e} />
+              <VerbTag verb={l.verb} tone={l.tone} />
               <div style={{ display: "flex", alignItems: "baseline", gap: 6, minWidth: 0 }}>
                 {ai != null && <span style={{ width: 7, height: 7, borderRadius: 2, background: cogColor(ai), flex: "0 0 auto", marginTop: 4 }} />}
-                <span className="cg-mono" style={{ fontSize: 10.5, color: e.type === "exploit" ? "var(--exploit)" : "var(--text-dim)", lineHeight: 1.4 }}>
+                <span className="cg-mono" style={{ fontSize: 10.5, color: "var(--text-dim)", lineHeight: 1.4 }}>
                   {ai != null && <b style={{ color: cogColor(ai) }}>{cogName(ai)} </b>}
-                  {eventText(e)}
+                  {l.action}
+                  <span style={{ color: l.failed ? "var(--exploit)" : "var(--coherence)" }}> → {l.outcome}</span>
                 </span>
               </div>
             </div>

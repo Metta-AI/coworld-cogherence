@@ -7,7 +7,7 @@ import type { Message } from "../../shared/messages";
 import type { StampedEvent } from "../net/feed";
 import type { LatticeMode } from "../HexBoard";
 import { Roster } from "../Roster";
-import { AuctionPanel, ResolveLog, Channels, LatticePanel } from "../cg/panels";
+import { AuctionPanel, TurnLog, Channels, LatticePanel } from "../cg/panels";
 import { ResizableColumns } from "../cg/ResizableColumns";
 
 export function GlobalView({
@@ -42,7 +42,7 @@ export function GlobalView({
         center={<LatticePanel snapshot={snapshot} events={events} mode={mode} setMode={setMode} highlight={focus} />}
         right={
           <div className="cg-col">
-            <ResolveLog snapshot={snapshot} events={events} />
+            <TurnLog snapshot={snapshot} events={events} />
             <Channels messages={messages} onSeekTurn={onSeekTurn} />
           </div>
         }
