@@ -54,3 +54,9 @@ export const EXPLOIT_DENSITY = 0.5;
 
 /** Energy charged per Transfer order. */
 export const TRANSFER_FEE = 1;
+
+/** Force decays travelling beyond your borders: an Align loses this much force
+ *  per hex of distance PAST 1 from the cog's closest tile (so adjacent targets
+ *  arrive at full strength, and reinforcing your own tile is distance 0). An
+ *  align whose force fully dissipates before arriving is rejected. */
+export const DISTANCE_FORCE_DECAY = 2;

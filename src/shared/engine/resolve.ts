@@ -17,9 +17,9 @@ import type { GameState, CogId, HexKey, Mineral, Treasury, CogState } from "./ty
 import { MINERALS } from "./types";
 import { chargeEnergy, maxEnergy } from "./energy";
 import { resolveTile } from "./coherence";
-import { isLegalAlignTarget, isOwn } from "./orders";
+import { alignDistance, isLegalAlignTarget, isOwn } from "./orders";
 import type { Order } from "./orders";
-import { EXPLOIT_MULT, EXPLOIT_DENSITY, TRANSFER_FEE } from "./constants";
+import { DISTANCE_FORCE_DECAY, EXPLOIT_MULT, EXPLOIT_DENSITY, TRANSFER_FEE } from "./constants";
 
 /** Events emitted by a Resolve phase (for the turn log / replay). */
 export type ResolveEvent =
@@ -36,7 +36,8 @@ const addT = (a: Treasury, b: Treasury): Treasury => ({ C: a.C + b.C, O: a.O + b
 
 /** A validated, affordable Cog's intent, ready to apply in the locked sequence. */
 interface Plan {
-  aligns: Array<[HexKey, number]>;
+  /** [tile, paid force (what funding charges), effective force (after distance decay)]. */
+  aligns: Array<[HexKey, number, number]>;
   exploits: HexKey[];
   abandons: HexKey[];
   transfers: Array<{ to: CogId; mineral: Mineral; amount: number }>;
@@ -64,7 +65,7 @@ export function resolve(
     const cog = state.cogs[cogId];
     if (!cog) continue;
     const orders = ordersByCog[cogId] ?? [];
-    const aligns: Array<[HexKey, number]> = [];
+    const aligns: Array<[HexKey, number, number]> = [];
     const exploits: HexKey[] = [];
     const abandons: HexKey[] = [];
     const transfers: Array<{ to: CogId; mineral: Mineral; amount: number }> = [];
@@ -78,7 +79,13 @@ export function resolve(
       if (o.type === "align") {
         if (o.force < 1) reject = `align ${o.tile} needs at least 1 force`;
         else if (!isLegalAlignTarget(state, cogId, o.tile)) reject = `illegal align ${o.tile}`;
-        else aligns.push([o.tile, o.force]);
+        else {
+          // force decays 2/hex beyond the first from the cog's closest tile
+          const dist = alignDistance(state, cogId, o.tile);
+          const eff = o.force - DISTANCE_FORCE_DECAY * Math.max(0, dist - 1);
+          if (eff < 1) reject = `align ${o.tile} dissipates over distance ${dist}`;
+          else aligns.push([o.tile, o.force, eff]);
+        }
       } else if (o.type === "exploit") {
         if (!isOwn(state, cogId, o.tile)) reject = `illegal exploit ${o.tile}`;
         else exploits.push(o.tile);
@@ -260,16 +267,20 @@ export function resolve(
     if (need > 0) throw new Error(`resolve: align coherence invariant violated for ${cogId}`);
   }
 
-  // 3d. align tug-of-war: gather aligns per tile, resolve against post-exploit
-  // incumbents, update the tile.
+  // 3d. align tug-of-war: gather aligns per tile (EFFECTIVE force, after the
+  // distance decay), resolve against post-exploit incumbents, update the tile.
   const alignsByTile = new Map<HexKey, Array<[CogId, number]>>();
+  const paidByTile = new Map<HexKey, Map<CogId, number>>();
   for (const cogId of state.cogOrder) {
     const p = plans.get(cogId);
     if (!p) continue;
-    for (const [tk, energy] of p.aligns) {
+    for (const [tk, paid, eff] of p.aligns) {
       const list = alignsByTile.get(tk);
-      if (list) list.push([cogId, energy]);
-      else alignsByTile.set(tk, [[cogId, energy]]);
+      if (list) list.push([cogId, eff]);
+      else alignsByTile.set(tk, [[cogId, eff]]);
+      const pm = paidByTile.get(tk) ?? new Map<CogId, number>();
+      pm.set(cogId, (pm.get(cogId) ?? 0) + paid);
+      paidByTile.set(tk, pm);
     }
   }
   for (const [tk, aligns] of alignsByTile) {
@@ -277,8 +288,8 @@ export function resolve(
     if (!t) continue;
     const res = resolveTile(t.alignment, t.coherence, aligns);
     if (res.alignment !== t.alignment) {
-      // the energy the new owner committed to this tile (0 on mutual annihilation)
-      const spent = aligns.filter(([id]) => id === res.alignment).reduce((s, [, e]) => s + e, 0);
+      // what the new owner PAID for this tile (0 on mutual annihilation)
+      const spent = res.alignment ? (paidByTile.get(tk)?.get(res.alignment) ?? 0) : 0;
       events.push({ type: "capture", tile: tk, from: t.alignment, to: res.alignment, coherence: res.coherence, spent });
     }
     tiles[tk] = { ...t, alignment: res.alignment, coherence: res.coherence };

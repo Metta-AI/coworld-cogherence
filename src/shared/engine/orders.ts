@@ -7,15 +7,17 @@
 import { z } from "zod";
 import { MINERALS } from "./types";
 import type { GameState, CogId, HexKey } from "./types";
-import { neighbors, key } from "./hex";
+import { distance } from "./hex";
 
 /** A heart-auction bid (energy). 0 means "no bid". */
 const BidOrder = z.object({ type: z.literal("bid"), energy: z.number().int().nonnegative() });
-/** Commit FORCE to a tile's tug-of-war (expand / capture / reinforce). How it is
- *  funded depends on the target: settling NEUTRAL ground is paid in energy, while
- *  Aligns against standing alignments (enemy tiles, or reinforcing your own) are
- *  paid in coherence transferred OUT of your other tiles, largest first (donors
- *  never drop below 1). A set the cog cannot fund is rejected wholesale. */
+/** Commit FORCE to a tile's tug-of-war (expand / capture / reinforce) — ANY
+ *  in-board tile, not just neighbors, but force decays DISTANCE_FORCE_DECAY per
+ *  hex beyond the first from your closest tile. Funding depends on the target:
+ *  settling NEUTRAL ground is paid in energy, while Aligns against standing
+ *  alignments (enemy tiles, or reinforcing your own) are paid in coherence
+ *  transferred OUT of your other tiles, largest first (donors never drop below
+ *  1). A set the cog cannot fund is rejected wholesale. */
 const AlignOrder = z.object({ type: z.literal("align"), tile: z.string(), force: z.number().int().positive() });
 /** Strip-mine an owned tile for a one-time windfall. */
 const ExploitOrder = z.object({ type: z.literal("exploit"), tile: z.string() });
@@ -40,17 +42,26 @@ export function isOwn(state: GameState, cog: CogId, tile: HexKey): boolean {
 }
 
 /**
- * True iff `cog` may Align `tile`: the tile is in-board AND is either the cog's
- * own tile (reinforce) or adjacent to at least one tile the cog owns. Influence
- * can only spread from existing territory.
+ * True iff `cog` may Align `tile`: the tile is in-board and the cog holds at
+ * least one tile for the influence to project FROM. Any distance is legal —
+ * force decays with it (see alignDistance / DISTANCE_FORCE_DECAY).
  */
 export function isLegalAlignTarget(state: GameState, cog: CogId, tile: HexKey): boolean {
   const t = state.tiles[tile];
   if (t === undefined) return false;
   if (t.alignment === cog) return true;
-  for (const n of neighbors(t.hex)) {
-    const nt = state.tiles[key(n)];
-    if (nt !== undefined && nt.alignment === cog) return true;
+  return Object.values(state.tiles).some((x) => x.alignment === cog);
+}
+
+/** Hex distance from `tile` to the cog's CLOSEST tile (0 when it owns the tile,
+ *  Infinity when it holds no ground). Drives the align force decay. */
+export function alignDistance(state: GameState, cog: CogId, tile: HexKey): number {
+  const t = state.tiles[tile];
+  if (t === undefined) return Infinity;
+  if (t.alignment === cog) return 0;
+  let best = Infinity;
+  for (const x of Object.values(state.tiles)) {
+    if (x.alignment === cog) best = Math.min(best, distance(x.hex, t.hex));
   }
-  return false;
+  return best;
 }

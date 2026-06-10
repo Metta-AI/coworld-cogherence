@@ -40,7 +40,7 @@ describe("resolve", () => {
       cogOrder: ["A"], treasuries: { A: T(1, 1, 1, 1) },
     });
     const orders: Record<CogId, Order[]> = {
-      A: [ { type: "align", tile: "3,0", force: 1 }, { type: "exploit", tile: "0,0" } ], // (3,0) not adjacent to A -> illegal
+      A: [ { type: "align", tile: "9,9", force: 1 }, { type: "exploit", tile: "0,0" } ], // (9,9) off-board -> illegal
     };
     const { state, events } = resolve(s, orders);
     expect(at(state, 0, 0)).toMatchObject({ alignment: "A", coherence: 3, density: 2 }); // untouched
@@ -58,6 +58,32 @@ describe("resolve", () => {
     expect(at(state, 0, 0)).toMatchObject({ alignment: "B", coherence: 5 }); // unchanged
     expect(at(state, 2, 0).coherence).toBe(3); // nothing donated
     expect(events.some((e) => e.type === "rejected" && /coherence/.test(e.reason))).toBe(true);
+  });
+
+  it("aligns reach across distance, losing 2 force per hex beyond the first", () => {
+    // A's only tile is (0,0); the neutral target (3,0) is 3 hexes out ->
+    // arriving force = 6 - 2x2 = 2. The FULL 6 is charged (energy, neutral target).
+    const s = makeState({
+      tiles: [tile(0, 0, "A", 5), tile(3, 0, null, 0, "S", 2)],
+      cogOrder: ["A"], treasuries: { A: T(6, 0, 0, 0) },
+    });
+    const { state, events } = resolve(s, { A: [{ type: "align", tile: "3,0", force: 6 }] });
+    expect(at(state, 3, 0)).toMatchObject({ alignment: "A", coherence: 2 }); // decayed force arrives
+    expect(at(state, 0, 0).coherence).toBe(5); // energy-funded: no donors touched
+    expect(tre(state, "A")).toEqual(T(0, 0, 0, 0)); // paid the full committed 6e
+    expect(events.some((e) => e.type === "capture" && e.tile === "3,0" && e.coherence === 2 && e.spent === 6)).toBe(true);
+  });
+
+  it("an align whose force fully dissipates before arriving is rejected", () => {
+    // force 4 over distance 3 -> 4 - 2x2 = 0 arrives -> bounced at validation
+    const s = makeState({
+      tiles: [tile(0, 0, "A", 5), tile(3, 0, null, 0)],
+      cogOrder: ["A"], treasuries: { A: T(4, 0, 0, 0) },
+    });
+    const { state, events } = resolve(s, { A: [{ type: "align", tile: "3,0", force: 4 }] });
+    expect(at(state, 3, 0).alignment).toBeNull();
+    expect(tre(state, "A")).toEqual(T(4, 0, 0, 0)); // nothing charged
+    expect(events.some((e) => e.type === "rejected" && /dissipates/.test(e.reason))).toBe(true);
   });
 
   it("rejects an align that commits less than 1 force (no free captures)", () => {

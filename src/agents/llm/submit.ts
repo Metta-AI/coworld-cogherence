@@ -30,7 +30,7 @@ export const SUBMIT_ORDERS_TOOL: ToolDef = {
       aligns: {
         type: "array",
         description:
-          "Commit force to a tile's tug-of-war. Settling a NEUTRAL tile costs that much ENERGY; attacking an enemy tile or reinforcing your own costs that much COHERENCE, transferred out of your other tiles largest-first (they never drop below 1). Target your own tiles or tiles adjacent to them.",
+          "Commit force to a tile's tug-of-war. Settling a NEUTRAL tile costs that much ENERGY; attacking an enemy tile or reinforcing your own costs that much COHERENCE, transferred out of your other tiles largest-first (they never drop below 1). Target ANY tile: force decays 2 per hex of distance beyond 1 from your closest tile, and a fully-dissipated align is rejected.",
         items: {
           type: "object",
           properties: {
