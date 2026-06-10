@@ -162,7 +162,7 @@ function orderOutcome(
       if (cap && cap.type === "capture") {
         if (cap.to === cog)
           return {
-            outcome: cap.from ? `success, flipped ${cogName(cogIdx(cap.from))}, coh=${cap.coherence}` : `success, coh=${cap.coherence}`,
+            outcome: cap.from ? `flipped ${cogName(cogIdx(cap.from))}, coh=${cap.coherence}` : `coh=${cap.coherence}`,
             failed: false,
           };
         if (cap.to === null) return { outcome: "tie, tile annihilated", failed: true };
@@ -170,7 +170,7 @@ function orderOutcome(
       }
       // no capture: the tile's alignment didn't change — reinforce or repelled
       const after = map.get(order.tile);
-      if (after?.alignment === cog) return { outcome: `success, coh=${after.coherence}`, failed: false };
+      if (after?.alignment === cog) return { outcome: `coh=${after.coherence}`, failed: false };
       return {
         outcome: after?.alignment
           ? `failed, ${cogName(cogIdx(after.alignment))} held at coh=${after.coherence}`
