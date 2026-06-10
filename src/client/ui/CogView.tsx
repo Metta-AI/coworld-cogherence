@@ -132,14 +132,21 @@ function TileMenu({
   const dist = mine ? 0 : myTiles.reduce((d, x) => Math.min(d, distance({ q: x.q, r: x.r }, { q: t.q, r: t.r })), Infinity);
 
   // align/reinforce cost per resulting coherence: arriving force must beat the
-  // incumbent (enemy tiles) or simply adds (own/neutral); energy = force² + dist²
+  // incumbent (enemy tiles) or simply adds (own/neutral); energy = force² + dist².
+  // On enemy tiles, under-powered aligns still DAMAGE: arriving force f < defender
+  // coherence removes f (a tie annihilates the tile to neutral).
   const options: Array<{ coh: number; energy: number }> = [];
+  const damage: Array<{ removed: number; energy: number; annihilates: boolean }> = [];
   if (mine) {
     for (let target = t.coherence + 1; target <= COHERENCE_MAX; target++) {
       options.push({ coh: target, energy: (target - t.coherence) ** 2 });
     }
   } else {
     const incumbent = t.alignment ? t.coherence : 0;
+    for (let f = 1; f <= incumbent; f++) {
+      const energy = f * f + dist * dist;
+      if (energy <= ALIGN_MAX_ENERGY) damage.push({ removed: f, energy, annihilates: f === incumbent });
+    }
     for (let final = 1; final <= COHERENCE_MAX; final++) {
       const energy = (final + incumbent) ** 2 + dist * dist;
       if (energy <= ALIGN_MAX_ENERGY) options.push({ coh: final, energy });
@@ -182,8 +189,27 @@ function TileMenu({
             <div className="cg-label" style={{ fontSize: 8, padding: "5px 0 2px" }}>reinforce → coherence</div>
           </>
         )}
-        {!mine && <div className="cg-label" style={{ fontSize: 8, padding: "2px 0" }}>align → final coherence{t.alignment ? ` (defender coh ${t.coherence})` : ""} · dist {dist}</div>}
-        {options.length === 0 && (
+        {damage.length > 0 && (
+          <>
+            <div className="cg-label" style={{ fontSize: 8, padding: "2px 0" }}>weaken (defender coh {t.coherence}) · dist {dist}</div>
+            {damage.map((o) => (
+              <button key={`d${o.removed}`} type="button" className="cg-menu-row" onClick={() => onPick({ type: "align", tile: tileKey, energy: o.energy })}>
+                <span style={row}>
+                  <span className="cg-mono" style={{ fontSize: 10.5, color: "var(--exploit)" }}>
+                    {o.annihilates ? "−" + o.removed + " coh ⌀ annihilates" : `−${o.removed} coh`}
+                  </span>
+                  <span className="cg-mono" style={{ fontSize: 10.5, color: "var(--energy)" }}>{o.energy}e</span>
+                </span>
+              </button>
+            ))}
+          </>
+        )}
+        {!mine && options.length > 0 && (
+          <div className="cg-label" style={{ fontSize: 8, padding: "2px 0" }}>
+            {t.alignment ? "capture" : "align"} → final coherence · dist {dist}
+          </div>
+        )}
+        {options.length === 0 && damage.length === 0 && (
           <div className="cg-mono" style={{ fontSize: 9.5, color: "var(--muted)" }}>
             {mine ? "already at max coherence." : "out of reach — no affordable force arrives."}
           </div>
