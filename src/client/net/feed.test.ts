@@ -4,13 +4,23 @@ import { connectLiveFeed, type FeedStore, type LiveSocket } from "./feed";
 
 class FakeSocket implements LiveSocket {
   private handler: ((d: string) => void) | null = null;
+  private closeHandler: (() => void) | null = null;
+  closed = false;
   onMessage(fn: (d: string) => void) {
     this.handler = fn;
+  }
+  onClose(fn: () => void) {
+    this.closeHandler = fn;
   }
   emit(frame: unknown) {
     this.handler?.(JSON.stringify(frame));
   }
-  close() {}
+  die() {
+    this.closeHandler?.();
+  }
+  close() {
+    this.closed = true;
+  }
 }
 
 const snap = (turn: number) => ({
@@ -19,6 +29,44 @@ const snap = (turn: number) => ({
 const newStore = (): FeedStore => ({ snapshots: [], events: [], status: null, actPrompts: {}, messages: [] });
 
 describe("connectLiveFeed", () => {
+  it("reconnects with backoff when the socket dies, wiping the store for a clean backfill", () => {
+    vi.useFakeTimers();
+    const store = newStore();
+    const sockets: FakeSocket[] = [];
+    const onChange = vi.fn();
+    connectLiveFeed(store, () => {
+      const sk = new FakeSocket();
+      sockets.push(sk);
+      return sk;
+    }, onChange);
+    sockets[0]!.emit({ type: "snapshot", snapshot: snap(1) });
+    expect(store.snapshots).toHaveLength(1);
+    sockets[0]!.die(); // server restarted / never came up
+    expect(sockets).toHaveLength(1); // not yet — waits out the backoff
+    vi.advanceTimersByTime(600);
+    expect(sockets).toHaveLength(2); // reconnected
+    expect(store.snapshots).toHaveLength(0); // wiped — the new backfill repopulates
+    sockets[1]!.emit({ type: "snapshot", snapshot: snap(5) });
+    expect(store.snapshots.map((s) => s.turn)).toEqual([5]);
+    vi.useRealTimers();
+  });
+
+  it("stops reconnecting once closed", () => {
+    vi.useFakeTimers();
+    const sockets: FakeSocket[] = [];
+    const stop = connectLiveFeed(newStore(), () => {
+      const sk = new FakeSocket();
+      sockets.push(sk);
+      return sk;
+    }, vi.fn());
+    stop();
+    sockets[0]!.die();
+    vi.advanceTimersByTime(60_000);
+    expect(sockets).toHaveLength(1); // no zombie reconnects after teardown
+    expect(sockets[0]!.closed).toBe(true);
+    vi.useRealTimers();
+  });
+
   it("applies snapshot frames and notifies", () => {
     const store = newStore();
     const sock = new FakeSocket();

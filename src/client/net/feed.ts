@@ -28,6 +28,9 @@ export interface FeedStore {
 /** Minimal socket surface (a fake is injected in tests; real one wraps WebSocket). */
 export interface LiveSocket {
   onMessage(fn: (data: string) => void): void;
+  /** Fires when the underlying connection dies (or never opened). Optional so
+   *  test fakes without lifecycle stay valid. */
+  onClose?(fn: () => void): void;
   close(): void;
 }
 
@@ -54,19 +57,49 @@ export function applyFrame(store: FeedStore, m: ServerMessage): void {
   } else if (m.type === "message") store.messages.push(m.message);
 }
 
+/** Connect (and KEEP connected) a live feed: when the socket dies — server
+ *  restarting, page loaded before the server was up — retry with capped
+ *  backoff, wiping the store right before each reconnect so the server's
+ *  backfill repopulates it cleanly (no duplicated events). */
 export function connectLiveFeed(store: FeedStore, makeSocket: () => LiveSocket, onChange: () => void): () => void {
-  const sock = makeSocket();
-  sock.onMessage((data) => {
-    let raw: unknown;
-    try {
-      raw = JSON.parse(data);
-    } catch {
-      return; // drop unparseable inbound
-    }
-    const parsed = serverMessageSchema.safeParse(raw);
-    if (!parsed.success) return; // drop invalid inbound
-    applyFrame(store, parsed.data);
-    onChange();
-  });
-  return () => sock.close();
+  let stopped = false;
+  let sock: LiveSocket | null = null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let attempt = 0;
+  const open = (): void => {
+    if (stopped) return;
+    sock = makeSocket();
+    sock.onMessage((data) => {
+      let raw: unknown;
+      try {
+        raw = JSON.parse(data);
+      } catch {
+        return; // drop unparseable inbound
+      }
+      const parsed = serverMessageSchema.safeParse(raw);
+      if (!parsed.success) return; // drop invalid inbound
+      attempt = 0; // inbound traffic proves the link is healthy
+      applyFrame(store, parsed.data);
+      onChange();
+    });
+    sock.onClose?.(() => {
+      if (stopped) return;
+      const delay = Math.min(8000, 500 * 2 ** attempt++);
+      timer = setTimeout(() => {
+        store.snapshots = [];
+        store.events = [];
+        store.messages = [];
+        store.actPrompts = {};
+        store.status = null;
+        onChange();
+        open();
+      }, delay);
+    });
+  };
+  open();
+  return () => {
+    stopped = true;
+    clearTimeout(timer);
+    sock?.close();
+  };
 }
