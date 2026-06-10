@@ -2,6 +2,7 @@
 // not a body), mineral *chips* spell COGS, a *wallet* derives energy from a COGS
 // set, *verb tags* color the board verbs, plus the brand and the four-phase strip.
 import React from "react";
+import { publishTileHighlight } from "./tile-highlight";
 import type { Treasury, Phase } from "../../shared/engine/types";
 import { Icon, type IconName } from "../Icon";
 import { cogColor, cogName } from "../colors";
@@ -29,6 +30,20 @@ export function CogText({ text }: { text: string }): React.ReactElement {
 /** A real neon-glass game icon (heart / energy / coherence / logo / verbs). */
 export function CGIcon({ name, size = 16, title }: { name: IconName; size?: number; title?: string }): React.ReactElement {
   return <Icon name={name} size={size} data-tip={title} />;
+}
+
+/** A tile address as a hoverable pill — hovering highlights the tile on the
+ *  lattice (via the tile-highlight channel). */
+export function TilePill({ k }: { k: string }): React.ReactElement {
+  return (
+    <span
+      className="cg-tilepill"
+      onMouseEnter={() => publishTileHighlight([k])}
+      onMouseLeave={() => publishTileHighlight([])}
+    >
+      {k}
+    </span>
+  );
 }
 
 /** The energy badge — a glowing blue circle with the bolt, sized like a mineral chip. */

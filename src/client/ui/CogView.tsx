@@ -283,6 +283,12 @@ export function CogView({
   const [mode, setMode] = useState<LatticeMode>("coherence");
   const [menu, setMenu] = useState<{ tileKey: string; at: { x: number; y: number } } | null>(null);
   const [pending, setPending] = useState<Order[]>([]);
+  // The queue as submitted via Ready — shown frozen ("Committed") until the
+  // turn resolves (the snapshot advancing past it clears the marker).
+  const [committed, setCommitted] = useState<{ turn: number; orders: Order[]; notes: Array<string | undefined>; total: number } | null>(null);
+  useEffect(() => {
+    if (committed && snapshot.turn > committed.turn) setCommitted(null);
+  }, [snapshot.turn, committed]);
   const mine: Record<string, ActPromptFrame[]> = actPrompts[cogId] ? { [cogId]: actPrompts[cogId]! } : {};
 
   // The operator's queued orders live server-side (they submit at the next
@@ -357,8 +363,10 @@ export function CogView({
                 }}
                 onReady={() => {
                   void fetch(`/cog/${cogId}/ready`, { method: "POST" });
+                  setCommitted({ turn: snapshot.turn, orders: pending, notes: pendingNotes, total: pendingCommitted });
                   setPending([]); // the server consumes the queue as it submits
                 }}
+                committed={committed}
               />
             )}
             <TurnLog snapshot={snapshot} events={events} />

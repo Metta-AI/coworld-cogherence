@@ -66,8 +66,8 @@ describe("AutopilotPanel", () => {
     const { getByTestId, getAllByText } = render(
       <AutopilotPanel cogId="cog0" pending={pending} onCancelPending={onCancel} onSetBid={onSetBid} onReady={onReady} />,
     );
-    await waitFor(() => expect(getByTestId("pending-actions").textContent).toContain("Align([3,-4], force=2)"));
-    expect(getByTestId("pending-actions").textContent).toContain("Exploit([0,0])");
+    await waitFor(() => expect(getByTestId("pending-actions").textContent).toContain("Align(3,-4, force=2)"));
+    expect(getByTestId("pending-actions").textContent).toContain("Exploit(0,0)");
     fireEvent.click(getAllByText("✕")[1]!);
     expect(onCancel).toHaveBeenCalledWith(1);
     fireEvent.change(getByTestId("bid-input"), { target: { value: "7" } });
@@ -82,6 +82,22 @@ describe("AutopilotPanel", () => {
     expect(getByText("Send Guidance")).toBeTruthy();
     expect(queryByTestId("pending-actions")).toBeNull();
     expect(queryByTestId("ready-btn")).toBeNull();
+  });
+
+  it("after Ready, shows the frozen committed orders and a Committed chip (no controls)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => Promise.resolve({ json: () => Promise.resolve({ persona: "", paused: true }) } as Response)),
+    );
+    const committed = { orders: [{ type: "align" as const, tile: "1,0", force: 2 }], notes: ["5e"], total: 5 };
+    const { getByTestId, queryByTestId, queryByText } = render(
+      <AutopilotPanel cogId="cog0" pending={[]} committed={committed} />,
+    );
+    await waitFor(() => expect(getByTestId("committed-chip")).toBeTruthy());
+    expect(getByTestId("pending-actions").textContent).toContain("Align(1,0, force=2) · 5e");
+    expect(queryByTestId("ready-btn")).toBeNull();
+    expect(queryByTestId("bid-input")).toBeNull();
+    expect(queryByText("✕")).toBeNull(); // frozen — no cancels
   });
 
   it("is read-only off the latest turn: shows state, offers no controls", async () => {

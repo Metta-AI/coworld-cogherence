@@ -7,19 +7,33 @@
 import React, { useEffect, useState } from "react";
 import type { Order } from "../../shared/engine/orders";
 import { cogName } from "../colors";
+import { TilePill } from "../cg/atoms";
 
 type Saved = "idle" | "saving" | "saved";
 
-/** One pending order as text; `note` carries its energy effect (an align's
- *  bill, an abandon's refund, an exploit's mineral windfall). */
-const orderText = (o: Order, note?: string): string => {
+/** One pending order rendered with a hoverable tile pill; `note` carries its
+ *  energy effect (an align's bill, an abandon's refund, an exploit's windfall). */
+const orderText = (o: Order, note?: string): React.ReactNode => {
+  const suffix = note ? ` · ${note}` : "";
   switch (o.type) {
     case "align":
-      return `Align([${o.tile}], force=${o.force})${note ? ` · ${note}` : ""}`;
+      return (
+        <>
+          Align(<TilePill k={o.tile} />, force={o.force}){suffix}
+        </>
+      );
     case "exploit":
-      return `Exploit([${o.tile}])${note ? ` · ${note}` : ""}`;
+      return (
+        <>
+          Exploit(<TilePill k={o.tile} />){suffix}
+        </>
+      );
     case "abandon":
-      return `Abandon([${o.tile}])${note ? ` · ${note}` : ""}`;
+      return (
+        <>
+          Abandon(<TilePill k={o.tile} />){suffix}
+        </>
+      );
     case "transfer":
       return `Transfer(${o.amount} ${o.mineral} → ${cogName(Number(o.to.replace(/\D/g, "")) || 0)})`;
     case "bid":
@@ -93,6 +107,7 @@ export function AutopilotPanel({
   onCancelPending,
   onSetBid,
   onReady,
+  committed = null,
 }: {
   cogId: string;
   atLatest?: boolean;
@@ -107,6 +122,8 @@ export function AutopilotPanel({
   onSetBid?: (energy: number) => void;
   /** Manual mode: submit the queue for this Commit and mark the cog ready. */
   onReady?: () => void;
+  /** The orders submitted via Ready this turn — displayed frozen until Resolve. */
+  committed?: { orders: Order[]; notes: Array<string | undefined>; total: number } | null;
 }): React.ReactElement {
   const [persona, setPersona] = useState("");
   const [paused, setPaused] = useState(false);
@@ -184,6 +201,20 @@ export function AutopilotPanel({
               Send Guidance
             </button>
             <span className="steer-status">{saved === "saved" ? "✓ sent" : saved === "saving" ? "sending…" : ""}</span>
+          </div>
+        </>
+      ) : committed ? (
+        <>
+          <PendingActions pending={committed.orders} notes={committed.notes} committed={committed.total} />
+          <div className="steer-actions" style={{ marginTop: 8 }}>
+            <span
+              data-testid="committed-chip"
+              className="cg-mono"
+              data-tip="orders are locked in for this Commit — they execute at Resolve"
+              style={{ fontSize: 11, fontWeight: 700, color: "var(--coherence)", border: "1px solid var(--coherence)", borderRadius: 7, padding: "4px 12px" }}
+            >
+              ✓ Committed
+            </span>
           </div>
         </>
       ) : (

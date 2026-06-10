@@ -13,17 +13,18 @@ export const MAX_TURNS = 100;
 /** Per-tile upkeep, per turn: a base that SCALES WITH EMPIRE SIZE —
  *  floor(sqrt(tiles owned)) per tile, so total base spend grows ~N^1.5 and
  *  sprawl taxes itself — plus RESISTANCE: RESISTANCE_COST energy per
- *  enemy-aligned neighbor, with each allied (same-owner) neighbor offsetting
- *  HALF an enemy (rounded against the defender); neutral neighbors count for
- *  neither side. Coherence is then purely economic: an unpaid tile UNDER
- *  resistance loses 1 (neutral at 0) while zero-resistance ground holds even
- *  unpaid; paying REGEN_COST on top of the bill grows a tile +1 Coherence
- *  (max 1/turn, capped). */
+ *  enemy-aligned neighbor. Allies do NOT cheapen defense (neutral neighbors
+ *  count for nothing) — their value is healing speed instead: a tile may
+ *  regenerate up to maxRegen(allies) Coherence per Upkeep, each +1 costing
+ *  REGEN_COST on top of a paid bill. An unpaid tile UNDER resistance loses 1
+ *  (neutral at 0) while zero-resistance ground holds even unpaid. */
 export const REGEN_COST = 3;
 export const RESISTANCE_COST = 10;
 export const upkeepBase = (ownedTiles: number): number => Math.floor(Math.sqrt(Math.max(0, ownedTiles)));
-export const tileUpkeepCost = (friendly: number, enemies: number, ownedTiles: number): number =>
-  upkeepBase(ownedTiles) + RESISTANCE_COST * Math.max(0, Math.ceil(enemies - friendly / 2));
+export const tileUpkeepCost = (enemies: number, ownedTiles: number): number =>
+  upkeepBase(ownedTiles) + RESISTANCE_COST * enemies;
+/** Coherence a tile may regenerate in one Upkeep: 1, +1 per two allied neighbors. */
+export const maxRegen = (friendly: number): number => 1 + Math.floor(friendly / 2);
 
 /** Mineral minted per Upkeep = density × coherence / MINT_DIVISOR, stochastically
  *  rounded: a raw 2.3 mints 2, plus 1 with probability 0.3. At 5 a tile at full

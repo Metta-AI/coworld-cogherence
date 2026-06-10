@@ -2,15 +2,16 @@
 // the public/DM Channels, the tile inspector, and the LatticePanel
 // that wraps the luminous board with its mode toggle, legend, turn pulse, and
 // inspector. All read the real GameSnapshot + event/message streams.
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { GameSnapshot } from "../../shared/snapshot";
 import type { Message } from "../../shared/messages";
 import type { TurnEvent } from "../../shared/engine/log";
 import type { StampedEvent } from "../net/feed";
 import { cogColor, cogName } from "../colors";
-import { MINT_DIVISOR, TRANSFER_FEE, upkeepBase, REGEN_COST, RESISTANCE_COST } from "../../shared/engine/constants";
+import { MINT_DIVISOR, TRANSFER_FEE, upkeepBase, maxRegen, REGEN_COST, RESISTANCE_COST } from "../../shared/engine/constants";
 import { HexBoard, type LatticeMode } from "../HexBoard";
-import { CGIcon, CogText, EnergyChip, Mineral } from "./atoms";
+import { CGIcon, CogText, EnergyChip, Mineral, TilePill } from "./atoms";
+import { subscribeTileHighlight } from "./tile-highlight";
 import {
   MINERALS,
   minClass,
@@ -507,16 +508,16 @@ export function TileInspector({ tileKey: key, snapshot }: { tileKey: string; sna
   const nc = nb.length;
   const status = tileStatus(t, map, snapshot.coherenceMax, ownerColor);
   const drain = tileDrain(t, snapshot);
-  // The bill, decomposed (mirrors tileUpkeepCost): upkeep = the flat base every
-  // aligned tile pays; resistance = 1e per enemy neighbor, each ally offsetting
-  // half an enemy (neutral counts for neither side); regeneration = the flat
-  // REGEN_COST paid on top of the bill to grow this tile +1 coherence (max 1/turn).
+  // The bill, decomposed (mirrors tileUpkeepCost): upkeep = the empire-scaled
+  // base every aligned tile pays; resistance = RESISTANCE_COST per enemy
+  // neighbor (allies do not discount it; neutral counts for nothing);
+  // regeneration = REGEN_COST per +1 coherence, up to maxRegen(allies)/turn.
   const enemies = t.alignment ? nb.filter((n) => n.alignment !== null && n.alignment !== t.alignment).length : 0;
   const ownedCount = t.alignment ? snapshot.tiles.filter((x) => x.alignment === t.alignment).length : 0;
   const base = upkeepBase(ownedCount);
   const bill = t.alignment ? tileCost(t, map, ownedCount) : 0;
   const resistance = bill - base;
-  const resistanceTip = `(${enemies} enemy − ${friendly}/2 allied neighbors) × ${RESISTANCE_COST}e — each ally offsets half an enemy; neutral counts for neither`;
+  const resistanceTip = `${enemies} enemy neighbor${enemies === 1 ? "" : "s"} × ${RESISTANCE_COST}e — allies do not reduce resistance (they speed regen instead); neutral counts for nothing`;
   const scarred = t.density < t.density0; // an exploit halved the deposit
   const mint = (t.density * t.coherence) / MINT_DIVISOR; // expected mineral/turn
   const row = (label: string, value: React.ReactNode): React.ReactElement => (
@@ -573,8 +574,8 @@ export function TileInspector({ tileKey: key, snapshot }: { tileKey: string; sna
                   <span
                     data-tip={
                       drain.verdict === "grows"
-                        ? `bill + ${REGEN_COST}e regen — this tile grows +1 coherence each turn the owner can afford it`
-                        : `bill paid — the tile holds (pay +${REGEN_COST}e regen to grow)`
+                        ? `bill + ${REGEN_COST}e × ${drain.steps ?? 1} regen — up to ${maxRegen(friendly)} coherence/turn here (1 + allies/2)`
+                        : `bill paid — the tile holds (each +1 coherence costs ${REGEN_COST}e, up to ${maxRegen(friendly)}/turn here)`
                     }
                     style={{ color: "var(--exploit)" }}
                   >
@@ -604,8 +605,8 @@ export function TileInspector({ tileKey: key, snapshot }: { tileKey: string; sna
               drain.verdict === "grows" &&
               row(
                 "· regeneration",
-                <span data-tip={`flat ${REGEN_COST}e on top of the bill — buys +1 coherence (max 1/turn)`} style={{ color: "var(--muted)" }}>
-                  −{REGEN_COST}e
+                <span data-tip={`${REGEN_COST}e per +1 coherence — allies raise the ceiling: up to ${maxRegen(friendly)}/turn here (1 + allies/2)`} style={{ color: "var(--muted)" }}>
+                  −{REGEN_COST * (drain.steps ?? 1)}e{(drain.steps ?? 1) > 1 ? ` (+${drain.steps})` : ""}
                 </span>,
               )}
             {row("neighbors", `${friendly}/${nc} friendly`)}
@@ -747,7 +748,12 @@ export function LatticePanel({
   const exploited = exploitTilesAt(events, turn);
   // Hovering a turn-pulse stat rings the tiles it mentions.
   const [pulse, setPulse] = useState<PulseGroup | null>(null);
-  const emphasis = pulse === "claimed" ? claimTilesAt(events, turn) : pulse === "flipped" ? flips : pulse === "exploited" ? exploited : [];
+  const [hotTiles, setHotTiles] = useState<string[]>([]);
+  useEffect(() => subscribeTileHighlight(setHotTiles), []);
+  const emphasis = [
+    ...(pulse === "claimed" ? claimTilesAt(events, turn) : pulse === "flipped" ? flips : pulse === "exploited" ? exploited : []),
+    ...hotTiles,
+  ];
   return (
     <div className="cg-panel cg-lattice" ref={wrapRef} data-testid="lattice">
       <div style={{ position: "absolute", inset: 0, padding: 8 }}>

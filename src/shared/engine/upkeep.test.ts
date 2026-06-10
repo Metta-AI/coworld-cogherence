@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { upkeep } from "./upkeep";
 import type { GameState, Tile, CogId, Mineral, Treasury, CogState } from "./types";
 import { key } from "./hex";
-import { COHERENCE_MAX, tileUpkeepCost, upkeepBase } from "./constants";
+import { COHERENCE_MAX, maxRegen, tileUpkeepCost, upkeepBase } from "./constants";
 
 const tile = (q: number, r: number, alignment: CogId | null, coherence: number, mineral: Mineral = "C", density = 1): Tile =>
   ({ hex: { q, r }, alignment, coherence, mineral, density, density0: density });
@@ -25,22 +25,26 @@ const FLOOR = () => 0.999999; // rng never below any fractional part -> mint = f
 const CEIL = () => 0; // rng below every positive fractional part -> mint = ceil(raw)
 
 // Bills under the base + resistance model (see tileUpkeepCost):
-//   any tile:                                    floor(sqrt(tiles owned)) base
-//   + 10e x max(0, ceil(enemies - allies/2))     each ally offsets HALF an enemy
-//   (neutral neighbors count for neither side; rounding goes against the defender)
-// Cogs holding 1-3 tiles pay base 1, so the small scenarios below are unchanged.
-// Regen is a flat 3e on top of a paid bill (+1 coherence, max 1/turn).
+//   any tile:        floor(sqrt(tiles owned)) base
+//   + 10e x enemies  allies do NOT cheapen defense; neutral counts for nothing
+// Cogs holding 1-3 tiles pay base 1, so the small scenarios below stay simple.
+// Allies buy HEALING SPEED instead: a paid tile regenerates up to
+// maxRegen(allies) = 1 + allies/2 coherence per turn, each +1 costing 3e.
 
 describe("upkeep", () => {
-  it("tileUpkeepCost: empire-scaled base + 10e per net enemy, each ally offsetting half", () => {
-    expect(tileUpkeepCost(0, 0, 1)).toBe(1); // lone tile in the wilderness — just the base
-    expect(tileUpkeepCost(1, 0, 2)).toBe(1); // friendly pair
-    expect(tileUpkeepCost(0, 1, 1)).toBe(11); // enemy pair: base + 1 enemy x 10e
-    expect(tileUpkeepCost(1, 1, 2)).toBe(11); // 1v1 front: the ally only half-covers -> ceil(0.5) = 1
-    expect(tileUpkeepCost(2, 1, 3)).toBe(1); // two allies fully cover one enemy
-    expect(tileUpkeepCost(3, 3, 4)).toBe(22); // even front line in a 4-tile empire: 2 + 2x10
-    expect(tileUpkeepCost(2, 4, 9)).toBe(33); // outnumbered 4v2 in a 9-tile empire: 3 + 3x10
-    expect(tileUpkeepCost(0, 3, 1)).toBe(31); // salient ringed by 3 enemies: 1 + 3x10
+  it("tileUpkeepCost: empire-scaled base + 10e per enemy (allies never cheapen defense)", () => {
+    expect(tileUpkeepCost(0, 1)).toBe(1); // quiet lone tile — just the base
+    expect(tileUpkeepCost(0, 4)).toBe(2); // quiet tile in a 4-tile empire
+    expect(tileUpkeepCost(1, 1)).toBe(11); // one enemy neighbor: base + 10e
+    expect(tileUpkeepCost(3, 9)).toBe(33); // 3 enemies in a 9-tile empire: 3 + 30
+  });
+
+  it("maxRegen: allies buy healing speed — 1 + one per two allied neighbors", () => {
+    expect(maxRegen(0)).toBe(1);
+    expect(maxRegen(1)).toBe(1);
+    expect(maxRegen(2)).toBe(2);
+    expect(maxRegen(4)).toBe(3);
+    expect(maxRegen(6)).toBe(4);
   });
 
   it("upkeepBase scales as floor(sqrt(tiles)): sprawl taxes itself", () => {
@@ -164,29 +168,28 @@ describe("upkeep", () => {
     expect(tre(state, "B")).toEqual(T(10, 0, 0, 0)); // unpaid bills charge nothing; mint floor(4/5)=0
   });
 
-  it("two allies fully cover an enemy; one only half-covers (rounded against you)", () => {
-    // A's (1,0) touches TWO A tiles and one B tile -> resistance ceil(1-1)=0 ->
-    // 1e bill, held even unpaid. A's (0,0) touches one ally + one enemy... no:
-    // (0,0) touches (1,0)=ally and (-1,0)? not on board -> just allies. The
-    // half-cover case is asserted directly in the tileUpkeepCost unit test.
+  it("allies speed healing: two allied neighbors let a paid tile regen +2 in one turn", () => {
+    // a mutually-adjacent A triangle: (0,0)@5 flanked by two maxed allies.
+    // owned=3 -> base 1, no enemies. T(9): bills 3, the maxed pair skip regen,
+    // (0,0) buys maxRegen(2)=2 steps at 3e each -> coherence 7.
     const s = makeState({
-      tiles: [tile(0, 0, "A", 4), tile(1, -1, "A", 4), tile(1, 0, "A", 4), tile(2, 0, "B", 4)],
-      cogOrder: ["A", "B"], treasuries: { A: T(), B: T(4, 0, 0, 0) },
+      tiles: [tile(0, 0, "A", 5), tile(1, 0, "A", COHERENCE_MAX), tile(0, 1, "A", COHERENCE_MAX)],
+      cogOrder: ["A"], treasuries: { A: T(9, 0, 0, 0) },
     });
-    const { state, events } = upkeep(s, FLOOR);
-    expect(at(state, 1, 0).coherence).toBe(4); // 2 allies v 1 enemy -> sheltered, held even unpaid
-    expect(events.some((e) => e.type === "starved" && e.tile === "1,0")).toBe(false);
+    const { state } = upkeep(s, FLOOR);
+    expect(at(state, 0, 0).coherence).toBe(7); // +2 — allies sped the healing
+    // 9 - 3 bills - 6 regen = 0; mint floor(10/5)x2 + floor(7/5) = 2+2+1 = 5 C
+    expect(tre(state, "A")).toEqual(T(5, 0, 0, 0));
   });
 
-  it("a 1v1 front line is under resistance: unpaid, it rots", () => {
-    // A's (0,0) touches one ally and one enemy -> resistance ceil(0.5)=1 -> 2e
-    // bill A cannot pay -> rots.
+  it("any enemy neighbor makes ground rot when unpaid — allies don't shelter it", () => {
+    // A's (0,0) touches one ally and one enemy -> bill 1 + 10 = 11e, A is broke -> rots.
     const s = makeState({
       tiles: [tile(-1, 0, "A", 4), tile(0, 0, "A", 4), tile(1, 0, "B", 4)],
-      cogOrder: ["A", "B"], treasuries: { A: T(), B: T(4, 0, 0, 0) },
+      cogOrder: ["A", "B"], treasuries: { A: T(), B: T(11, 0, 0, 0) },
     });
     const { state, events } = upkeep(s, FLOOR);
-    expect(at(state, 0, 0).coherence).toBe(3); // half-covered -> still rots when unpaid
+    expect(at(state, 0, 0).coherence).toBe(3); // under resistance -> rots
     expect(events.some((e) => e.type === "starved" && e.tile === "0,0")).toBe(true);
   });
 
