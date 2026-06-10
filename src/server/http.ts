@@ -7,6 +7,7 @@ import { z } from "zod";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { toSnapshot } from "../shared/snapshot";
+import { greedyAgent } from "../agents/stub";
 import { buildCogSnapshot } from "./redact";
 import type { GameRunner } from "./game-runner";
 import type { ActPromptHub } from "./act-prompt-hub";
@@ -53,6 +54,16 @@ export function createApp(
   app.post("/resume", (_req, res) => {
     runner.setPaused(false);
     res.json({ ok: true });
+  });
+
+  // Operator: seat a new Cog mid-game (greedy stub) at a free corner. A full
+  // board (6 seats / no free corner) is a 409 with the engine's reason.
+  app.post("/cogs/add", (_req, res) => {
+    try {
+      res.json({ ok: true, id: runner.addCog((id) => greedyAgent(id)) });
+    } catch (e) {
+      res.status(409).json({ ok: false, error: e instanceof Error ? e.message : String(e) });
+    }
   });
 
   // Operator steering (Phase D): read + edit a cog's persona / paused flag live.

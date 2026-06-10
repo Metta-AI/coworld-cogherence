@@ -2,10 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "live",
+      "name": "cogherence",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "serve:llm", "--", "--agents", "llm,llm,greedy,greedy", "--turns", "100", "--pace", "1000", "--port", "5174", "--default-live"],
-      "port": 5174
+      "runtimeArgs": ["run", "serve", "--", "--port", "5173", "--pace", "800", "--default-live"],
+      "port": 5173
     }
   ]
 }

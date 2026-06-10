@@ -28,6 +28,21 @@ describe("http", () => {
     const j = await (await fetch(`${base()}/cog/cog0/state.json`)).json();
     expect(j.cogs.find((c: { id: string }) => c.id === "cog1").treasury).toEqual({ C: 0, O: 0, Ge: 0, S: 0 });
   });
+  it("POST /cogs/add seats a new cog; a full board is a 409", async () => {
+    const r2 = new GameRunner({ seed: 7, agents: [greedyAgent("cog0"), greedyAgent("cog1")], maxTurns: 100 });
+    const srv = createApp(r2).listen(0);
+    const p = (srv.address() as { port: number }).port;
+    const j = await (await fetch(`http://127.0.0.1:${p}/cogs/add`, { method: "POST" })).json();
+    expect(j).toEqual({ ok: true, id: "cog2" });
+    const snap = await (await fetch(`http://127.0.0.1:${p}/global.json`)).json();
+    expect(snap.cogs).toHaveLength(3);
+    for (let i = 0; i < 3; i++) await fetch(`http://127.0.0.1:${p}/cogs/add`, { method: "POST" }); // fill all 6 seats
+    const full = await fetch(`http://127.0.0.1:${p}/cogs/add`, { method: "POST" });
+    expect(full.status).toBe(409);
+    expect((await full.json()).error).toMatch(/at most 6/);
+    srv.close();
+  });
+
   it("GET /cog/:id/act-prompts -> the cog's recorded entries", async () => {
     const hub = new ActPromptHub();
     hub.record({ cogId: "cog0", turn: 1, phase: "commit", content: "hello" });

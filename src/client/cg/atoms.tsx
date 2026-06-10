@@ -1,0 +1,222 @@
+// Cogherence neon-glass atoms: each Cog is a luminous hexagonal *sigil* (a mind,
+// not a body), mineral *chips* spell COGS, a *wallet* derives energy from a COGS
+// set, *verb tags* color the board verbs, plus the brand and the four-phase strip.
+import React from "react";
+import type { Treasury, Phase } from "../../shared/engine/types";
+import { Icon, type IconName } from "../Icon";
+import { cogColor, cogName } from "../colors";
+import { MINERALS, MINERAL_NAME, minClass, setsOf } from "./derive";
+
+/** Free text with any raw engine ids (cog0, cog1…) rendered as that Cog's colored
+ *  display name — agents speak in ids on the wire; spectators read names. */
+export function CogText({ text }: { text: string }): React.ReactElement {
+  const parts = text.split(/\bcog(\d+)\b/g); // alternates [plain, seat-index, plain, …]
+  return (
+    <>
+      {parts.map((p, i) =>
+        i % 2 === 1 ? (
+          <b key={i} style={{ color: cogColor(Number(p)), fontWeight: 600 }}>
+            {cogName(Number(p))}
+          </b>
+        ) : (
+          p
+        ),
+      )}
+    </>
+  );
+}
+
+/** A real neon-glass game icon (heart / energy / coherence / logo / verbs). */
+export function CGIcon({ name, size = 16, title }: { name: IconName; size?: number; title?: string }): React.ReactElement {
+  return <Icon name={name} size={size} data-tip={title} />;
+}
+
+/** A mineral chip — a glowing rounded square stamped with its letter (C/O/Ge/S). */
+export function Mineral({ m, label }: { m: string; label?: boolean }): React.ReactElement {
+  return (
+    <span data-tip={`${MINERAL_NAME[m]} — one of the four COGS minerals`} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+      <span className={`cg-min ${minClass(m)}`}>{m}</span>
+      {label && (
+        <span className="cg-mono" style={{ fontSize: 9, color: "var(--muted)" }}>
+          {MINERAL_NAME[m]}
+        </span>
+      )}
+    </span>
+  );
+}
+
+const hexPath = (cx: number, cy: number, R: number): string => {
+  let d = "";
+  for (let i = 0; i < 6; i++) {
+    const a = (Math.PI / 180) * (60 * i - 30);
+    d += `${i ? "L" : "M"}${(cx + R * Math.cos(a)).toFixed(1)},${(cy + R * Math.sin(a)).toFixed(1)} `;
+  }
+  return d + "Z";
+};
+
+/** One distinct inner glyph per seat index (0..5) — steward, expansionist, … */
+function Glyph({ idx, color }: { idx: number; color: string }): React.ReactElement {
+  const s = { stroke: color, strokeWidth: 2, fill: "none", strokeLinecap: "round", strokeLinejoin: "round" } as const;
+  switch (idx % 6) {
+    case 0: // concentric, solid core
+      return (
+        <g>
+          <path d={hexPath(32, 32, 13)} {...s} />
+          <circle cx="32" cy="32" r="5" fill={color} />
+        </g>
+      );
+    case 1: // radiating arms
+      return (
+        <g {...s}>
+          {[0, 60, 120, 180, 240, 300].map((a) => {
+            const rad = (a * Math.PI) / 180;
+            return (
+              <line
+                key={a}
+                x1={32 + 5 * Math.cos(rad)}
+                y1={32 + 5 * Math.sin(rad)}
+                x2={32 + 16 * Math.cos(rad)}
+                y2={32 + 16 * Math.sin(rad)}
+              />
+            );
+          })}
+          <circle cx="32" cy="32" r="3.5" fill={color} stroke="none" />
+        </g>
+      );
+    case 2: // split disc
+      return (
+        <g>
+          <circle cx="32" cy="32" r="13" {...s} />
+          <path d="M32 19 A13 13 0 0 1 32 45 Z" fill={color} opacity="0.9" />
+        </g>
+      );
+    case 3: // jagged shard
+      return (
+        <g {...s}>
+          <path d="M24 40 L30 22 L34 33 L41 24 L38 41 Z" />
+        </g>
+      );
+    case 4: // eccentric orbit
+      return (
+        <g {...s}>
+          <circle cx="32" cy="32" r="5" fill={color} stroke="none" />
+          <ellipse cx="32" cy="32" rx="15" ry="8" transform="rotate(28 32 32)" />
+          <circle cx="46" cy="26" r="3" fill={color} stroke="none" />
+        </g>
+      );
+    default: // lone core
+      return <circle cx="32" cy="32" r="6" fill={color} />;
+  }
+}
+
+/** A Cog's luminous sigil, tinted by its seat color. */
+export function CogSigil({ index, size = 30, glow = true }: { index: number; size?: number; glow?: boolean }): React.ReactElement {
+  const color = cogColor(index);
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 64 64"
+      style={{ flex: "0 0 auto", filter: glow ? `drop-shadow(0 0 5px ${color}88)` : "none" }}
+    >
+      <path d={hexPath(32, 32, 28)} fill="#0c0c15" stroke={color} strokeWidth="2" strokeOpacity="0.55" />
+      <path d={hexPath(32, 32, 28)} fill={color} fillOpacity="0.08" />
+      <Glyph idx={index} color={color} />
+    </svg>
+  );
+}
+
+/** A compact COGS wallet: the four mineral counts + the derived energy (sets ×10),
+ *  with the per-turn upkeep drain beside it when provided. */
+export function Wallet({ treasury, energy, upkeep }: { treasury: Treasury; energy: number; upkeep?: number }): React.ReactElement {
+  const sets = setsOf(treasury);
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+      {MINERALS.map((m) => (
+        <span key={m} data-tip={`${MINERAL_NAME[m]} in treasury: ${treasury[m]}`} style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+          <span className={`cg-min ${minClass(m)}`}>{m}</span>
+          <span className="cg-mono" style={{ fontSize: 12, fontWeight: 600, color: treasury[m] ? "var(--text)" : "var(--muted-2)" }}>
+            {treasury[m]}
+          </span>
+        </span>
+      ))}
+      <span
+        data-tip="energy derived from the treasury — a full C+O+Ge+S set is worth 10e, leftover singles 1e each"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 3,
+          marginLeft: 2,
+          paddingLeft: 8,
+          borderLeft: "1px solid var(--border)",
+        }}
+      >
+        <CGIcon name="energy" size={13} />
+        <span className="cg-mono" style={{ fontSize: 13, fontWeight: 700, color: "var(--energy)" }}>
+          {energy}
+        </span>
+        {sets > 0 && (
+          <span className="cg-mono" data-tip={`${sets} complete COGS set${sets > 1 ? "s" : ""} (10e each)`} style={{ fontSize: 9, color: "var(--muted)" }}>
+            ·{sets}×set
+          </span>
+        )}
+        {upkeep != null && upkeep > 0 && (
+          <span className="cg-mono" data-tip="tile upkeep drained each turn — the per-tile rate scales with empire size" style={{ fontSize: 10, color: "var(--exploit)", marginLeft: 4 }}>
+            −{upkeep}e/turn
+          </span>
+        )}
+      </span>
+    </div>
+  );
+}
+
+/** A board-verb tag (align / exploit / transfer / bid …). */
+export function VerbTag({ kind, children }: { kind: string; children: React.ReactNode }): React.ReactElement {
+  return <span className={`cg-verb ${kind}`}>{children}</span>;
+}
+
+/** The wordmark: the logo glyph + COGHERENCE, with an optional tagline. */
+export function Brand({ small = false }: { small?: boolean }): React.ReactElement {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <CGIcon name="logo" size={small ? 26 : 32} />
+      <div>
+        <div style={{ fontFamily: "var(--f-ui)", fontWeight: 700, fontSize: small ? 17 : 20, letterSpacing: "0.04em", color: "var(--text)" }}>
+          COGHERENCE
+        </div>
+        {!small && (
+          <div className="cg-mono" style={{ fontSize: 9, color: "var(--muted)", letterSpacing: "0.16em", marginTop: 1 }}>
+            A POLIS OF MINDS
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const PHASES: { k: Phase; label: string }[] = [
+  { k: "negotiate", label: "Negotiate" },
+  { k: "commit", label: "Commit" },
+  { k: "resolve", label: "Resolve" },
+  { k: "auction", label: "Auction" },
+  { k: "upkeep", label: "Upkeep" },
+];
+/** The four-phase strip with the current phase lit. */
+export function PhaseStripCG({ phase, ready }: { phase: Phase; ready?: string }): React.ReactElement {
+  const idx = PHASES.findIndex((p) => p.k === phase);
+  return (
+    <div className="cg-phases" data-testid="phase-strip">
+      {PHASES.map((p, i) => (
+        <div key={p.k} className={`cg-phase ${i < idx ? "done" : i === idx ? "current" : ""}`}>
+          <span className="cg-phase-dot" />
+          {p.label}
+        </div>
+      ))}
+      {ready && (
+        <span className="cg-mono" style={{ marginLeft: 10, fontSize: 9, color: "var(--muted)" }}>
+          {ready}
+        </span>
+      )}
+    </div>
+  );
+}

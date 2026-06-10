@@ -6,6 +6,7 @@ import type { Order } from "../shared/engine/orders";
 import type { Agent } from "../agents/types";
 import type { ServerMessage, ServerStatus } from "../shared/protocol";
 import { newGame, stepTurn, scoreGame } from "../shared/engine/game";
+import { addCog } from "../shared/engine/board";
 import { toSnapshot } from "../shared/snapshot";
 import { PhaseCoordinator } from "./phase-coordinator";
 import type { MessageBus } from "./message-bus";
@@ -112,6 +113,19 @@ export class GameRunner {
     }
   }
 
+  /** Operator: seat a new Cog mid-game at a free corner. Applies immediately —
+   *  the in-flight turn just treats it as holding (no orders collected yet) —
+   *  and broadcasts the new board. Returns the seated cog's id; throws when the
+   *  board is out of seats/corners (the HTTP layer surfaces that as an error). */
+  addCog(makeAgent: (id: CogId) => Agent): CogId {
+    const id: CogId = `cog${this.state.cogOrder.length}`;
+    this.state = addCog(this.state);
+    this.agents.push(makeAgent(id));
+    this.emit({ type: "snapshot", snapshot: toSnapshot(this.state) });
+    this.emit({ type: "serverStatus", status: this.status() });
+    return id;
+  }
+
   onUpdate(fn: Listener): () => void {
     this.listeners.push(fn);
     return () => (this.listeners = this.listeners.filter((l) => l !== fn));
@@ -196,6 +210,18 @@ export class GameRunner {
 
       // A reset may have landed during the awaits above — drop this stale turn so
       // we don't step/emit the abandoned game over the fresh one.
+      if (gen !== this.generation) return scoreGame(this.state);
+
+      // Auction phase: the sealed heart bids settle into a single Vickrey
+      // second-price winner. Its own brief, paced window so the spectator sees it
+      // as a distinct phase (the engine still computes it inside stepTurn below).
+      // The window is absorbed by the per-turn pace budget (minTurnMs), so the
+      // overall turn cadence is unchanged.
+      this.livePhase = "auction";
+      this.emit({ type: "serverStatus", status: this.status() });
+      const auctionMs = Math.min(this.minTurnMs, 700);
+      if (auctionMs > 0) await new Promise((r) => setTimeout(r, auctionMs));
+      this.livePhase = null;
       if (gen !== this.generation) return scoreGame(this.state);
 
       this.state = stepTurn(this.state, ordersByCog, firstCommitter);

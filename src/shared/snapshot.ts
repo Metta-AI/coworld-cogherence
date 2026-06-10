@@ -1,8 +1,7 @@
-// A full, serializable view of one turn: every tile + every cog + the commons.
+// A full, serializable view of one turn: every tile + every cog.
 // The unit the client renders and the live server (phase 3) broadcasts.
 import type { GameState, CogId, Mineral, Treasury, Phase } from "./engine/types";
 import { maxEnergy } from "./engine/energy";
-import { commons } from "./engine/game";
 import { COHERENCE_MAX, BOARD_RADIUS } from "./engine/constants";
 import { COGHERENCE_VERSION } from "./version";
 
@@ -13,6 +12,7 @@ export interface TileSnapshot {
   coherence: number;
   mineral: Mineral;
   density: number;
+  density0: number;
 }
 export interface CogSnapshot {
   id: CogId;
@@ -30,7 +30,6 @@ export interface GameSnapshot {
   coherenceMax: number;
   tiles: TileSnapshot[];
   cogs: CogSnapshot[];
-  commons: number;
 }
 
 /** Project the live GameState into a flat, serializable snapshot. Pure. */
@@ -42,6 +41,7 @@ export function toSnapshot(state: GameState): GameSnapshot {
     coherence: t.coherence,
     mineral: t.mineral,
     density: t.density,
+    density0: t.density0,
   }));
   const cogs: CogSnapshot[] = state.cogOrder.map((id) => {
     const c = state.cogs[id]!;
@@ -56,6 +56,5 @@ export function toSnapshot(state: GameState): GameSnapshot {
     coherenceMax: COHERENCE_MAX,
     tiles,
     cogs,
-    commons: commons(state),
   };
 }

@@ -4,7 +4,7 @@
 import { z } from "zod";
 
 export const mineralSchema = z.enum(["C", "O", "Ge", "S"]);
-const phaseSchema = z.enum(["negotiate", "commit", "resolve", "upkeep"]);
+const phaseSchema = z.enum(["negotiate", "commit", "resolve", "auction", "upkeep"]);
 const treasurySchema = z
   .object({ C: z.number().int(), O: z.number().int(), Ge: z.number().int(), S: z.number().int() })
   .strict();
@@ -18,6 +18,7 @@ const tileSnapshotSchema = z
     coherence: z.number().int(),
     mineral: mineralSchema,
     density: z.number(),
+    density0: z.number(),
   })
   .strict();
 const cogSnapshotSchema = z
@@ -39,7 +40,6 @@ export const gameSnapshotSchema = z
     coherenceMax: z.number().int(),
     tiles: z.array(tileSnapshotSchema),
     cogs: z.array(cogSnapshotSchema),
-    commons: z.number().int(),
   })
   .strict();
 
@@ -49,8 +49,9 @@ export const turnEventSchema = z.discriminatedUnion("type", [
     .object({ type: z.literal("transfer"), from: z.string(), to: z.string(), mineral: mineralSchema, amount: z.number().int() })
     .strict(),
   z.object({ type: z.literal("exploit"), cog: z.string(), tile: z.string(), mineral: mineralSchema, minted: z.number() }).strict(),
+  z.object({ type: z.literal("abandon"), cog: z.string(), tile: z.string(), refund: z.number().int() }).strict(),
   z
-    .object({ type: z.literal("capture"), tile: z.string(), from: cogIdNullable, to: cogIdNullable, coherence: z.number().int() })
+    .object({ type: z.literal("capture"), tile: z.string(), from: cogIdNullable, to: cogIdNullable, coherence: z.number().int(), spent: z.number().int() })
     .strict(),
   z
     .object({
@@ -61,8 +62,9 @@ export const turnEventSchema = z.discriminatedUnion("type", [
     })
     .strict(),
   z.object({ type: z.literal("starved"), cog: z.string(), tile: z.string(), coherence: z.number().int() }).strict(),
+  z.object({ type: z.literal("lost"), cog: z.string(), tile: z.string() }).strict(),
   z.object({ type: z.literal("mint"), cog: z.string(), gained: treasurySchema }).strict(),
-  z.object({ type: z.literal("firstCommit"), cog: z.string(), mineral: mineralSchema, reward: z.number().int() }).strict(),
+  z.object({ type: z.literal("firstCommit"), cog: z.string(), reward: z.number().int() }).strict(),
 ]);
 
 export const messageSchema = z

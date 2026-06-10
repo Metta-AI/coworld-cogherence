@@ -6,12 +6,13 @@ import { MINERALS } from "../../shared/engine/types";
 import type { Order } from "../../shared/engine/orders";
 import type { ToolDef } from "./tool-client";
 
-const alignSchema = z.object({ tile: z.string(), energy: z.number().int().positive() });
+const alignSchema = z.object({ tile: z.string(), coherence: z.number().int().positive() });
 const transferSchema = z.object({ to: z.string(), mineral: z.enum(MINERALS), amount: z.number().int().positive() });
 
 export const submitOrdersSchema = z.object({
   thoughts: z.string().optional(),
   aligns: z.array(alignSchema).optional(),
+  abandons: z.array(z.string()).optional(),
   exploits: z.array(z.string()).optional(),
   transfers: z.array(transferSchema).optional(),
   bid: z.number().int().nonnegative().optional(),
@@ -28,14 +29,15 @@ export const SUBMIT_ORDERS_TOOL: ToolDef = {
       thoughts: { type: "string", description: "Brief private reasoning (not shown to other Cogs)." },
       aligns: {
         type: "array",
-        description: "Pour energy into tiles to expand, capture, or reinforce. Target your own tiles or tiles adjacent to them.",
+        description:
+          "Pour COHERENCE into tiles to expand, capture, or reinforce — it is transferred out of your other tiles, largest first (they never drop below 1). The total must fit your spare coherence. Target your own tiles or tiles adjacent to them.",
         items: {
           type: "object",
           properties: {
             tile: { type: "string", description: "tile key, e.g. '0,0' (axial q,r)" },
-            energy: { type: "integer", minimum: 1 },
+            coherence: { type: "integer", minimum: 1 },
           },
-          required: ["tile", "energy"],
+          required: ["tile", "coherence"],
           additionalProperties: false,
         },
       },
@@ -43,6 +45,11 @@ export const SUBMIT_ORDERS_TOOL: ToolDef = {
         type: "array",
         description: "Tile keys you own to strip-mine for a one-time windfall (the tile goes neutral and its density permanently drops).",
         items: { type: "string" },
+      abandons: {
+        type: "array",
+        items: { type: "string" },
+        description: "Tile keys you own to return to neutral — their standing coherence comes home as energy (next-turn money).",
+      },
       },
       transfers: {
         type: "array",
@@ -67,7 +74,8 @@ export const SUBMIT_ORDERS_TOOL: ToolDef = {
 /** Convert a validated payload into engine Order[]. */
 export function toOrders(p: SubmitOrders): Order[] {
   const orders: Order[] = [];
-  for (const a of p.aligns ?? []) orders.push({ type: "align", tile: a.tile, energy: a.energy });
+  for (const a of p.aligns ?? []) orders.push({ type: "align", tile: a.tile, coherence: a.coherence });
+  for (const t of p.abandons ?? []) orders.push({ type: "abandon", tile: t });
   for (const t of p.exploits ?? []) orders.push({ type: "exploit", tile: t });
   for (const tr of p.transfers ?? []) orders.push({ type: "transfer", to: tr.to, mineral: tr.mineral, amount: tr.amount });
   if (p.bid !== undefined && p.bid > 0) orders.push({ type: "bid", energy: p.bid });

@@ -5,12 +5,12 @@ A vite + React spectator client that renders a recorded Cogherence game as an SV
 ## Run it
 
 ```bash
-npm run dev        # regenerates public/replay.json, then serves the viewer at http://localhost:5173
-npm run build:web  # production bundle -> dist/
-npm run smoke      # playwright: build + preview + assert the lattice renders and scrubs
+npm run serve -- --default-live   # THE launch target: fresh replay + build, then the live server (stub agents) at the given --port
+npm run dev                       # vite dev server (HMR) on the bundled replay — UI iteration only, no live ws
+npm run smoke                     # playwright against the same `serve` path
 ```
 
-`npm run dev` / `npm run smoke` regenerate `public/replay.json` first (via the `predev` / `presmoke` hooks). To record a specific game by hand:
+`npm run serve` / `npm run smoke` regenerate `public/replay.json` and rebuild `dist/` first (the `preserve` hook); `npm run dev` regenerates the replay (`predev`). To record a specific game by hand:
 
 ```bash
 npm run play -- --seed 42 --agents greedy,peaceful,random,greedy --out public/replay.json
@@ -29,7 +29,6 @@ The engine records a game as a `ServerMessage[]` stream — the **same** discrim
 | `colors.ts` | Stable per-cog color palette + display names (Alice, Bob, …) by index |
 | `HexBoard.tsx` | SVG lattice: one polygon per tile, fill = cog color, opacity = coherence |
 | `Scrubber.tsx` | Play / pause / step / slider over the snapshot list |
-| `Hud.tsx` | Turn + commons readout; per-cog hearts / energy (by name) |
 | `Roster.tsx` | The players panel: color swatch + name + territory (tiles held) per Cog |
 | `App.tsx` | Loads the replay (or an injected one for tests) and wires it together |
 

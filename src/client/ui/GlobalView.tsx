@@ -1,40 +1,52 @@
-// The operator console: the full board + roster, an activity ticker, and the
-// act-prompt transparency for every Cog.
+// Spectator (hero broadcast): a three-column grid — roster + heart auction on the
+// left, the living lattice in the center, the resolve log + public/DM channels on
+// the right. The side panels are drag-resizable (widths persist to localStorage).
 import React, { useState } from "react";
 import type { GameSnapshot } from "../../shared/snapshot";
-import { HexBoard } from "../HexBoard";
+import type { Message } from "../../shared/messages";
+import type { StampedEvent } from "../net/feed";
+import type { LatticeMode } from "../HexBoard";
 import { Roster } from "../Roster";
-import { ActivityTicker } from "./ActivityTicker";
-import { PromptsPanel } from "../PromptsPanel";
-import type { ActPromptFrame, StampedEvent } from "../net/feed";
+import { AuctionPanel, ResolveLog, Channels, LatticePanel } from "../cg/panels";
+import { ResizableColumns } from "../cg/ResizableColumns";
 
 export function GlobalView({
   snapshot,
-  history,
   events,
-  actPrompts,
+  messages,
+  onSeekTurn,
+  live = false,
 }: {
   snapshot: GameSnapshot;
-  history?: GameSnapshot[];
   events: StampedEvent[];
-  actPrompts: Record<string, ActPromptFrame[]>;
+  messages: Message[];
+  onSeekTurn?: (turn: number) => void;
+  live?: boolean;
 }): React.ReactElement {
-  // Hovering an activity row that names a cell highlights it on the board.
-  const [hoverTile, setHoverTile] = useState<string | null>(null);
+  const [mode, setMode] = useState<LatticeMode>("coherence");
+  // Clicking a roster cog spotlights its territory on the lattice (toggle).
+  const [focus, setFocus] = useState<string | null>(null);
+  const toggleFocus = (id: string): void => setFocus((f) => (f === id ? null : id));
   return (
-    <div className="view view-global" data-testid="global-view">
-      <div className="panel board-panel gv-map">
-        <HexBoard snapshot={snapshot} highlightKey={hoverTile} />
-      </div>
-      <aside className="side-col gv-roster">
-        <Roster snapshot={snapshot} history={history} />
-        <div className="panel">
-          <PromptsPanel actPrompts={actPrompts} />
-        </div>
-      </aside>
-      <div className="gv-feed">
-        <ActivityTicker events={events} onHoverTile={setHoverTile} />
-      </div>
+    <div className="cg-view cg-spectator" data-testid="global-view">
+      <ResizableColumns
+        storageKey="cg.cols.spectator"
+        defaultLeft={300}
+        defaultRight={332}
+        left={
+          <div className="cg-col">
+            <Roster snapshot={snapshot} focus={focus} onToggleFocus={toggleFocus} live={live} />
+            <AuctionPanel snapshot={snapshot} events={events} />
+          </div>
+        }
+        center={<LatticePanel snapshot={snapshot} events={events} mode={mode} setMode={setMode} highlight={focus} />}
+        right={
+          <div className="cg-col">
+            <ResolveLog snapshot={snapshot} events={events} />
+            <Channels messages={messages} onSeekTurn={onSeekTurn} />
+          </div>
+        }
+      />
     </div>
   );
 }

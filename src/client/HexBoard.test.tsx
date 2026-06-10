@@ -1,82 +1,102 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, fireEvent } from "@testing-library/react";
 import { HexBoard } from "./HexBoard";
 import { toSnapshot } from "../shared/snapshot";
 import { newGame } from "../shared/engine/game";
-import type { GameSnapshot } from "../shared/snapshot";
-
-const polyHeight = (poly: Element): number => {
-  const ys = (poly.getAttribute("points") ?? "").split(" ").map((p) => Number(p.split(",")[1]));
-  return Math.max(...ys) - Math.min(...ys);
-};
+import { cogColor } from "./colors";
 
 describe("HexBoard", () => {
   const snap = toSnapshot(newGame(7, 4));
-  it("renders one polygon per tile", () => {
+
+  it("renders one tile group per tile", () => {
     const { container } = render(<HexBoard snapshot={snap} />);
-    expect(container.querySelectorAll("polygon")).toHaveLength(127);
+    expect(container.querySelectorAll("g.cg-tile")).toHaveLength(127);
   });
-  it("colors owned tiles by their cog", () => {
+
+  it("colors owned tiles by their cog (one per home tile)", () => {
     const { container } = render(<HexBoard snapshot={snap} />);
-    const filled = [...container.querySelectorAll("polygon")].filter((p) => p.getAttribute("fill") !== "var(--neutral)");
-    expect(filled.length).toBeGreaterThan(0); // home tiles are owned
+    const cogFills = new Set(snap.cogs.map((c) => cogColor(c.index)));
+    const owned = [...container.querySelectorAll("g.cg-tile > polygon")].filter((p) => cogFills.has(p.getAttribute("fill") ?? ""));
+    expect(owned.length).toBe(snap.cogs.length); // each cog holds exactly its home tile at turn 1
   });
-  it("marks every tile with its mineral gem icon", () => {
+
+  it("prints no coherence digits in coherence mode (the glow reads it out)", () => {
+    const { container } = render(<HexBoard snapshot={snap} mode="coherence" />);
+    expect(container.querySelectorAll("text")).toHaveLength(0);
+  });
+
+  it("prints coherence digits in territory mode", () => {
+    const { container } = render(<HexBoard snapshot={snap} mode="ownership" />);
+    // home tiles are at coherence 10 (>= 40% of max) → a digit each
+    expect(container.querySelectorAll("text").length).toBe(snap.cogs.length);
+  });
+
+  it("glows owned tiles and not neutral ones", () => {
     const { container } = render(<HexBoard snapshot={snap} />);
-    const gems = [...container.querySelectorAll("image.tile-mineral")];
-    expect(gems).toHaveLength(127);
-    expect(gems.every((g) => ["C", "O", "Ge", "S"].includes(g.getAttribute("data-mineral") ?? ""))).toBe(true);
-    expect(gems.every((g) => /icons\/transparent\/mineral-(c|o|ge|s)\.png$/.test(g.getAttribute("href") ?? ""))).toBe(true);
+    const cogFills = new Set(snap.cogs.map((c) => cogColor(c.index)));
+    const groups = [...container.querySelectorAll("g.cg-tile")];
+    const owned = groups.find((g) => cogFills.has(g.querySelector("polygon")?.getAttribute("fill") ?? ""))!;
+    const neutral = groups.find((g) => !cogFills.has(g.querySelector("polygon")?.getAttribute("fill") ?? ""))!;
+    expect((owned as HTMLElement).style.filter).toContain("drop-shadow");
+    expect((neutral as HTMLElement).style.filter).toBe("none");
   });
-  it("does not print coherence numbers on tiles (coherence shows via brightness)", () => {
-    const { container } = render(<HexBoard snapshot={snap} />);
-    expect(container.querySelectorAll(".tile-coherence")).toHaveLength(0);
-    expect(container.querySelectorAll(".tile-mineral")).toHaveLength(127); // exactly one gem per tile
+
+  it("fills tiles with mineral hues in mineral mode", () => {
+    const { container } = render(<HexBoard snapshot={snap} mode="mineral" />);
+    const mineralColors = new Set(["#b9f2ff", "#4d7cff", "#c061ff", "#ffc23c"]);
+    const fills = [...container.querySelectorAll("g.cg-tile > polygon")].map((p) => p.getAttribute("fill"));
+    expect(fills.every((f) => mineralColors.has(f ?? "") || f === "#15151f")).toBe(true); // mineral hue, or a scarred husk
   });
-  it("sizes the mineral gem bigger for denser tiles (and the hex stays uniform)", () => {
-    const snapshot: GameSnapshot = {
-      version: "0", seed: 7, turn: 1, phase: "negotiate", radius: 6, coherenceMax: 10, commons: 0, cogs: [],
+
+  it("draws strong border edges against neutral/enemy and a thin seam between friendly tiles", () => {
+    const pair: typeof snap = {
+      ...snap,
       tiles: [
-        { q: 0, r: 0, alignment: null, coherence: 0, mineral: "C", density: 1 },
-        { q: 2, r: 0, alignment: null, coherence: 0, mineral: "C", density: 3 },
+        { q: 0, r: 0, alignment: "cog0", coherence: 5, mineral: "C", density: 1, density0: 1 },
+        { q: 1, r: 0, alignment: "cog0", coherence: 5, mineral: "C", density: 1, density0: 1 }, // east neighbor, same owner
+        { q: 0, r: 1, alignment: "cog1", coherence: 5, mineral: "C", density: 1, density0: 1 }, // southeast neighbor, enemy
       ],
     };
-    const { container } = render(<HexBoard snapshot={snapshot} />);
-    const gems = [...container.querySelectorAll("image.tile-mineral")];
-    const w = (g: Element) => Number(g.getAttribute("width"));
-    expect(w(gems[1]!)).toBeGreaterThan(w(gems[0]!)); // density 3 gem larger than density 1
-    // hexes are uniform now (no taller-tile treatment): equal polygon heights
-    const polys = [...container.querySelectorAll("polygon")];
-    expect(polyHeight(polys[1]!)).toBeCloseTo(polyHeight(polys[0]!), 5);
+    const { container } = render(<HexBoard snapshot={pair} mode="coherence" />);
+    const tile = container.querySelector('g.cg-tile[data-tile="0,0"]')!;
+    const paths = [...tile.querySelectorAll("path")];
+    const outer = paths.find((p) => p.getAttribute("stroke-width") === "1.8")!;
+    const inner = paths.find((p) => p.getAttribute("stroke-width") === "0.6")!;
+    const segs = (p: Element): number => (p.getAttribute("d")!.match(/M/g) ?? []).length;
+    expect(segs(inner)).toBe(1); // one friendly edge (east)
+    expect(segs(outer)).toBe(5); // enemy + neutral/off-board edges stay strong
   });
-  it("brightens tiles by coherence (full-coherence home > zero-coherence neutral)", () => {
+
+  it("zooms with the wheel, pans by dragging, and resets on double-click", () => {
     const { container } = render(<HexBoard snapshot={snap} />);
-    const polys = [...container.querySelectorAll("polygon")];
-    const owned = polys.find((p) => p.getAttribute("fill") !== "var(--neutral)")!;
-    const neutral = polys.find((p) => p.getAttribute("fill") === "var(--neutral)")!;
-    expect(Number(owned.getAttribute("fill-opacity"))).toBe(1); // coherence 10/10
-    expect(Number(neutral.getAttribute("fill-opacity"))).toBe(0.2); // coherence 0/10
+    const svg = container.querySelector("svg")!;
+    const fit = svg.getAttribute("viewBox")!;
+    const width = (vb: string): number => Number(vb.split(" ")[2]);
+
+    fireEvent.wheel(svg, { deltaY: 400 }); // wheel/swipe down → zoom in
+    const zoomed = svg.getAttribute("viewBox")!;
+    expect(width(zoomed)).toBeLessThan(width(fit));
+
+    // jsdom has no PointerEvent — drive the pointer listeners with MouseEvents.
+    fireEvent(svg, new MouseEvent("pointerdown", { bubbles: true, button: 0, clientX: 100, clientY: 100 }));
+    fireEvent(window, new MouseEvent("pointermove", { clientX: 60, clientY: 100 })); // drag left → view shifts right
+    fireEvent(window, new MouseEvent("pointerup", {}));
+    const panned = svg.getAttribute("viewBox")!;
+    expect(panned).not.toBe(zoomed);
+    expect(width(panned)).toBe(width(zoomed)); // panning keeps the zoom level
+
+    fireEvent.doubleClick(svg);
+    expect(svg.getAttribute("viewBox")).toBe(fit);
   });
-  it("shows the tile detail card only on hover, anchored at the cursor", () => {
-    const { container, getByTestId, queryByTestId } = render(<HexBoard snapshot={snap} />);
-    expect(queryByTestId("tile-tip")).toBeNull(); // nothing until you hover (no fixed box)
-    const owned = [...container.querySelectorAll("polygon")].find((p) => p.getAttribute("fill") !== "var(--neutral)")!;
-    fireEvent.mouseMove(owned.parentElement!, { clientX: 40, clientY: 30 });
-    const tip = getByTestId("tile-tip");
-    expect(tip.textContent).toMatch(/mining/);
-    expect(tip.textContent).toMatch(/upkeep/);
-    expect(tip.textContent).toMatch(/\/turn/);
-    // anchored at the cursor via inline left/top (not pinned to a fixed slot)
-    expect((tip as HTMLElement).style.left).not.toBe("");
-    expect((tip as HTMLElement).style.top).not.toBe("");
-    fireEvent.mouseLeave(container.querySelector(".board-wrap")!);
-    expect(queryByTestId("tile-tip")).toBeNull(); // and disappears when you leave
-  });
-  it("rings exactly the externally highlighted tile (cross-highlight from the feed)", () => {
-    const lit = render(<HexBoard snapshot={snap} highlightKey="0,0" />); // center tile always exists
-    expect(lit.container.querySelectorAll("polygon.tile-xhighlight")).toHaveLength(1);
-    const none = render(<HexBoard snapshot={snap} highlightKey={null} />);
-    expect(none.container.querySelectorAll("polygon.tile-xhighlight")).toHaveLength(0);
+
+  it("reports the hovered tile with cursor coords, and null on leave", () => {
+    const onHover = vi.fn();
+    const { container } = render(<HexBoard snapshot={snap} onHoverTile={onHover} />);
+    const tile = container.querySelector('g.cg-tile[data-tile="0,0"]')!;
+    fireEvent.mouseEnter(tile, { clientX: 40, clientY: 30 });
+    expect(onHover).toHaveBeenCalledWith("0,0", { x: 40, y: 30 });
+    fireEvent.mouseLeave(container.querySelector("svg")!);
+    expect(onHover).toHaveBeenLastCalledWith(null);
   });
 });

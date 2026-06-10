@@ -11,12 +11,12 @@
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "presmoke": "npm run play -- --seed 7 --cogs 4 --out public/replay.json",
     "smoke": "playwright test",
     "play": "tsx src/cli.ts",
     "dev:llm": "AWS_REGION=${AWS_REGION:-us-west-2} tsx src/cli-llm.ts",
+    "preserve": "npm run play -- --seed 7 --cogs 4 --out public/replay.json && npm run build:web",
     "serve": "tsx src/cli-serve.ts",
-    "preserve:llm": "vite build",
+    "preserve:llm": "npm run preserve",
     "serve:llm": "AWS_REGION=${AWS_REGION:-us-west-2} tsx src/cli-serve.ts"
   },
   "dependencies": {

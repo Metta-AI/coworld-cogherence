@@ -10,8 +10,17 @@ export const BOARD_RADIUS = 6;
 /** Number of turns in a full game. */
 export const MAX_TURNS = 100;
 
-/** Energy owed per aligned tile each Upkeep. */
-export const UPKEEP_PER_TILE = 1;
+/** Per-tile upkeep, per turn: a CALM tile (a strict majority of its in-board
+ *  neighbors share its alignment) pays the calm rate; contested or isolated
+ *  tiles pay the full rate. Every ENEMY-aligned neighbor adds a surcharge —
+ *  friendly neighbors never make ground more expensive. Coherence is then
+ *  purely economic: an unpaid tile loses 1 (neutral at 0); a tile paid DOUBLE
+ *  gains 1 (capped at COHERENCE_MAX). */
+export const UPKEEP_CALM = 1;
+export const UPKEEP_CONTESTED = 3;
+export const UPKEEP_PER_ENEMY_NEIGHBOR = 1;
+export const tileUpkeepCost = (friendly: number, aligned: number, inBoard: number): number =>
+  (friendly * 2 > inBoard ? UPKEEP_CALM : UPKEEP_CONTESTED) + (aligned - friendly) * UPKEEP_PER_ENEMY_NEIGHBOR;
 
 /** Mineral minted per Upkeep = density × coherence / MINT_DIVISOR, stochastically
  *  rounded: a raw 2.3 mints 2, plus 1 with probability 0.3. With COHERENCE_MAX 10
@@ -27,8 +36,10 @@ export const SET_ENERGY = 10;
 export const STARTING_ENERGY = 100;
 
 /** First-mover tempo bonus (from cogame-polis): the first Cog to lock its Commit
- *  each turn gets this many units of its scarcest mineral — rewarding decisiveness
- *  and nudging toward the balanced wallet that forms efficient COGS sets. */
+ *  each turn earns exactly this much ENERGY — paid as units of its most abundant
+ *  mineral, whose marginal value is precisely +1 energy each (adding to the max
+ *  never completes a COGS set) — rewarding decisiveness without warping the
+ *  mineral economy. */
 export const FIRST_COMMIT_REWARD = 2;
 
 /** Energy yielded by a single leftover mineral. */

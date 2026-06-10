@@ -4,7 +4,7 @@ import { test, expect } from "@playwright/test";
 // client to /global/ws and watches the paced live game advance.
 test("renders a live game and advances turns", async ({ page }) => {
   await page.goto("/?live");
-  await expect(page.locator("polygon")).toHaveCount(127);
+  await expect(page.locator("g.cg-tile")).toHaveCount(127);
   const before = await page.getByTestId("turn-label").textContent();
   await page.waitForFunction(
     (b) => document.querySelector('[data-testid="turn-label"]')?.textContent !== b,
@@ -16,7 +16,7 @@ test("renders a live game and advances turns", async ({ page }) => {
 test("the per-cog route renders (absolute asset base)", async ({ page }) => {
   await page.goto("/cog/cog0?live");
   await expect(page.getByTestId("cog-view")).toBeVisible();
-  await expect(page.locator("polygon")).toHaveCount(127);
+  await expect(page.locator("g.cg-tile")).toHaveCount(127);
 });
 
 test("the view switcher dropdown lists all views", async ({ page }) => {

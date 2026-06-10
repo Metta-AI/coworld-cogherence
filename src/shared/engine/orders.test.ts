@@ -5,7 +5,7 @@ import { emptyTreasury } from "./types";
 import { key } from "./hex";
 
 const tile = (q: number, r: number, alignment: CogId | null): Tile =>
-  ({ hex: { q, r }, alignment, coherence: 0, mineral: "C", density: 1 });
+  ({ hex: { q, r }, alignment, coherence: 0, mineral: "C", density: 1, density0: 1 });
 
 // A owns (0,0); (1,0) is neutral but adjacent to A; (3,0) is far/neutral.
 const stateWith = (tiles: Tile[]): GameState => {
@@ -23,10 +23,10 @@ const stateWith = (tiles: Tile[]): GameState => {
 
 describe("OrderSchema", () => {
   it("parses a valid align order", () =>
-    expect(OrderSchema.parse({ type: "align", tile: "0,0", energy: 3 }).type).toBe("align"));
-  it("rejects zero or negative align energy", () => {
-    expect(() => OrderSchema.parse({ type: "align", tile: "0,0", energy: 0 })).toThrow();
-    expect(() => OrderSchema.parse({ type: "align", tile: "0,0", energy: -1 })).toThrow();
+    expect(OrderSchema.parse({ type: "align", tile: "0,0", coherence: 3 }).type).toBe("align"));
+  it("rejects zero or negative align coherence", () => {
+    expect(() => OrderSchema.parse({ type: "align", tile: "0,0", coherence: 0 })).toThrow();
+    expect(() => OrderSchema.parse({ type: "align", tile: "0,0", coherence: -1 })).toThrow();
   });
   it("parses exploit", () =>
     expect(OrderSchema.parse({ type: "exploit", tile: "0,0" }).type).toBe("exploit"));

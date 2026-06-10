@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { generateBoard } from "./board";
+import { generateBoard, addCog } from "./board";
 import { key } from "./hex";
 import { maxEnergy } from "./energy";
 import { BOARD_RADIUS } from "./constants";
@@ -28,9 +28,9 @@ describe("generateBoard", () => {
     for (const hex of LANDMARKS) expect(g.tiles[key(hex)]!.density).toBe(3);
   });
 
-  it("weights density 60% / 30% / 10% across 1 / 2 / 3 (excluding the forced landmarks)", () => {
+  it("weights density 20/48/24/8 across 0/1/2/3 (excluding the forced landmarks)", () => {
     const landmarkKeys = new Set(LANDMARKS.map(key));
-    const counts: Record<number, number> = { 1: 0, 2: 0, 3: 0 };
+    const counts: Record<number, number> = { 0: 0, 1: 0, 2: 0, 3: 0 };
     let n = 0;
     for (let seed = 0; seed < 60; seed++) {
       for (const [k, t] of Object.entries(generateBoard(seed, 4).tiles)) {
@@ -39,11 +39,24 @@ describe("generateBoard", () => {
         n++;
       }
     }
-    expect(counts[1]! / n).toBeCloseTo(0.6, 1); // within ~0.05 over ~7100 random tiles
-    expect(counts[2]! / n).toBeCloseTo(0.3, 1);
-    expect(counts[3]! / n).toBeCloseTo(0.1, 1);
+    expect(counts[0]! / n).toBeCloseTo(0.2, 1); // within ~0.05 over ~7100 random tiles
+    expect(counts[1]! / n).toBeCloseTo(0.48, 1);
+    expect(counts[2]! / n).toBeCloseTo(0.24, 1);
+    expect(counts[3]! / n).toBeCloseTo(0.08, 1);
     expect(counts[1]!).toBeGreaterThan(counts[2]!);
     expect(counts[2]!).toBeGreaterThan(counts[3]!);
+  });
+
+  it("addCog seats the next cog at a free corner; throws when out of seats", () => {
+    let g = generateBoard(7, 4);
+    g = addCog(g);
+    expect(g.cogOrder).toEqual(["cog0", "cog1", "cog2", "cog3", "cog4"]);
+    const home = Object.values(g.tiles).find((t) => t.alignment === "cog4")!;
+    expect(home.coherence).toBeGreaterThan(0);
+    expect(maxEnergy(g.cogs.cog4!.treasury)).toBe(100);
+    g = addCog(g); // the sixth and final seat
+    expect(g.cogOrder).toHaveLength(6);
+    expect(() => addCog(g)).toThrow(/at most 6/);
   });
 
   it("starts each cog with 100 energy (a balanced wallet)", () => {

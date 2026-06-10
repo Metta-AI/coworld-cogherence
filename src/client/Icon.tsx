@@ -34,7 +34,6 @@ export function Icon({
       width={size}
       height={size}
       alt={title ?? name}
-      title={title}
       draggable={false}
     />
   );

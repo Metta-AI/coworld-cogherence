@@ -1,14 +1,11 @@
 // The negotiation feed: every message the Cogs send — public broadcasts and
-// (where visible) DMs — as a live chat console, grouped under a header per turn.
+// (where visible) DMs — as a live chat console, grouped under a per-turn header.
 import React from "react";
 import type { Message } from "../../shared/messages";
-import { cogColor, cogName } from "../colors";
+import { ChannelMessage } from "../cg/panels";
 
-const idx = (id: string): number => Number(id.replace(/\D/g, "")) || 0;
-const nameOf = (id: string): string => cogName(idx(id));
-
-/** Split the chronological message stream into per-turn groups (negotiation for a
- *  turn arrives contiguously, so consecutive same-turn messages form one group). */
+/** Split the chronological stream into per-turn groups (negotiation for a turn
+ *  arrives contiguously, so consecutive same-turn messages form one group). */
 function groupByTurn(messages: Message[]): { turn: number; msgs: Message[] }[] {
   const groups: { turn: number; msgs: Message[] }[] = [];
   for (const m of messages) {
@@ -22,29 +19,32 @@ function groupByTurn(messages: Message[]): { turn: number; msgs: Message[] }[] {
 export function FeedView({ messages }: { messages: Message[] }): React.ReactElement {
   const groups = groupByTurn(messages);
   return (
-    <div className="view view-feed" data-testid="feed">
-      <div className="panel chat-panel">
-        <h2>Negotiation feed</h2>
-        {messages.length === 0 ? (
-          <p className="muted">No messages yet — the Cogs haven't spoken.</p>
-        ) : (
-          <div className="chat">
-            {groups.map((g) => (
-              <section key={g.turn} className="chat-group">
-                <header className="chat-turn-head">Turn {g.turn}</header>
-                {g.msgs.map((m) => (
-                  <div key={m.seq} className={`chat-msg ${m.to === "public" ? "msg-public" : "msg-dm"}`}>
-                    <span className="chat-from" style={{ color: cogColor(idx(m.from)) }}>
-                      {nameOf(m.from)}
-                    </span>
-                    <span className="chat-to">{m.to === "public" ? "to all" : `→ ${nameOf(m.to)}`}</span>
-                    <span className="chat-text">{m.text}</span>
-                  </div>
-                ))}
+    <div className="cg-view cg-feed" data-testid="feed">
+      <div className="cg-panel cg-feed-panel">
+        <div className="cg-panel-head">
+          <span className="cg-panel-title">Negotiation Feed</span>
+          <span className="cg-mono" style={{ fontSize: 9, color: "var(--muted)" }}>
+            public + visible DMs
+          </span>
+        </div>
+        <div className="cg-panel-body cg-scroll" style={{ flex: 1, overflowY: "auto", padding: "12px 16px" }}>
+          {messages.length === 0 ? (
+            <p className="cg-mono" style={{ fontSize: 12, color: "var(--muted)" }}>
+              No messages yet — the Cogs haven’t spoken.
+            </p>
+          ) : (
+            groups.map((g) => (
+              <section key={g.turn} className="cg-feed-group">
+                <header className="cg-feed-turn">Turn {g.turn}</header>
+                <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                  {g.msgs.map((m) => (
+                    <ChannelMessage key={m.seq} m={m} />
+                  ))}
+                </div>
               </section>
-            ))}
-          </div>
-        )}
+            ))
+          )}
+        </div>
       </div>
     </div>
   );

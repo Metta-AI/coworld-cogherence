@@ -26,6 +26,9 @@ export interface Tile {
   coherence: number;
   mineral: Mineral;
   density: number;
+  /** The deposit as generated — exploits halve `density` but never this, so views
+   *  can show what a scarred tile used to be worth. */
+  density0: number;
 }
 
 /** Per-Cog mutable state: identity, turn-order index, treasury, and hearts. */
@@ -37,12 +40,13 @@ export interface CogState {
 }
 
 /**
- * The phases a turn cycles through, in order. NOTE: the headless MVP runs
- * resolve/upkeep synchronously inside `stepTurn`, so `GameState.phase` only ever
- * holds "negotiate". The "commit"/"resolve"/"upkeep" members are reserved for the
- * future live server, which drives the phase machine across network round-trips.
+ * The phases a turn cycles through, in order: cheap talk, sealed commit, board
+ * resolution, the Vickrey heart auction, then the world's upkeep. NOTE: the
+ * headless engine runs resolve/auction/upkeep synchronously inside `stepTurn`, so
+ * `GameState.phase` only ever holds "negotiate". The other members are driven by
+ * the live server, which steps the phase machine across network round-trips.
  */
-export type Phase = "negotiate" | "commit" | "resolve" | "upkeep";
+export type Phase = "negotiate" | "commit" | "resolve" | "auction" | "upkeep";
 
 /** The complete, serializable game state at a point in time. */
 export interface GameState {

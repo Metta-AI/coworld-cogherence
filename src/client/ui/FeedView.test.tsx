@@ -28,14 +28,23 @@ describe("FeedView", () => {
         ]}
       />,
     );
-    const heads = [...container.querySelectorAll(".chat-turn-head")];
+    const heads = [...container.querySelectorAll(".cg-feed-turn")];
     expect(heads.map((h) => h.textContent)).toEqual(["Turn 1", "Turn 2"]); // 2 turns -> 2 group headers
     expect(getAllByText(/^(hi|hey)$/).length).toBe(2); // both turn-1 messages under "Turn 1"
-    expect(container.querySelectorAll(".chat-group")).toHaveLength(2);
+    expect(container.querySelectorAll(".cg-feed-group")).toHaveLength(2);
+  });
+
+  it("renders raw cog ids inside message text as colored display names", () => {
+    const { getByText, queryByText } = render(
+      <FeedView messages={[{ seq: 1, turn: 3, from: "cog0", to: "public", text: "watching cog2/cog3's reserves" }]} />,
+    );
+    expect(getByText("Carol")).toBeTruthy(); // cog2 → Carol
+    expect(getByText("David")).toBeTruthy(); // cog3 → David
+    expect(queryByText(/cog2/)).toBeNull(); // no raw ids remain in the body
   });
 
   it("shows an empty state", () => {
     const { getByText } = render(<FeedView messages={[]} />);
-    expect(getByText(/haven't spoken/)).toBeTruthy();
+    expect(getByText(/spoken/)).toBeTruthy();
   });
 });
