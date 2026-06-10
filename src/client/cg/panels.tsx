@@ -709,12 +709,15 @@ export function LatticePanel({
   mode,
   setMode,
   highlight = null,
+  onTileClick,
 }: {
   snapshot: GameSnapshot;
   events: StampedEvent[];
   mode: LatticeMode;
   setMode: (m: LatticeMode) => void;
   highlight?: string | null;
+  /** Operator tile click (cog view: opens the queue-order context menu). */
+  onTileClick?: (key: string, at: { x: number; y: number }) => void;
 }): React.ReactElement {
   // The inspector is a hover card: it tracks the tile under the cursor and sits
   // just beside it, flipping at the panel's right/bottom edges. Leaving the
@@ -754,7 +757,8 @@ export function LatticePanel({
           exploited={exploited}
           emphasis={emphasis}
           highlight={highlight}
-        />
+        onTileClick={onTileClick}
+          />
       </div>
       <div style={{ position: "absolute", top: 12, left: 14 }}>
         <TurnPulse snapshot={snapshot} events={events} onHoverGroup={setPulse} />

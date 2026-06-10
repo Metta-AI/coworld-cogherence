@@ -50,6 +50,19 @@ describe("AutopilotPanel", () => {
     });
   });
 
+  it("lists pending actions and cancels one by index", async () => {
+    const onCancel = vi.fn();
+    const pending = [
+      { type: "align" as const, tile: "3,-4", energy: 5 },
+      { type: "exploit" as const, tile: "0,0" },
+    ];
+    const { getByTestId, getAllByText } = render(<AutopilotPanel cogId="cog0" pending={pending} onCancelPending={onCancel} />);
+    await waitFor(() => expect(getByTestId("pending-actions").textContent).toContain("Align([3,-4], 5e)"));
+    expect(getByTestId("pending-actions").textContent).toContain("Exploit([0,0])");
+    fireEvent.click(getAllByText("✕")[1]!);
+    expect(onCancel).toHaveBeenCalledWith(1);
+  });
+
   it("is read-only off the latest turn: shows state, offers no controls", async () => {
     const { queryByRole, queryByText, getByText } = render(<AutopilotPanel cogId="cog0" atLatest={false} />);
     await waitFor(() => expect(getByText(/enabled/)).toBeTruthy());

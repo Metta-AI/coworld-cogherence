@@ -59,18 +59,25 @@ describe("http", () => {
     const srv = createApp(runner, undefined, steering).listen(0);
     const url = `http://127.0.0.1:${(srv.address() as { port: number }).port}`;
     // defaults
-    expect(await (await fetch(`${url}/cog/cog0/steering`)).json()).toEqual({ persona: "", paused: false });
-    // edit
+    expect(await (await fetch(`${url}/cog/cog0/steering`)).json()).toEqual({ persona: "", paused: false, pending: [] });
+    // edit — including a queued operator order
     const posted = await (
       await fetch(`${url}/cog/cog0/steering`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ persona: "betray everyone", paused: true }),
+        body: JSON.stringify({ persona: "betray everyone", paused: true, pending: [{ type: "align", tile: "0,0", energy: 9 }] }),
       })
     ).json();
+    // malformed pending orders bounce at the boundary
+    const bad = await fetch(`${url}/cog/cog0/steering`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ pending: [{ type: "align", tile: "0,0", energy: 0 }] }),
+    });
     srv.close();
-    expect(posted).toEqual({ persona: "betray everyone", paused: true });
-    expect(steering.get("cog0")).toEqual({ persona: "betray everyone", paused: true });
+    expect(posted).toEqual({ persona: "betray everyone", paused: true, pending: [{ type: "align", tile: "0,0", energy: 9 }] });
+    expect(steering.get("cog0").pending).toEqual([{ type: "align", tile: "0,0", energy: 9 }]);
+    expect(bad.status).toBe(400);
   });
 
   it("GET /replay.json -> the live server's own recorded game", async () => {

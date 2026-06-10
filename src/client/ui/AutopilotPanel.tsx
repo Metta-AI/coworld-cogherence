@@ -5,10 +5,78 @@
 // read-only: it shows the CURRENT configuration (steering history isn't
 // recorded per turn) without allowing edits.
 import React, { useEffect, useState } from "react";
+import type { Order } from "../../shared/engine/orders";
+import { cogName } from "../colors";
 
 type Saved = "idle" | "saving" | "saved";
 
-export function AutopilotPanel({ cogId, atLatest = true }: { cogId: string; atLatest?: boolean }): React.ReactElement {
+const orderText = (o: Order): string => {
+  switch (o.type) {
+    case "align":
+      return `Align([${o.tile}], ${o.energy}e)`;
+    case "exploit":
+      return `Exploit([${o.tile}])`;
+    case "abandon":
+      return `Abandon([${o.tile}])`;
+    case "transfer":
+      return `Transfer(${o.amount} ${o.mineral} → ${cogName(Number(o.to.replace(/\D/g, "")) || 0)})`;
+    case "bid":
+      return `Bid(${o.energy}e)`;
+  }
+};
+
+/** Operator orders queued for the NEXT Commit — each cancelable. */
+function PendingActions({ pending, onCancel }: { pending: Order[]; onCancel?: (i: number) => void }): React.ReactElement {
+  return (
+    <div data-testid="pending-actions" style={{ marginTop: 8 }}>
+      <div className="cg-label" style={{ fontSize: 8.5, letterSpacing: "0.12em", paddingBottom: 3, borderBottom: "1px solid var(--border)" }}>
+        Pending Actions
+      </div>
+      {pending.length === 0 ? (
+        <div className="cg-mono" style={{ fontSize: 9.5, color: "var(--muted)", padding: "4px 0" }}>
+          none queued — click a tile on the lattice to add one.
+        </div>
+      ) : (
+        pending.map((o, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 0", borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
+            <span className="cg-mono" style={{ fontSize: 10.5, color: "var(--text-dim)", flex: 1 }}>
+              {orderText(o)}
+            </span>
+            {onCancel && (
+              <button
+                type="button"
+                data-tip="cancel this queued action"
+                onClick={() => onCancel(i)}
+                className="cg-mono"
+                style={{ background: "none", border: "none", color: "var(--exploit)", cursor: "pointer", fontSize: 11, padding: "0 2px" }}
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        ))
+      )}
+      {pending.length > 0 && (
+        <div className="cg-mono" style={{ fontSize: 8.5, color: "var(--muted)", paddingTop: 3 }}>
+          sent at the next Commit — they override the autopilot's own orders.
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function AutopilotPanel({
+  cogId,
+  atLatest = true,
+  pending = [],
+  onCancelPending,
+}: {
+  cogId: string;
+  atLatest?: boolean;
+  /** Operator orders queued for the next Commit (server-side state). */
+  pending?: Order[];
+  onCancelPending?: (i: number) => void;
+}): React.ReactElement {
   const [persona, setPersona] = useState("");
   const [paused, setPaused] = useState(false);
   const [saved, setSaved] = useState<Saved>("idle");
@@ -55,6 +123,7 @@ export function AutopilotPanel({ cogId, atLatest = true }: { cogId: string; atLa
         <div className="cg-mono" style={{ fontSize: 9, color: "var(--muted)", marginTop: 6 }}>
           viewing a past turn — jump to the latest to steer
         </div>
+        <PendingActions pending={pending} />
       </div>
     );
   }
@@ -80,6 +149,7 @@ export function AutopilotPanel({ cogId, atLatest = true }: { cogId: string; atLa
         </button>
         <span className="steer-status">{saved === "saved" ? "✓ sent" : saved === "saving" ? "sending…" : ""}</span>
       </div>
+      <PendingActions pending={pending} onCancel={onCancelPending} />
     </div>
   );
 }

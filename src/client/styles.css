@@ -623,6 +623,25 @@ button:focus-visible {
   box-shadow: 0 0 8px var(--heart);
 }
 
+/* ===== tile context menu rows ========================== */
+.cg-menu-row {
+  appearance: none;
+  font: inherit;
+  width: 100%;
+  text-align: left;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  cursor: pointer;
+  color: var(--text-dim);
+  transition: border-color 0.12s, background 0.12s;
+}
+.cg-menu-row:hover {
+  border-color: var(--coherence);
+  background: var(--panel-3);
+}
+
 /* ===== tooltip (global, data-tip) ====================== */
 .cg-tip {
   position: fixed;

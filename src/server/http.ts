@@ -8,14 +8,19 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { toSnapshot } from "../shared/snapshot";
 import { greedyAgent } from "../agents/stub";
+import { OrderSchema } from "../shared/engine/orders";
+import { steerableAgent } from "./steering-store";
 import { buildCogSnapshot } from "./redact";
 import type { GameRunner } from "./game-runner";
 import type { ActPromptHub } from "./act-prompt-hub";
 import type { SteeringStore } from "./steering-store";
 import type { ReplayRecorder } from "./replay-recorder";
 
-/** Inbound operator steering patch (validated at the boundary; invalid → 400). */
-const steeringPatchSchema = z.object({ persona: z.string().optional(), paused: z.boolean().optional() }).strict();
+/** Inbound operator steering patch (validated at the boundary; invalid → 400).
+ *  `pending` REPLACES the cog's queued operator orders wholesale. */
+const steeringPatchSchema = z
+  .object({ persona: z.string().optional(), paused: z.boolean().optional(), pending: z.array(OrderSchema).optional() })
+  .strict();
 
 export function createApp(
   runner: GameRunner,
@@ -60,14 +65,14 @@ export function createApp(
   // board (6 seats / no free corner) is a 409 with the engine's reason.
   app.post("/cogs/add", (_req, res) => {
     try {
-      res.json({ ok: true, id: runner.addCog((id) => greedyAgent(id)) });
+      res.json({ ok: true, id: runner.addCog((id) => (steering ? steerableAgent(greedyAgent(id), steering) : greedyAgent(id))) });
     } catch (e) {
       res.status(409).json({ ok: false, error: e instanceof Error ? e.message : String(e) });
     }
   });
 
   // Operator steering (Phase D): read + edit a cog's persona / paused flag live.
-  app.get("/cog/:id/steering", (req, res) => res.json(steering?.get(req.params.id) ?? { persona: "", paused: false }));
+  app.get("/cog/:id/steering", (req, res) => res.json(steering?.get(req.params.id) ?? { persona: "", paused: false, pending: [] }));
   app.post("/cog/:id/steering", (req, res) => {
     if (!steering) return res.status(404).json({ error: "steering unavailable" });
     const parsed = steeringPatchSchema.safeParse(req.body);

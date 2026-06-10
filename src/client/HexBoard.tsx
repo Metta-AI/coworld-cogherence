@@ -53,6 +53,7 @@ export function HexBoard({
   snapshot,
   mode = "coherence",
   onHoverTile,
+  onTileClick,
   flips = [],
   exploited = [],
   emphasis = [],
@@ -63,6 +64,8 @@ export function HexBoard({
   /** Reports the tile under the cursor (with its client coordinates) on enter,
    *  and null when the cursor leaves the lattice — drives the hover inspector. */
   onHoverTile?: (key: string | null, at?: { x: number; y: number }) => void;
+  /** Click on a tile (suppressed when the gesture was a pan-drag). */
+  onTileClick?: (key: string, at: { x: number; y: number }) => void;
   flips?: string[];
   exploited?: string[];
   /** Tiles to ring brightly (e.g. hovering a turn-pulse stat that mentions them). */
@@ -99,6 +102,7 @@ export function HexBoard({
   const viewRef = useRef(view);
   viewRef.current = view;
   const draggingRef = useRef(false);
+  const dragHappenedRef = useRef(false);
 
   /** The on-screen scale (CSS px per SVG unit) of the current view, for converting
    *  pointer deltas; preserveAspectRatio="meet" letterboxes, hence the min(). */
@@ -136,6 +140,7 @@ export function HexBoard({
   }, []);
 
   const onPointerDown = (e: React.PointerEvent<SVGSVGElement>): void => {
+    dragHappenedRef.current = false; // a fresh gesture may become a click
     const start = viewRef.current;
     if (e.button !== 0 || !start) return; // nothing to pan at full fit
     e.preventDefault();
@@ -147,6 +152,7 @@ export function HexBoard({
       if (!draggingRef.current && Math.hypot(ev.clientX - sx, ev.clientY - sy) < 3) return;
       if (!draggingRef.current) {
         draggingRef.current = true;
+        dragHappenedRef.current = true; // suppress the click that follows this drag
         document.body.style.cursor = "grabbing";
         onHoverTile?.(null); // the inspector hides while panning
       }
@@ -289,10 +295,13 @@ export function HexBoard({
             key={k}
             className="cg-tile"
             data-tile={k}
-            style={{ filter: filt }}
             onMouseEnter={(e) => {
               if (!draggingRef.current) onHoverTile?.(k, { x: e.clientX, y: e.clientY });
             }}
+            onClick={(e) => {
+              if (!dragHappenedRef.current) onTileClick?.(k, { x: e.clientX, y: e.clientY });
+            }}
+            style={{ filter: filt, cursor: onTileClick ? "pointer" : undefined }}
           >
             <polygon points={cn} fill={fill} fillOpacity={fillOp} stroke={stroke} strokeWidth={strokeW} strokeLinejoin="round" />
             {outerEdges && (

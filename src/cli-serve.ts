@@ -4,7 +4,7 @@ import { buildAgents } from "./cli";
 import { startServer } from "./server/runtime";
 import { ActPromptHub } from "./server/act-prompt-hub";
 import { MessageBus } from "./server/message-bus";
-import { SteeringStore, pausableAgent } from "./server/steering-store";
+import { SteeringStore, steerableAgent } from "./server/steering-store";
 
 const arg = (name: string, dflt: string): string => {
   const i = process.argv.indexOf(`--${name}`);
@@ -32,7 +32,7 @@ async function main(): Promise<void> {
   const agents = buildAgents(specs, seed, {
     onActPrompt: (e) => hub.record(e),
     persona: (id) => steering.persona(id),
-  }).map((a) => pausableAgent(a, steering));
+  }).map((a) => steerableAgent(a, steering));
   const defaultLive = flag("default-live");
   const h = await startServer({
     seed, agents, port, deadlineMs, minTurnMs, maxTurns, hub, bus, steering, agentSpecs: specs, defaultLive, autorun: true,
