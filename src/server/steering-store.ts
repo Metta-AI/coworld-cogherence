@@ -20,12 +20,18 @@ export interface CogSteering {
 
 const empty = (): CogSteering => ({ persona: "", paused: false, pending: [] });
 
+/** A manual cog's parked commit: its resolver plus the autopilot thunk to run
+ *  if the operator flips the cog back to autopilot mid-window. */
+interface WaitingCommit {
+  resolve: (orders: Order[]) => void;
+  autopilot: () => Order[] | Promise<Order[]>;
+}
+
 export class SteeringStore {
   private byCog = new Map<CogId, CogSteering>();
-  /** Manual-mode Ready plumbing: a waiting commit's resolver, or an armed flag
-   *  when Ready arrived before the commit window opened. Transient — not part
-   *  of the JSON surface. */
-  private readyResolver = new Map<CogId, (orders: Order[]) => void>();
+  /** Manual-mode Ready plumbing: a waiting commit, or an armed flag when Ready
+   *  arrived before the commit window opened. Transient — not JSON surface. */
+  private waiting = new Map<CogId, WaitingCommit>();
   private readyArmed = new Set<CogId>();
 
   /** Current steering for a cog (defaults: no persona, not paused, no queue). */
@@ -47,26 +53,39 @@ export class SteeringStore {
     this.byCog.set(cog, { ...cur, pending: [] });
     return cur.pending;
   }
-  /** Merge a partial steering update (only provided fields change). */
+  /** Merge a partial steering update (only provided fields change). Flipping a
+   *  WAITING manual cog back to autopilot executes it immediately: the parked
+   *  commit resolves with the queue if one is staged, else the agent's own
+   *  orders — the cog acts this turn instead of idling to the deadline. */
   update(cog: CogId, patch: Partial<CogSteering>): CogSteering {
     const next = { ...this.get(cog), ...patch };
     this.byCog.set(cog, next);
+    if (patch.paused === false) {
+      const w = this.waiting.get(cog);
+      if (w) {
+        this.waiting.delete(cog);
+        const pending = this.takePending(cog);
+        if (pending.length > 0) w.resolve(pending);
+        else void Promise.resolve(w.autopilot()).then(w.resolve);
+      }
+    }
     return next;
   }
 
   /** Manual commit: resolve with the queue when the operator hits Ready (or
-   *  immediately, if Ready already arrived). The promise may never resolve —
-   *  the phase coordinator's deadline defaults the cog to [] in that case. */
-  awaitOrders(cog: CogId): Promise<Order[]> {
+   *  immediately, if Ready already arrived), or with the autopilot's orders if
+   *  the operator re-enables autopilot mid-window. The promise may never
+   *  resolve — the coordinator's deadline defaults the cog to [] in that case. */
+  awaitOrders(cog: CogId, autopilot: () => Order[] | Promise<Order[]>): Promise<Order[]> {
     if (this.readyArmed.delete(cog)) return Promise.resolve(this.takePending(cog));
-    return new Promise((resolve) => this.readyResolver.set(cog, resolve));
+    return new Promise((resolve) => this.waiting.set(cog, { resolve, autopilot }));
   }
   /** Operator READY: submit the queue now (empty queue = explicit hold). */
   markReady(cog: CogId): void {
-    const resolve = this.readyResolver.get(cog);
-    if (resolve) {
-      this.readyResolver.delete(cog);
-      resolve(this.takePending(cog));
+    const w = this.waiting.get(cog);
+    if (w) {
+      this.waiting.delete(cog);
+      w.resolve(this.takePending(cog));
     } else {
       this.readyArmed.add(cog); // commit window not open yet — fire when it is
     }
@@ -80,7 +99,7 @@ export function steerableAgent(agent: Agent, store: SteeringStore): Agent {
   return {
     id: agent.id,
     commit: (view) => {
-      if (store.paused(agent.id)) return store.awaitOrders(agent.id);
+      if (store.paused(agent.id)) return store.awaitOrders(agent.id, () => agent.commit(view));
       const pending = store.takePending(agent.id);
       if (pending.length > 0) return pending;
       return agent.commit(view);

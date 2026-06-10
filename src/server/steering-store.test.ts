@@ -83,6 +83,28 @@ describe("steerableAgent", () => {
     expect(await orders).toEqual([]);
   });
 
+  it("re-enabling autopilot mid-Commit executes the agent immediately", async () => {
+    const store = new SteeringStore();
+    store.update("cog0", { paused: true });
+    let calls = 0;
+    const spy: Agent = { id: "cog0", commit: () => (calls++, [{ type: "bid", energy: 7 }]) };
+    const a = steerableAgent(spy, store);
+    const orders = a.commit(view) as Promise<unknown>; // parked, waiting for the operator
+    store.update("cog0", { paused: false }); // operator flips Auto Pilot back ON
+    expect(await orders).toEqual([{ type: "bid", energy: 7 }]); // the agent played this turn
+    expect(calls).toBe(1);
+  });
+
+  it("re-enabling autopilot mid-Commit submits the staged queue over the agent", async () => {
+    const store = new SteeringStore();
+    store.update("cog0", { paused: true, pending: [{ type: "exploit", tile: "0,0" }] });
+    const a = steerableAgent({ id: "cog0", commit: () => [{ type: "bid", energy: 7 }] }, store);
+    const orders = a.commit(view) as Promise<unknown>;
+    store.update("cog0", { paused: false });
+    expect(await orders).toEqual([{ type: "exploit", tile: "0,0" }]); // the queue still wins
+    expect(store.get("cog0").pending).toEqual([]);
+  });
+
   it("on AUTOPILOT, queued operator orders override the agent's commit and submit once", () => {
     const store = new SteeringStore();
     store.update("cog0", { pending: [{ type: "align", tile: "1,0", force: 3 }] });
