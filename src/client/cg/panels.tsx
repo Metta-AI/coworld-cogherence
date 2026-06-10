@@ -157,50 +157,48 @@ function orderOutcome(
   rejection: string | undefined,
   map: ReturnType<typeof tileMap>,
 ): { outcome: string; failed: boolean } {
-  if (rejection) return { outcome: `not executed — set rejected: ${rejection}`, failed: true };
+  if (rejection) return { outcome: `rejected, ${rejection}`, failed: true };
   switch (order.type) {
     case "align": {
       const cap = evs.find((e) => e.type === "capture" && e.tile === order.tile);
       if (cap && cap.type === "capture") {
         if (cap.to === cog)
           return {
-            outcome: cap.from
-              ? `flipped from ${cogName(cogIdx(cap.from))} → coherence ${cap.coherence} · −${cap.spent} coh`
-              : `claimed → coherence ${cap.coherence} · −${cap.spent}e`,
+            outcome: cap.from ? `success, flipped ${cogName(cogIdx(cap.from))}, coh=${cap.coherence}` : `success, coh=${cap.coherence}`,
             failed: false,
           };
-        if (cap.to === null) return { outcome: "annihilated — equal force, the tile went neutral", failed: true };
-        return { outcome: `lost the contest — ${cogName(cogIdx(cap.to))} took it`, failed: true };
+        if (cap.to === null) return { outcome: "tie, tile annihilated", failed: true };
+        return { outcome: `failed, ${cogName(cogIdx(cap.to))} took it`, failed: true };
       }
       // no capture: the tile's alignment didn't change — reinforce or repelled
       const after = map.get(order.tile);
-      if (after?.alignment === cog) return { outcome: `reinforced → coherence ${after.coherence} · −${order.force} coh`, failed: false };
+      if (after?.alignment === cog) return { outcome: `success, coh=${after.coherence}`, failed: false };
       return {
         outcome: after?.alignment
-          ? `repelled — ${cogName(cogIdx(after.alignment))} held at ${after.coherence} · −${order.force} coh`
-          : `failed — the tile stands neutral · −${order.force}e`,
+          ? `failed, ${cogName(cogIdx(after.alignment))} held at coh=${after.coherence}`
+          : "failed, tile still neutral",
         failed: true,
       };
     }
     case "exploit": {
       const ev = evs.find((e) => e.type === "exploit" && e.cog === cog && e.tile === order.tile);
-      if (ev && ev.type === "exploit") return { outcome: `+${ev.minted} ${ev.mineral} windfall · land scarred`, failed: false };
-      return { outcome: "nothing to strip — the tile was already gone", failed: true };
+      if (ev && ev.type === "exploit") return { outcome: `+${ev.minted} ${ev.mineral}, land scarred`, failed: false };
+      return { outcome: "failed, tile already gone", failed: true };
     }
     case "abandon": {
       const ev = evs.find((e) => e.type === "abandon" && e.cog === cog && e.tile === order.tile);
-      if (ev && ev.type === "abandon") return { outcome: `+${ev.refund}e recovered · tile neutral`, failed: false };
-      return { outcome: "nothing to abandon — the tile was already gone", failed: true };
+      if (ev && ev.type === "abandon") return { outcome: `+${ev.refund}e, tile neutral`, failed: false };
+      return { outcome: "failed, tile already gone", failed: true };
     }
     case "transfer":
-      return { outcome: `delivered · −${TRANSFER_FEE}e fee`, failed: false };
+      return { outcome: `delivered, −${TRANSFER_FEE}e fee`, failed: false };
     case "bid": {
       const a = evs.find((e) => e.type === "auction");
       if (!a || a.type !== "auction") return { outcome: "no auction settled", failed: true };
-      if (a.winner === cog) return { outcome: `won the heart — paid ${a.price}e`, failed: false };
-      if (!a.bids.some(([id]) => id === cog)) return { outcome: "void — holds no ground", failed: true };
+      if (a.winner === cog) return { outcome: `won, paid ${a.price}e`, failed: false };
+      if (!a.bids.some(([id]) => id === cog)) return { outcome: "void, no tiles held", failed: true };
       return {
-        outcome: a.winner ? `outbid — ${cogName(cogIdx(a.winner))} took it at ${a.price}e` : "no sale",
+        outcome: a.winner ? `outbid, ${cogName(cogIdx(a.winner))} paid ${a.price}e` : "no sale",
         failed: true,
       };
     }
@@ -210,15 +208,15 @@ function orderOutcome(
 function orderLine(cog: string, order: Extract<TurnEvent, { type: "order" }>["order"]): { verb: string; tone: string; action: string } {
   switch (order.type) {
     case "align":
-      return { verb: "ALIGN", tone: "align", action: `${order.tile} · force ${order.force}` };
+      return { verb: "ALIGN", tone: "align", action: `Align([${order.tile}], force=${order.force})` };
     case "exploit":
-      return { verb: "EXPLOIT", tone: "exploit", action: order.tile };
+      return { verb: "EXPLOIT", tone: "exploit", action: `Exploit([${order.tile}])` };
     case "abandon":
-      return { verb: "ABANDON", tone: "transfer", action: order.tile };
+      return { verb: "ABANDON", tone: "transfer", action: `Abandon([${order.tile}])` };
     case "transfer":
-      return { verb: "TRANSFER", tone: "transfer", action: `${order.amount} ${order.mineral} → ${cogName(cogIdx(order.to))}` };
+      return { verb: "TRANSFER", tone: "transfer", action: `Transfer(${order.amount} ${order.mineral} → ${cogName(cogIdx(order.to))})` };
     case "bid":
-      return { verb: "BID", tone: "bid", action: `${order.energy}e for the heart` };
+      return { verb: "BID", tone: "bid", action: `Bid(${order.energy}e)` };
   }
 }
 
@@ -239,8 +237,8 @@ export function TurnLog({ snapshot, events }: { snapshot: GameSnapshot; events: 
   lines.sort((a, b) => cogIdx(a.cog!) - cogIdx(b.cog!));
   // world events with no originating order: upkeep losses + the tempo bonus
   for (const e of evs) {
-    if (e.type === "lost") lines.push({ cog: e.cog, verb: "LOST", tone: "exploit", action: e.tile, outcome: "upkeep unpaid — rotted to neutral", failed: true });
-    else if (e.type === "firstCommit") lines.push({ cog: e.cog, verb: "TEMPO", tone: "bid", action: "committed first", outcome: `+${e.reward}⚡`, failed: false });
+    if (e.type === "lost") lines.push({ cog: e.cog, verb: "LOST", tone: "exploit", action: `[${e.tile}]`, outcome: "rotted to neutral, upkeep unpaid", failed: true });
+    else if (e.type === "firstCommit") lines.push({ cog: e.cog, verb: "TEMPO", tone: "bid", action: "first commit", outcome: `+${e.reward}⚡`, failed: false });
   }
 
   return (
@@ -265,9 +263,9 @@ export function TurnLog({ snapshot, events }: { snapshot: GameSnapshot; events: 
               <div style={{ display: "flex", alignItems: "baseline", gap: 6, minWidth: 0 }}>
                 {ai != null && <span style={{ width: 7, height: 7, borderRadius: 2, background: cogColor(ai), flex: "0 0 auto", marginTop: 4 }} />}
                 <span className="cg-mono" style={{ fontSize: 10.5, color: "var(--text-dim)", lineHeight: 1.4 }}>
-                  {ai != null && <b style={{ color: cogColor(ai) }}>{cogName(ai)} </b>}
+                  {ai != null && <b style={{ color: cogColor(ai) }}>{cogName(ai)}: </b>}
                   {l.action}
-                  <span style={{ color: l.failed ? "var(--exploit)" : "var(--coherence)" }}> → {l.outcome}</span>
+                  <span style={{ color: l.failed ? "var(--exploit)" : "var(--coherence)" }}> =&gt; {l.outcome}</span>
                 </span>
               </div>
             </div>
