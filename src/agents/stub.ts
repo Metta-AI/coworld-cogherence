@@ -37,8 +37,9 @@ const adjacentTargets = (view: AgentView): Tile[] => {
 };
 const weakest = (tiles: Tile[]): Tile => tiles.reduce((a, b) => (a.coherence <= b.coherence ? a : b));
 
-/** How many of a tile's in-board neighbors the cog already owns — its blob compactness.
- *  A tile with ≥4 owned neighbors gains Coherence each Upkeep; <4 erodes (design §4). */
+/** How many of a tile's in-board neighbors the cog already owns — its blob
+ *  compactness. Allied neighbors cancel enemy resistance on the upkeep bill,
+ *  so compact ground is cheap and rot-proof (design §4/§6). */
 const ownNeighborCount = (view: AgentView, t: Tile): number => {
   let n = 0;
   for (const nb of neighbors(t.hex)) {
@@ -91,7 +92,7 @@ export const peacefulAgent = (id: string): Agent => ({
   },
 });
 
-/** Greedy: builds a compact blob (so its land earns Coherence instead of rotting to
+/** Greedy: builds a compact blob (so its land stays cheap instead of rotting to
  *  neutral, §4) and bids leftover energy for hearts, scaling its bid with wealth.
  *  Each turn it first rescues any core tile about to rot, else claims the pocket that
  *  most thickens its territory, else reinforces. Spend stays <= maxEnergy. */

@@ -36,14 +36,14 @@ CLI flags: `--seed <n>` · `--agents greedy,peaceful,random,...` (overrides `--c
 | `coherence.ts` | `resolveTile` (the Align tug-of-war) |
 | `orders.ts` | zod `OrderSchema` + legality (`isLegalAlignTarget`, `isOwn`) |
 | `resolve.ts` | Resolve phase: budget → auction → charge → exploit → tug-of-war |
-| `upkeep.ts` | Upkeep phase: per-tile bills (pay-or-rot, double-pay-to-grow) → mint |
+| `upkeep.ts` | Upkeep phase: per-tile bills (pay-or-rot, pay-regen-to-grow) → mint |
 | `game.ts` | `newGame` / `stepTurn` / `runGame` / `scoreGame` + the turn loop |
 | `log.ts` | `TurnRecord` (events + hearts), for replay |
 | `../../agents/` | `Agent` interface + stub policies (peaceful / greedy / random) |
 
 ## Core rules
 
-- **Coherence = margin of dominance.** Coherence moves with the upkeep bill: a tile whose bill goes unpaid loses 1 (neutral at 0); a tile paid double gains 1. The bill is cheap on calm majority-friendly ground and expensive on contested borders (each enemy neighbor adds a surcharge). An Align is a tug-of-war where the winner's new coherence = its force minus the runner-up's. Force on NEUTRAL targets is paid in energy; force against standing alignments is paid in coherence transferred from the aligner's other tiles (largest first, donors floored at 1).
+- **Coherence = margin of dominance.** Coherence moves with the upkeep bill: a tile whose bill goes unpaid while under resistance (more enemy than allied neighbors) loses 1 (neutral at 0) — zero-resistance ground holds; paying a flat 3e regen on top of the bill gains 1 (max 1/turn). The bill is a flat 1e base + 1e per enemy neighbor beyond the tile's allied ones (neutral counts for neither). An Align is a tug-of-war where the winner's new coherence = its force minus the runner-up's. Force on NEUTRAL targets is paid in energy; force against standing alignments is paid in coherence transferred from the aligner's other tiles (largest first, donors floored at 1).
 - **Economy.** Aligned tiles mint `density × coherence / 5` minerals each Upkeep (stochastically rounded); a full **C + O + Ge + S** set converts to 10 energy vs 1 for a single, so balanced trade is efficient. Affordability is monotonic (`maxEnergy ≥ need`).
 - **Hearts.** One heart is auctioned each turn (sealed second-price, paid in energy, 1-energy reserve; only cogs holding ground may bid). Most hearts at turn 100 wins.
 - **Exploit.** Strip-mine an owned tile for a `2 × coherence × density` windfall — but it goes neutral and its density permanently halves.

@@ -10,21 +10,20 @@ export const BOARD_RADIUS = 6;
 /** Number of turns in a full game. */
 export const MAX_TURNS = 100;
 
-/** Per-tile upkeep, per turn: a CALM tile (a strict majority of its in-board
- *  neighbors share its alignment) pays the calm rate; contested or isolated
- *  tiles pay the full rate. Every ENEMY-aligned neighbor adds a surcharge —
- *  friendly neighbors never make ground more expensive. Coherence is then
- *  purely economic: an unpaid tile loses 1 (neutral at 0); a tile paid DOUBLE
- *  gains 1 (capped at COHERENCE_MAX). */
-export const UPKEEP_CALM = 1;
-export const UPKEEP_CONTESTED = 3;
-export const UPKEEP_PER_ENEMY_NEIGHBOR = 1;
-export const tileUpkeepCost = (friendly: number, aligned: number, inBoard: number): number =>
-  (friendly * 2 > inBoard ? UPKEEP_CALM : UPKEEP_CONTESTED) + (aligned - friendly) * UPKEEP_PER_ENEMY_NEIGHBOR;
+/** Per-tile upkeep, per turn: a flat base, plus RESISTANCE — 1e for every
+ *  enemy-aligned neighbor beyond the tile's allied (same-owner) neighbors;
+ *  neutral neighbors count for neither side. Coherence is then purely economic:
+ *  an unpaid tile UNDER resistance (enemies > allies) loses 1 (neutral at 0)
+ *  while zero-resistance ground holds even unpaid; paying REGEN_COST on top of
+ *  the bill grows a tile +1 Coherence (max 1/turn, capped at COHERENCE_MAX). */
+export const UPKEEP_BASE = 1;
+export const REGEN_COST = 3;
+export const tileUpkeepCost = (friendly: number, enemies: number): number =>
+  UPKEEP_BASE + Math.max(0, enemies - friendly);
 
 /** Mineral minted per Upkeep = density × coherence / MINT_DIVISOR, stochastically
  *  rounded: a raw 2.3 mints 2, plus 1 with probability 0.3. At 5 a tile at full
- *  coherence (10) yields DOUBLE its density — sized so a calm interior tile
+ *  coherence (10) yields DOUBLE its density — sized so a quiet interior tile
  *  (1e bill) is profitable from mid coherence up, making empire viable. */
 export const MINT_DIVISOR = 5;
 

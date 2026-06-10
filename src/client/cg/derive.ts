@@ -8,7 +8,7 @@
 import type { GameSnapshot, TileSnapshot } from "../../shared/snapshot";
 import type { TurnEvent } from "../../shared/engine/log";
 import type { StampedEvent } from "../net/feed";
-import { tileUpkeepCost } from "../../shared/engine/constants";
+import { REGEN_COST, tileUpkeepCost } from "../../shared/engine/constants";
 
 export const MINERALS = ["C", "O", "Ge", "S"] as const;
 export type Mineral = (typeof MINERALS)[number];
@@ -65,7 +65,8 @@ export interface Territory {
   coherence: number;
 }
 /** Per-cog territory shape: tiles held, fortresses (maxed coherence), and rotting
- *  salients (coherence>0 but minority-friendly neighbours, so they decay at Upkeep). */
+ *  salients (coherence>0 but under resistance — more enemy than allied neighbors —
+ *  so they rot at Upkeep when the bill goes unpaid). */
 export function territory(snap: GameSnapshot): Map<string, Territory> {
   const map = tileMap(snap);
   const out = new Map<string, Territory>();
@@ -80,7 +81,8 @@ export function territory(snap: GameSnapshot): Map<string, Territory> {
     else if (t.coherence > 0) {
       const nb = neighbors(t.q, t.r, map);
       const friendly = nb.filter((n) => n.alignment === t.alignment).length;
-      if (friendly < Math.floor(nb.length / 2) + 1) s.salients++;
+      const enemies = nb.filter((n) => n.alignment !== null && n.alignment !== t.alignment).length;
+      if (enemies > friendly) s.salients++;
     }
   }
   return out;
@@ -147,13 +149,13 @@ export function exploitTilesAt(events: StampedEvent[], turn: number): string[] {
   return out;
 }
 
-/** A tile's upkeep bill, mirroring the engine: calm vs contested base + a
- *  surcharge per non-neutral neighbor. */
+/** A tile's upkeep bill, mirroring the engine: a flat base + RESISTANCE, 1e per
+ *  enemy neighbor beyond the tile's allied ones (neutral counts for neither). */
 export function tileCost(t: TileSnapshot, map: TileMap): number {
   const nb = neighbors(t.q, t.r, map);
-  const aligned = nb.filter((n) => n.alignment !== null).length;
   const friendly = nb.filter((n) => n.alignment === t.alignment).length;
-  return tileUpkeepCost(friendly, aligned, nb.length);
+  const enemies = nb.filter((n) => n.alignment !== null && n.alignment !== t.alignment).length;
+  return tileUpkeepCost(friendly, enemies);
 }
 
 /** Total upkeep owed per cog this turn (sum of its tiles' bills). */
@@ -169,9 +171,9 @@ export function upkeepBy(snap: GameSnapshot): Map<string, number> {
 }
 
 /** Predict a tile's energy drain next Upkeep by simulating its owner's funding
- *  pass (mirrors the engine: base bills heartland-first, then doubles strongest-
- *  first): 2x its bill when it will be double-paid (grows), 1x when merely held,
- *  0 when the wallet runs out (it rots). */
+ *  pass (mirrors the engine: base bills heartland-first, then regen strongest-
+ *  first): bill + REGEN_COST when it will regenerate (+1 coherence), the bill
+ *  alone when merely held, 0 when the wallet runs out (it rots). */
 export function tileDrain(t: TileSnapshot, snap: GameSnapshot): { drain: number; verdict: "grows" | "holds" | "rots" } | null {
   if (!t.alignment) return null;
   const map = tileMap(snap);
@@ -190,14 +192,13 @@ export function tileDrain(t: TileSnapshot, snap: GameSnapshot): { drain: number;
   const grows = new Set<TileSnapshot>();
   for (const x of desc) {
     if (!paid.has(x) || x.coherence >= snap.coherenceMax) continue;
-    const c = bill(x);
-    if (energy < c) continue;
-    energy -= c;
+    if (energy < REGEN_COST) break;
+    energy -= REGEN_COST;
     grows.add(x);
   }
   const self = mine.find((x) => x.q === t.q && x.r === t.r)!;
   const b = bill(self);
-  return grows.has(self) ? { drain: 2 * b, verdict: "grows" } : paid.has(self) ? { drain: b, verdict: "holds" } : { drain: 0, verdict: "rots" };
+  return grows.has(self) ? { drain: b + REGEN_COST, verdict: "grows" } : paid.has(self) ? { drain: b, verdict: "holds" } : { drain: 0, verdict: "rots" };
 }
 
 export interface TileStatus {
@@ -208,10 +209,10 @@ export interface TileStatus {
 export function tileStatus(t: TileSnapshot, map: TileMap, coherenceMax: number, ownerColor: string): TileStatus {
   const nb = neighbors(t.q, t.r, map);
   const friendly = t.alignment ? nb.filter((n) => n.alignment === t.alignment).length : 0;
-  const threshold = Math.floor(nb.length / 2) + 1;
+  const enemies = t.alignment ? nb.filter((n) => n.alignment !== null && n.alignment !== t.alignment).length : 0;
   if (!t.alignment) return { label: t.density === 0 ? "BARREN" : "NEUTRAL", tone: "var(--muted)" };
   if (t.coherence >= coherenceMax) return { label: "FORTRESS", tone: ownerColor };
   if (t.coherence === 0) return { label: "HUSK · rotted", tone: "var(--exploit)" };
-  if (friendly < threshold) return { label: "ROTTING SALIENT", tone: "var(--exploit)" };
+  if (enemies > friendly) return { label: "ROTTING SALIENT", tone: "var(--exploit)" };
   return { label: "FRONTIER", tone: "var(--deal)" };
 }

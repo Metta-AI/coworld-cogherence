@@ -51,11 +51,11 @@ A **hex lattice** (~127 tiles for up to 6 Cogs; sized to player count). Each til
 
 Coherence is **not a stat you set**; it emerges from the spatial configuration.
 
-**Passive rule (every Upkeep):** every **aligned** tile compares its alignment to its neighbors.
-- A **strict majority** of its in-board neighbors sharing its alignment makes the tile **calm** — its upkeep bill drops to the calm rate (§6). Coherence itself moves only with the bill: paid double → **+1** (capped), unpaid → **−1**.
-- Otherwise (a tie or a minority) → Coherence **−1**, floored at 0.
+**Passive rule (every Upkeep):** every **aligned** tile weighs its enemy neighbors against its allied ones.
+- Its bill is a flat base **+ RESISTANCE**: 1e per enemy-aligned neighbor *beyond* its allied neighbors (§6). Neutral neighbors count for **neither** side.
+- Coherence moves only with the bill: pay the flat **regen** price on top → **+1** (capped, max 1/turn); unpaid **under resistance** (enemies > allies) → **−1**, floored at 0. Unpaid ground with **zero resistance holds** — collapse stays on the frontier.
 
-Enemy *and* neutral neighbors both count *against* the majority, and every ENEMY-aligned neighbor adds a surcharge to the bill — friendly neighbors never make ground more expensive. **Neutral tiles stay at Coherence 0** — they neither grow nor decay until a Cog claims them. **Edge and corner tiles** use their real in-board neighbor count for the majority test.
+**Neutral tiles stay at Coherence 0** — they neither grow nor decay until a Cog claims them.
 
 **The neighborhood, visualized.** Every interior tile has 6 neighbors; the ±1 rule just counts how many share its alignment:
 
@@ -65,11 +65,12 @@ Enemy *and* neutral neighbors both count *against* the majority, and every ENEMY
         N5    N4
 ```
 
-Tile **X** tallies its 6 neighbor slots (enemy *and* neutral count against it):
-- X is **A**, neighbors `A A A A · B` → **4 of 6 → strict majority → calm rate**, +1 surcharge for the lone enemy neighbor → 2e.
-- X is **A**, neighbors `A A · · B B` → only 2 → **minority → −1** (a salient rots).
+Tile **X** weighs enemies against allies (neutral counts for neither):
+- X is **A**, neighbors `A A A A · B` → 1 enemy − 4 allies → **no resistance** → the 1e base.
+- X is **A**, neighbors `A A · · B B` → 2 enemies − 2 allies → still balanced → the 1e base, but one loss tips it.
+- X is **A**, neighbors `· · · B B B` → 3 enemies − 0 allies → **+3e resistance** → 4e, and it **rots when unpaid**.
 
-A calm interior tile is cheap to hold and grow; a lone forward tile bills the contested rate and rots whenever its owner can't pay. Edge/corner tiles just have fewer slots for the majority test.
+A sheltered interior tile is cheap to hold; an outnumbered salient is expensive and rots whenever its owner can't pay. A lone settler in the wilderness costs just the base.
 
 **Capture rule:** a tile changes hands two ways — a winning Align (§5) flips it to the challenger, or **erosion to Coherence 0 drops it to neutral**. A tile whose Coherence grinds to 0 (via unpaid upkeep, §6) *loses its alignment and becomes a neutral husk* — anyone adjacent can then claim it with a fresh Align. A winning Align flips the instant a challenger's force exceeds the incumbent's defense, even from high Coherence. "Siege, not a snipe" is therefore **emergent, not a hard cap**: a Coherence-10 fortress needs 11+ force in a single turn (effectively unsnipeable), while a thin Coherence-1 salient flips for a trickle of donated coherence — or simply rots to neutral on its own next Upkeep.
 
@@ -78,7 +79,7 @@ This single rule produces enormous depth, all emergent:
 - **Compact blobs are fortresses.** An interior tile has 6 friendly neighbors → Coherence pins at the cap → effectively unflippable. You cannot snipe a heartland.
 - **Overextension self-punishes.** A lone forward tile or thin tendril has minority-friendly neighbors → it erodes on its own, every Upkeep, for free — and once it hits 0 it falls neutral. Greedy grabs rot away entirely.
 - **Encirclement is a weapon.** Align the tiles *around* an enemy hex; its neighborhood turns hostile and Upkeep grinds its Coherence to 0 *for* you — at which point it drops neutral on its own, and a trivial Align claims the husk. You capture by context, spending almost nothing on the tile itself.
-- **Peace is literally stabilizing.** Two Cogs agreeing on a clean, straight border keep most border tiles majority-friendly → cheap bills for both. Jagged contested borders bill *both* sides into rot. **Cooperation and incoherence are opposites on the board itself.**
+- **Peace is literally stabilizing.** Two Cogs agreeing on a clean, straight border keep each side's allies matching the enemies across the line → zero resistance, base bills for both. Jagged interlocking borders leave tiles outnumbered and bill *both* sides into rot. **Cooperation and incoherence are opposites on the board itself.**
 
 "Entropy" is just this decay (plus upkeep, §6) — emergent, no separate front.
 
@@ -126,7 +127,7 @@ On a tile you hold: return it to **neutral** and recover its standing **Coherenc
 
 ## 6. Economy — minerals, treasury, energy
 
-**Mineral production (every Upkeep):** each aligned tile mints **Density × Coherence ÷ 5** of its mineral into its Cog's **treasury**, *stochastically rounded* (a raw 2.3 mints 2, plus 1 with probability 0.3 — unbiased on average). On the 0–10 Coherence scale this means a tile at full Coherence yields **double its Density** and weaker tiles yield proportionally less, so output rewards *both* good geography (Density) *and* stable, consolidated holdings (Coherence) — and a calm interior tile (1e bill) turns profitable from mid Coherence up, making empire viable.
+**Mineral production (every Upkeep):** each aligned tile mints **Density × Coherence ÷ 5** of its mineral into its Cog's **treasury**, *stochastically rounded* (a raw 2.3 mints 2, plus 1 with probability 0.3 — unbiased on average). On the 0–10 Coherence scale this means a tile at full Coherence yields **double its Density** and weaker tiles yield proportionally less, so output rewards *both* good geography (Density) *and* stable, consolidated holdings (Coherence) — and a sheltered interior tile (1e bill) turns profitable from mid Coherence up, making empire viable.
 
 **Energy is derived, not stored.** Whenever energy is needed, the engine auto-converts treasury minerals, greedily forming sets first:
 - A full **COGS set** (1 C + 1 O + 1 Ge + 1 S) → **10 energy.**
@@ -134,7 +135,7 @@ On a tile you hold: return it to **neutral** and recover its standing **Coherenc
 
 That 10-vs-1 gap is the political economy in one line: a balanced portfolio is **2.5× more efficient per mineral**. Since almost no Cog's land yields all four, **trade is survival, not flavor** — the mineral map *is* the diplomatic map.
 
-**Upkeep:** each aligned tile bills **3 energy/turn** (**1** if a strict majority of its in-board neighbors share its alignment) **+1 per enemy-aligned neighbor**. A tile whose bill goes unpaid **loses 1 Coherence** (neutral at 0); a tile paid **double** gains **+1** (max 10). Bills are funded heartland-first. Calm interiors are cheap engines; contested crowded frontiers are money pits.
+**Upkeep:** each aligned tile bills a flat **1 energy/turn** base **+ resistance** — 1 energy per enemy-aligned neighbor beyond its allied neighbors (neutral counts for neither side). A tile whose bill goes unpaid while **under resistance** (enemies > allies) **loses 1 Coherence** (neutral at 0); zero-resistance ground holds even unpaid. Paying the flat **3-energy regen** on top of a tile's bill grows it **+1 Coherence** (max 1/turn, cap 10). Bills and regen are funded heartland-first. Sheltered interiors are cheap engines; outnumbered frontiers are money pits.
 
 **Timing (one-turn lag):** minerals minted in Upkeep land in the treasury for *next* turn — you always Commit against last turn's production. Energy itself is never banked: it's recomputed from the treasury the moment it's needed, and any unconverted potential simply stays as minerals. The full execution order (Exploit → Align → Transfer → auction → Upkeep) is fixed in **§14**.
 
@@ -147,7 +148,7 @@ Four phases — the first three are the Diplomacy heartbeat; the fourth is the w
 1. **Negotiate** *(timed, social)* — agents talk freely. **Public** channel (declarations, alliances, accusations; whole board sees) and **private** DMs (secret deals, lies, side payments). Nothing is binding.
 2. **Commit** *(secret, timed)* — each Cog privately locks its orders: Align(s), Exploit(s), Transfer(s), and a **sealed heart bid** (energy). No one sees others' orders. The phase runs on a **deadline** (a hung Cog defaults to no orders), and the **first Cog to lock its Commit earns a tempo bonus** — exactly `FIRST_COMMIT_REWARD` energy, paid as units of its most abundant mineral so the marginal value is precisely that — rewarding decisiveness without warping the mineral economy. (A live mechanic: scripted replays opt out, so a deterministic instant-first doesn't dominate.)
 3. **Resolve** *(simultaneous)* — all orders reveal and execute at once, in a fixed order (Exploit → Align → Transfer → auction; **§14**). Contested Aligns clash via tug-of-war (§5); the **heart auction** settles (§8). *This* is where betrayal lands — you reinforced the board on faith while they Exploited behind your back, and everyone sees it together.
-4. **Upkeep** *(the world breathes)* — every tile bills upkeep (§6): unpaid ground rots −1, double-paid ground grows +1; tiles then mint minerals.
+4. **Upkeep** *(the world breathes)* — every tile bills upkeep (§6): unpaid ground under resistance rots −1, regen-paid ground grows +1; tiles then mint minerals.
 
 ---
 
@@ -270,7 +271,7 @@ Steps 1–4 are **Resolve** (phase 3); step 5 is **Upkeep** (phase 4):
 2. **Align** — tug-of-war on every contested tile, all simultaneously (§5).
 3. **Transfer** — move minerals between treasuries.
 4. **Heart auction** — Vickrey settle (§8); winner pays the second price, floored at the **1-energy reserve**; only Cogs holding ground may bid. **Bid ties break deterministically** (e.g. lowest `cog_id`).
-5. **Upkeep** — bill every tile (§6): pay-or-rot, double-pay-to-grow, heartland funded first; then mint minerals.
+5. **Upkeep** — bill every tile (§6): pay-or-rot (rot only under resistance), pay-regen-to-grow, heartland funded first; then mint minerals.
 
 ### 14.5 Time & token budget (LLM-specific)
 Negotiate is **timed**: a fixed wall-clock or token budget per Cog per round, plus a bounded number of message exchanges (default: a few public + DM rounds). Exceeding the budget ends that Cog's Negotiate turn; it can still Commit. This keeps a 100-turn game tractable and stops one slow agent from stalling the match.
@@ -321,7 +322,7 @@ t1 is A's frontier O-tile (B eyes it); t2 is unclaimed **S** that A badly needs;
 **④ Heart auction** (Vickrey, second-price §8): bids A 3, B 4, C 2 → **B wins**, pays the **second price = 3** energy (A's bid; above the 1e reserve, which only binds for a sole bidder). B: hearts +1. *(B's Align was coherence-funded, so its full 9e covered the bid; an uncovered bid would have rejected the set, §14.3. A and C lose, so pay nothing — A's 3 reserved energy is freed.)*
 
 ### 4. Upkeep — the world breathes (§14.5)
-- **Bills (§6):** each tile bills by its neighborhood (calm 1 / contested 3, +1 per enemy neighbor); a Cog that can't pay loses Coherence instead. t2 sits inside A's cluster (4 of 6 neighbors A) → calm rate; A double-pays → **+1 → 3.** t1 is now a lone **B** salient ringed by A → contested + 6 surcharges, a bill B can't sustain → **−1 → 0.** *B's prize is already rotting; A can retake the husk next turn for a trickle.*
+- **Bills (§6):** each tile bills 1e base + resistance (1e per enemy neighbor beyond its allies); a Cog that can't pay a tile under resistance loses Coherence there instead. t2 sits inside A's cluster (4 A neighbors, no enemies) → the 1e base; A pays the 3e regen on top → **+1 → 3.** t1 is now a lone **B** salient ringed by 6 A tiles → 1 + 6 = **7e**, a bill B can't sustain → **−1 → 0.** *B's prize is already rotting; A can retake the husk next turn for a trickle.*
 - **Mint** (Density × Coherence ÷ 5 → owner, for *next* turn, stochastically rounded): t2 @ Coherence 3, Density 3 → **9/5 ≈ 2 S to A** (A finally has S income); t1 rotted to 0 → nothing; t3 (neutral) → nothing.
 - **Total Coherence:** across these tiles, aligned Coherence went 4 + 2 = **6 → 0 + 3 = 3.** War + Exploit **frayed the board** even though the tiles only changed hands.
 
