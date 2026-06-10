@@ -1,9 +1,9 @@
 // The Upkeep phase: after Resolve, every Cog pays for its ground — and Coherence
 // is purely economic. Each tile's bill: a flat base plus RESISTANCE — 1e per
-// enemy neighbor beyond the tile's allied neighbors, neutral counting for
-// neither side (tileUpkeepCost). Heartland is funded first (descending
-// coherence). An unpaid tile UNDER resistance (enemies > allies) loses 1
-// Coherence (and goes neutral at 0) — zero-resistance ground holds even when
+// enemy neighbor, each allied neighbor offsetting half an enemy, neutral
+// counting for neither side (tileUpkeepCost). Heartland is funded first
+// (descending coherence). An unpaid tile UNDER resistance loses 1 Coherence
+// (and goes neutral at 0) — zero-resistance ground holds even when
 // the wallet runs dry, so collapse stays localized to frontiers. Paying
 // REGEN_COST on top of a tile's bill grows it +1 (max 1/turn, capped). Aligned
 // tiles then mint their mineral at density×coherence. Pure: the input state is
@@ -13,7 +13,7 @@ import type { GameState, CogId, HexKey, Tile, Treasury, CogState } from "./types
 import { neighbors, key } from "./hex";
 import { chargeEnergy, maxEnergy } from "./energy";
 import { makeRng } from "./rng";
-import { MINT_DIVISOR, COHERENCE_MAX, REGEN_COST, tileUpkeepCost } from "./constants";
+import { MINT_DIVISOR, COHERENCE_MAX, REGEN_COST, UPKEEP_BASE, tileUpkeepCost } from "./constants";
 
 /** Events emitted by an Upkeep phase (for the turn log / replay). */
 export type UpkeepEvent =
@@ -69,7 +69,7 @@ export function upkeep(
 
     // bill each tile from the pre-upkeep snapshot (simultaneous across cogs)
     const costs = new Map<HexKey, number>();
-    const sheltered = new Set<HexKey>(); // zero resistance: enemies <= allies
+    const sheltered = new Set<HexKey>(); // zero resistance: allies cover the enemies (2 enemies per... see tileUpkeepCost)
     for (const k of owned) {
       const t = state.tiles[k]!;
       let friendly = 0;
@@ -81,7 +81,7 @@ export function upkeep(
         else enemies++;
       }
       costs.set(k, tileUpkeepCost(friendly, enemies));
-      if (enemies <= friendly) sheltered.add(k);
+      if (tileUpkeepCost(friendly, enemies) === UPKEEP_BASE) sheltered.add(k);
     }
     const desc = [...owned].sort((a, b) => state.tiles[b]!.coherence - state.tiles[a]!.coherence);
 

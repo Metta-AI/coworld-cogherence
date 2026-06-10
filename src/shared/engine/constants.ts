@@ -10,16 +10,17 @@ export const BOARD_RADIUS = 6;
 /** Number of turns in a full game. */
 export const MAX_TURNS = 100;
 
-/** Per-tile upkeep, per turn: a flat base, plus RESISTANCE — 1e for every
- *  enemy-aligned neighbor beyond the tile's allied (same-owner) neighbors;
- *  neutral neighbors count for neither side. Coherence is then purely economic:
- *  an unpaid tile UNDER resistance (enemies > allies) loses 1 (neutral at 0)
- *  while zero-resistance ground holds even unpaid; paying REGEN_COST on top of
- *  the bill grows a tile +1 Coherence (max 1/turn, capped at COHERENCE_MAX). */
+/** Per-tile upkeep, per turn: a flat base, plus RESISTANCE — 1e per enemy-
+ *  aligned neighbor, with each allied (same-owner) neighbor offsetting HALF an
+ *  enemy (rounded against the defender); neutral neighbors count for neither
+ *  side. Coherence is then purely economic: an unpaid tile UNDER resistance
+ *  loses 1 (neutral at 0) while zero-resistance ground holds even unpaid;
+ *  paying REGEN_COST on top of the bill grows a tile +1 Coherence (max 1/turn,
+ *  capped at COHERENCE_MAX). */
 export const UPKEEP_BASE = 1;
 export const REGEN_COST = 3;
 export const tileUpkeepCost = (friendly: number, enemies: number): number =>
-  UPKEEP_BASE + Math.max(0, enemies - friendly);
+  UPKEEP_BASE + Math.max(0, Math.ceil(enemies - friendly / 2));
 
 /** Mineral minted per Upkeep = density × coherence / MINT_DIVISOR, stochastically
  *  rounded: a raw 2.3 mints 2, plus 1 with probability 0.3. At 5 a tile at full

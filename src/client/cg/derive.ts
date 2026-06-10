@@ -82,7 +82,7 @@ export function territory(snap: GameSnapshot): Map<string, Territory> {
       const nb = neighbors(t.q, t.r, map);
       const friendly = nb.filter((n) => n.alignment === t.alignment).length;
       const enemies = nb.filter((n) => n.alignment !== null && n.alignment !== t.alignment).length;
-      if (enemies > friendly) s.salients++;
+      if (2 * enemies > friendly) s.salients++; // under resistance: allies only half-cover
     }
   }
   return out;
@@ -149,8 +149,9 @@ export function exploitTilesAt(events: StampedEvent[], turn: number): string[] {
   return out;
 }
 
-/** A tile's upkeep bill, mirroring the engine: a flat base + RESISTANCE, 1e per
- *  enemy neighbor beyond the tile's allied ones (neutral counts for neither). */
+/** A tile's upkeep bill, mirroring the engine: a flat base + RESISTANCE — 1e
+ *  per enemy neighbor, each allied neighbor offsetting half an enemy (neutral
+ *  counts for neither). */
 export function tileCost(t: TileSnapshot, map: TileMap): number {
   const nb = neighbors(t.q, t.r, map);
   const friendly = nb.filter((n) => n.alignment === t.alignment).length;
@@ -213,6 +214,6 @@ export function tileStatus(t: TileSnapshot, map: TileMap, coherenceMax: number, 
   if (!t.alignment) return { label: t.density === 0 ? "BARREN" : "NEUTRAL", tone: "var(--muted)" };
   if (t.coherence >= coherenceMax) return { label: "FORTRESS", tone: ownerColor };
   if (t.coherence === 0) return { label: "HUSK · rotted", tone: "var(--exploit)" };
-  if (enemies > friendly) return { label: "ROTTING SALIENT", tone: "var(--exploit)" };
+  if (2 * enemies > friendly) return { label: "ROTTING SALIENT", tone: "var(--exploit)" };
   return { label: "FRONTIER", tone: "var(--deal)" };
 }

@@ -52,8 +52,8 @@ A **hex lattice** (~127 tiles for up to 6 Cogs; sized to player count). Each til
 Coherence is **not a stat you set**; it emerges from the spatial configuration.
 
 **Passive rule (every Upkeep):** every **aligned** tile weighs its enemy neighbors against its allied ones.
-- Its bill is a flat base **+ RESISTANCE**: 1e per enemy-aligned neighbor *beyond* its allied neighbors (§6). Neutral neighbors count for **neither** side.
-- Coherence moves only with the bill: pay the flat **regen** price on top → **+1** (capped, max 1/turn); unpaid **under resistance** (enemies > allies) → **−1**, floored at 0. Unpaid ground with **zero resistance holds** — collapse stays on the frontier.
+- Its bill is a flat base **+ RESISTANCE** = ceil(enemies − allies/2), floored at 0 (§6): 1e per enemy-aligned neighbor, each allied neighbor offsetting **half** an enemy, rounding against the defender. Neutral neighbors count for **neither** side.
+- Coherence moves only with the bill: pay the flat **regen** price on top → **+1** (capped, max 1/turn); unpaid **under resistance** → **−1**, floored at 0. Unpaid ground with **zero resistance holds** — collapse stays on the frontier.
 
 **Neutral tiles stay at Coherence 0** — they neither grow nor decay until a Cog claims them.
 
@@ -65,12 +65,12 @@ Coherence is **not a stat you set**; it emerges from the spatial configuration.
         N5    N4
 ```
 
-Tile **X** weighs enemies against allies (neutral counts for neither):
-- X is **A**, neighbors `A A A A · B` → 1 enemy − 4 allies → **no resistance** → the 1e base.
-- X is **A**, neighbors `A A · · B B` → 2 enemies − 2 allies → still balanced → the 1e base, but one loss tips it.
-- X is **A**, neighbors `· · · B B B` → 3 enemies − 0 allies → **+3e resistance** → 4e, and it **rots when unpaid**.
+Tile **X** weighs enemies against allies — each ally offsets **half** an enemy (neutral counts for neither):
+- X is **A**, neighbors `A A A A · B` → 1 enemy − 4/2 → **no resistance** → the 1e base.
+- X is **A**, neighbors `A A · · B B` → 2 enemies − 2/2 = 1 → **+1e resistance** → 2e, and it **rots when unpaid**.
+- X is **A**, neighbors `· · · B B B` → 3 enemies − 0 → **+3e resistance** → 4e.
 
-A sheltered interior tile is cheap to hold; an outnumbered salient is expensive and rots whenever its owner can't pay. A lone settler in the wilderness costs just the base.
+A sheltered interior tile is cheap to hold; holding a front line takes **two allies per enemy across it**, and an outnumbered salient is expensive and rots whenever its owner can't pay. A lone settler in the wilderness costs just the base.
 
 **Capture rule:** a tile changes hands two ways — a winning Align (§5) flips it to the challenger, or **erosion to Coherence 0 drops it to neutral**. A tile whose Coherence grinds to 0 (via unpaid upkeep, §6) *loses its alignment and becomes a neutral husk* — anyone adjacent can then claim it with a fresh Align. A winning Align flips the instant a challenger's force exceeds the incumbent's defense, even from high Coherence. "Siege, not a snipe" is therefore **emergent, not a hard cap**: a Coherence-10 fortress needs 11+ force in a single turn (effectively unsnipeable), while a thin Coherence-1 salient flips for a trickle of donated coherence — or simply rots to neutral on its own next Upkeep.
 
@@ -79,7 +79,7 @@ This single rule produces enormous depth, all emergent:
 - **Compact blobs are fortresses.** An interior tile has 6 friendly neighbors → Coherence pins at the cap → effectively unflippable. You cannot snipe a heartland.
 - **Overextension self-punishes.** A lone forward tile or thin tendril has minority-friendly neighbors → it erodes on its own, every Upkeep, for free — and once it hits 0 it falls neutral. Greedy grabs rot away entirely.
 - **Encirclement is a weapon.** Align the tiles *around* an enemy hex; its neighborhood turns hostile and Upkeep grinds its Coherence to 0 *for* you — at which point it drops neutral on its own, and a trivial Align claims the husk. You capture by context, spending almost nothing on the tile itself.
-- **Peace is literally stabilizing.** Two Cogs agreeing on a clean, straight border keep each side's allies matching the enemies across the line → zero resistance, base bills for both. Jagged interlocking borders leave tiles outnumbered and bill *both* sides into rot. **Cooperation and incoherence are opposites on the board itself.**
+- **Peace is literally stabilizing.** A clean border still costs something to face (allies only half-cover the enemies across it) — but a **demilitarized strip of neutral ground costs nothing at all**, so real truces pull back to leave neutral space. Jagged interlocking borders leave tiles outnumbered and bill *both* sides into rot. **Cooperation and incoherence are opposites on the board itself.**
 
 "Entropy" is just this decay (plus upkeep, §6) — emergent, no separate front.
 
@@ -135,7 +135,7 @@ On a tile you hold: return it to **neutral** and recover its standing **Coherenc
 
 That 10-vs-1 gap is the political economy in one line: a balanced portfolio is **2.5× more efficient per mineral**. Since almost no Cog's land yields all four, **trade is survival, not flavor** — the mineral map *is* the diplomatic map.
 
-**Upkeep:** each aligned tile bills a flat **1 energy/turn** base **+ resistance** — 1 energy per enemy-aligned neighbor beyond its allied neighbors (neutral counts for neither side). A tile whose bill goes unpaid while **under resistance** (enemies > allies) **loses 1 Coherence** (neutral at 0); zero-resistance ground holds even unpaid. Paying the flat **3-energy regen** on top of a tile's bill grows it **+1 Coherence** (max 1/turn, cap 10). Bills and regen are funded heartland-first. Sheltered interiors are cheap engines; outnumbered frontiers are money pits.
+**Upkeep:** each aligned tile bills a flat **1 energy/turn** base **+ resistance** = ceil(enemies − allies/2), floored at 0 — 1 energy per enemy-aligned neighbor, each allied neighbor offsetting half an enemy (neutral counts for neither side). A tile whose bill goes unpaid while **under resistance** **loses 1 Coherence** (neutral at 0); zero-resistance ground holds even unpaid. Paying the flat **3-energy regen** on top of a tile's bill grows it **+1 Coherence** (max 1/turn, cap 10). Bills and regen are funded heartland-first. Sheltered interiors are cheap engines; outnumbered frontiers are money pits.
 
 **Timing (one-turn lag):** minerals minted in Upkeep land in the treasury for *next* turn — you always Commit against last turn's production. Energy itself is never banked: it's recomputed from the treasury the moment it's needed, and any unconverted potential simply stays as minerals. The full execution order (Exploit → Align → Transfer → auction → Upkeep) is fixed in **§14**.
 

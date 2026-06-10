@@ -25,19 +25,21 @@ const FLOOR = () => 0.999999; // rng never below any fractional part -> mint = f
 const CEIL = () => 0; // rng below every positive fractional part -> mint = ceil(raw)
 
 // Bills under the base + resistance model (see tileUpkeepCost):
-//   any tile:                       1e base
-//   + max(0, enemies - allies)      1e per enemy neighbor beyond the allied ones
-//   (neutral neighbors count for neither side)
+//   any tile:                              1e base
+//   + max(0, ceil(enemies - allies/2))     each ally offsets HALF an enemy
+//   (neutral neighbors count for neither side; rounding goes against the defender)
 // Regen is a flat 3e on top of a paid bill (+1 coherence, max 1/turn).
 
 describe("upkeep", () => {
-  it("tileUpkeepCost: flat base + net enemy pressure (neutral counts for neither)", () => {
+  it("tileUpkeepCost: flat base + enemies, each ally offsetting half an enemy", () => {
     expect(tileUpkeepCost(0, 0)).toBe(1); // lone tile in the wilderness — just the base
     expect(tileUpkeepCost(1, 0)).toBe(1); // friendly pair
-    expect(tileUpkeepCost(0, 1)).toBe(2); // enemy pair: base + 1 net enemy
+    expect(tileUpkeepCost(0, 1)).toBe(2); // enemy pair: base + 1 enemy
     expect(tileUpkeepCost(6, 0)).toBe(1); // blob interior stays cheap
-    expect(tileUpkeepCost(3, 3)).toBe(1); // balanced front line — resistance cancels
-    expect(tileUpkeepCost(2, 4)).toBe(3); // outnumbered 4v2: base + 2
+    expect(tileUpkeepCost(1, 1)).toBe(2); // 1v1 front: the ally only half-covers -> ceil(0.5) = 1
+    expect(tileUpkeepCost(2, 1)).toBe(1); // two allies fully cover one enemy
+    expect(tileUpkeepCost(3, 3)).toBe(3); // even front line: 3 - 1.5 -> +2
+    expect(tileUpkeepCost(2, 4)).toBe(4); // outnumbered 4v2: 4 - 1 -> +3
     expect(tileUpkeepCost(0, 3)).toBe(4); // salient ringed by 3 enemies
   });
 
@@ -142,17 +144,30 @@ describe("upkeep", () => {
     expect(tre(state, "B")).toEqual(T(1, 0, 0, 0)); // unpaid bills charge nothing; mint floor(4/5)=0
   });
 
-  it("allied neighbors cancel enemy pressure: a balanced front line bills the base", () => {
-    // A's (1,0) touches one A tile and one B tile -> resistance 0 -> 1e bill,
-    // and even unpaid it HOLDS (not under net pressure).
+  it("two allies fully cover an enemy; one only half-covers (rounded against you)", () => {
+    // A's (1,0) touches TWO A tiles and one B tile -> resistance ceil(1-1)=0 ->
+    // 1e bill, held even unpaid. A's (0,0) touches one ally + one enemy... no:
+    // (0,0) touches (1,0)=ally and (-1,0)? not on board -> just allies. The
+    // half-cover case is asserted directly in the tileUpkeepCost unit test.
     const s = makeState({
-      tiles: [tile(0, 0, "A", 4), tile(1, 0, "A", 4), tile(2, 0, "B", 4)],
-      cogOrder: ["A", "B"], treasuries: { A: T(), B: T(2, 0, 0, 0) },
+      tiles: [tile(0, 0, "A", 4), tile(1, -1, "A", 4), tile(1, 0, "A", 4), tile(2, 0, "B", 4)],
+      cogOrder: ["A", "B"], treasuries: { A: T(), B: T(4, 0, 0, 0) },
     });
     const { state, events } = upkeep(s, FLOOR);
-    expect(at(state, 1, 0).coherence).toBe(4); // balanced -> held even unpaid
-    expect(at(state, 0, 0).coherence).toBe(4); // friendly-only -> held
-    expect(events.some((e) => e.type === "starved" && e.cog === "A")).toBe(false);
+    expect(at(state, 1, 0).coherence).toBe(4); // 2 allies v 1 enemy -> sheltered, held even unpaid
+    expect(events.some((e) => e.type === "starved" && e.tile === "1,0")).toBe(false);
+  });
+
+  it("a 1v1 front line is under resistance: unpaid, it rots", () => {
+    // A's (0,0) touches one ally and one enemy -> resistance ceil(0.5)=1 -> 2e
+    // bill A cannot pay -> rots.
+    const s = makeState({
+      tiles: [tile(-1, 0, "A", 4), tile(0, 0, "A", 4), tile(1, 0, "B", 4)],
+      cogOrder: ["A", "B"], treasuries: { A: T(), B: T(4, 0, 0, 0) },
+    });
+    const { state, events } = upkeep(s, FLOOR);
+    expect(at(state, 0, 0).coherence).toBe(3); // half-covered -> still rots when unpaid
+    expect(events.some((e) => e.type === "starved" && e.tile === "0,0")).toBe(true);
   });
 
   it("does not mutate the input state", () => {
