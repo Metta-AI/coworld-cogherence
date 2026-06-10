@@ -52,7 +52,7 @@ A **hex lattice** (~127 tiles for up to 6 Cogs; sized to player count). Each til
 Coherence is **not a stat you set**; it emerges from the spatial configuration.
 
 **Passive rule (every Upkeep):** every **aligned** tile weighs its enemy neighbors against its allied ones.
-- Its bill is a flat base **+ RESISTANCE** = **10e ×** ceil(enemies − allies/2), floored at 0 (§6): 10e per enemy-aligned neighbor, each allied neighbor offsetting **half** an enemy, rounding against the defender. Neutral neighbors count for **neither** side — contested ground is a serious money sink.
+- Its bill is a base of **⌊√(tiles owned)⌋** — empire scale taxes *every* tile, so total base spend grows ~N^1.5 and sprawl caps itself — **+ RESISTANCE** = **10e ×** ceil(enemies − allies/2), floored at 0 (§6): 10e per enemy-aligned neighbor, each allied neighbor offsetting **half** an enemy, rounding against the defender. Neutral neighbors count for **neither** side — contested ground is a serious money sink.
 - Coherence moves only with the bill: pay the flat **regen** price on top → **+1** (capped, max 1/turn); unpaid **under resistance** → **−1**, floored at 0. Unpaid ground with **zero resistance holds** — collapse stays on the frontier.
 
 **Neutral tiles stay at Coherence 0** — they neither grow nor decay until a Cog claims them.
@@ -136,7 +136,7 @@ On a tile you hold: return it to **neutral** and recover its standing **Coherenc
 
 That 10-vs-1 gap is the political economy in one line: a balanced portfolio is **2.5× more efficient per mineral**. Since almost no Cog's land yields all four, **trade is survival, not flavor** — the mineral map *is* the diplomatic map.
 
-**Upkeep:** each aligned tile bills a flat **1 energy/turn** base **+ resistance** = **10 energy ×** ceil(enemies − allies/2), floored at 0 — each allied neighbor offsets half an enemy (neutral counts for neither side), so contested ground is a serious money sink. A tile whose bill goes unpaid while **under resistance** **loses 1 Coherence** (neutral at 0); zero-resistance ground holds even unpaid. Paying the flat **3-energy regen** on top of a tile's bill grows it **+1 Coherence** (max 1/turn, cap 10). Bills and regen are funded heartland-first. Sheltered interiors are cheap engines; outnumbered frontiers are money pits.
+**Upkeep:** each aligned tile bills a base of **⌊√(tiles owned)⌋ energy/turn** (a 4-tile empire pays 2 per tile, a 25-tile one pays 5 — sprawl taxes itself) **+ resistance** = **10 energy ×** ceil(enemies − allies/2), floored at 0 — each allied neighbor offsets half an enemy (neutral counts for neither side), so contested ground is a serious money sink. A tile whose bill goes unpaid while **under resistance** **loses 1 Coherence** (neutral at 0); zero-resistance ground holds even unpaid. Paying the flat **3-energy regen** on top of a tile's bill grows it **+1 Coherence** (max 1/turn, cap 10). Bills and regen are funded heartland-first. Sheltered interiors are cheap engines; outnumbered frontiers are money pits.
 
 **Timing (one-turn lag):** minerals minted in Upkeep land in the treasury for *next* turn — you always Commit against last turn's production. Energy itself is never banked: it's recomputed from the treasury the moment it's needed, and any unconverted potential simply stays as minerals. The full execution order (Exploit → Align → Transfer → auction → Upkeep) is fixed in **§14**.
 
@@ -323,7 +323,7 @@ t1 is A's frontier O-tile (B eyes it); t2 is unclaimed **S** that A badly needs;
 **④ Heart auction** (Vickrey, second-price §8): bids A 2, B 4, C 2 → **B wins**, pays the **second price = 2** energy (above the 1e reserve, which only binds for a sole bidder). B: hearts +1. *(An uncovered bid would have rejected the set, §14.3. A and C lose, so pay nothing — their reserved energy is freed.)*
 
 ### 4. Upkeep — the world breathes (§14.5)
-- **Bills (§6):** each tile bills 1e base + resistance (10e per enemy neighbor beyond its allies); a Cog that can't pay a tile under resistance loses Coherence there instead. A is tapped out — but t2 sits inside A's cluster (4 A neighbors, no enemies) → **zero resistance, holds even unpaid.** t1 is now a lone **B** salient ringed by 6 A tiles → 1 + 6×10 = **61e**, a bill B can't sustain → **−1 → 0.** *B's prize is already rotting; A can retake the husk next turn for a trickle.*
+- **Bills (§6):** each tile bills ⌊√(tiles owned)⌋ base + resistance (10e per enemy neighbor beyond its allies); a Cog that can't pay a tile under resistance loses Coherence there instead. A is tapped out — but t2 sits inside A's cluster (4 A neighbors, no enemies) → **zero resistance, holds even unpaid.** t1 is now a lone **B** salient ringed by 6 A tiles → base + 6×10 ≈ **61e**, a bill B can't sustain → **−1 → 0.** *B's prize is already rotting; A can retake the husk next turn for a trickle.*
 - **Mint** (Density × Coherence ÷ 5 → owner, for *next* turn, stochastically rounded): t2 @ Coherence 1, Density 3 → **3/5 ≈ 1 S to A** (A finally has S income); t1 rotted to 0 → nothing; t3 (neutral) → nothing.
 - **Total Coherence:** across these tiles, aligned Coherence went 2 + 2 = **4 → 0 + 1 = 1.** War + Exploit **frayed the board** even though the tiles only changed hands.
 

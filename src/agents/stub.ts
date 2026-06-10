@@ -12,7 +12,7 @@ import type { Order } from "../shared/engine/orders";
 import type { Tile } from "../shared/engine/types";
 import { maxEnergy } from "../shared/engine/energy";
 import { neighbors, key, distance } from "../shared/engine/hex";
-import { ALIGN_MAX_ENERGY } from "../shared/engine/constants";
+import { ALIGN_MAX_ENERGY, upkeepBase } from "../shared/engine/constants";
 import { makeRng, randInt } from "../shared/engine/rng";
 
 const myEnergy = (view: AgentView): number => maxEnergy(view.state.cogs[view.me]!.treasury);
@@ -87,7 +87,7 @@ export const peacefulAgent = (id: string): Agent => ({
     const owned = ownedTiles(view);
     const spot = nearestNeutral(view);
     if (spot) {
-      const spare = myEnergy(view) - 2 * Math.max(2, owned.length);
+      const spare = myEnergy(view) - Math.max(2, owned.length) * (upkeepBase(owned.length) + 1);
       const energy = Math.min(spare, alignCostFor(2, spot.dist)); // aim to arrive at force 2
       if (energy > spot.dist * spot.dist) return [{ type: "align", tile: key(spot.tile.hex), energy }];
       return [];
@@ -95,7 +95,7 @@ export const peacefulAgent = (id: string): Agent => ({
     // ...else shore up the weakest tile (distance 0: force = floor(sqrt(energy))).
     if (owned.length > 0) {
       const target = weakest(owned);
-      const spare = myEnergy(view) - 2 * Math.max(2, owned.length);
+      const spare = myEnergy(view) - Math.max(2, owned.length) * (upkeepBase(owned.length) + 1);
       const energy = Math.min(spare, alignCostFor(2, 0));
       if (energy >= 1) return [{ type: "align", tile: key(target.hex), energy }];
     }
@@ -122,7 +122,7 @@ export const greedyAgent = (id: string): Agent => ({
     const owned = ownedTiles(view);
     if (owned.length === 0) return []; // off the board: nothing to project from, no right to bid
     let energy = myEnergy(view);
-    const billsReserve = 2 * owned.length; // ~a turn of worst-ish bills stays banked
+    const billsReserve = owned.length * (upkeepBase(owned.length) + 1); // ~a turn of bills stays banked
     const afford = (cost: number): boolean => energy - billsReserve >= cost;
 
     // 1. Rescue any core tile one Upkeep from rotting to neutral (force 2 at distance 0 = 4e).

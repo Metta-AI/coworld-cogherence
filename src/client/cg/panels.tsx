@@ -8,7 +8,7 @@ import type { Message } from "../../shared/messages";
 import type { TurnEvent } from "../../shared/engine/log";
 import type { StampedEvent } from "../net/feed";
 import { cogColor, cogName } from "../colors";
-import { MINT_DIVISOR, TRANSFER_FEE, UPKEEP_BASE, REGEN_COST, RESISTANCE_COST } from "../../shared/engine/constants";
+import { MINT_DIVISOR, TRANSFER_FEE, upkeepBase, REGEN_COST, RESISTANCE_COST } from "../../shared/engine/constants";
 import { HexBoard, type LatticeMode } from "../HexBoard";
 import { CGIcon, CogText, EnergyChip, Mineral } from "./atoms";
 import {
@@ -512,8 +512,10 @@ export function TileInspector({ tileKey: key, snapshot }: { tileKey: string; sna
   // half an enemy (neutral counts for neither side); regeneration = the flat
   // REGEN_COST paid on top of the bill to grow this tile +1 coherence (max 1/turn).
   const enemies = t.alignment ? nb.filter((n) => n.alignment !== null && n.alignment !== t.alignment).length : 0;
-  const bill = t.alignment ? tileCost(t, map) : 0;
-  const resistance = bill - UPKEEP_BASE;
+  const ownedCount = t.alignment ? snapshot.tiles.filter((x) => x.alignment === t.alignment).length : 0;
+  const base = upkeepBase(ownedCount);
+  const bill = t.alignment ? tileCost(t, map, ownedCount) : 0;
+  const resistance = bill - base;
   const resistanceTip = `(${enemies} enemy − ${friendly}/2 allied neighbors) × ${RESISTANCE_COST}e — each ally offsets half an enemy; neutral counts for neither`;
   const scarred = t.density < t.density0; // an exploit halved the deposit
   const mint = (t.density * t.coherence) / MINT_DIVISOR; // expected mineral/turn
@@ -586,8 +588,8 @@ export function TileInspector({ tileKey: key, snapshot }: { tileKey: string; sna
             {drain &&
               row(
                 "· upkeep",
-                <span data-tip="base bill — every aligned tile pays this each turn" style={{ color: "var(--muted)" }}>
-                  −{UPKEEP_BASE}e
+                <span data-tip={`base bill = floor(√${ownedCount} tiles) — empire scale taxes every tile`} style={{ color: "var(--muted)" }}>
+                  −{base}e
                 </span>,
               )}
             {drain &&

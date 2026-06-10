@@ -1,7 +1,8 @@
 // The Upkeep phase: after Resolve, every Cog pays for its ground — and Coherence
-// is purely economic. Each tile's bill: a flat base plus RESISTANCE — 1e per
-// enemy neighbor, each allied neighbor offsetting half an enemy, neutral
-// counting for neither side (tileUpkeepCost). Heartland is funded first
+// is purely economic. Each tile's bill: a base of floor(sqrt(tiles owned)) —
+// empire scale taxes itself — plus RESISTANCE per enemy neighbor, each allied
+// neighbor offsetting half an enemy, neutral counting for neither side
+// (tileUpkeepCost). Heartland is funded first
 // (descending coherence). An unpaid tile UNDER resistance loses 1 Coherence
 // (and goes neutral at 0) — zero-resistance ground holds even when
 // the wallet runs dry, so collapse stays localized to frontiers. Paying
@@ -13,7 +14,7 @@ import type { GameState, CogId, HexKey, Tile, Treasury, CogState } from "./types
 import { neighbors, key } from "./hex";
 import { chargeEnergy, maxEnergy } from "./energy";
 import { makeRng } from "./rng";
-import { MINT_DIVISOR, COHERENCE_MAX, REGEN_COST, UPKEEP_BASE, tileUpkeepCost } from "./constants";
+import { MINT_DIVISOR, COHERENCE_MAX, REGEN_COST, upkeepBase, tileUpkeepCost } from "./constants";
 
 /** Events emitted by an Upkeep phase (for the turn log / replay). */
 export type UpkeepEvent =
@@ -80,8 +81,8 @@ export function upkeep(
         if (nt.alignment === t.alignment) friendly++;
         else enemies++;
       }
-      costs.set(k, tileUpkeepCost(friendly, enemies));
-      if (tileUpkeepCost(friendly, enemies) === UPKEEP_BASE) sheltered.add(k);
+      costs.set(k, tileUpkeepCost(friendly, enemies, owned.length));
+      if (tileUpkeepCost(friendly, enemies, owned.length) === upkeepBase(owned.length)) sheltered.add(k);
     }
     const desc = [...owned].sort((a, b) => state.tiles[b]!.coherence - state.tiles[a]!.coherence);
 

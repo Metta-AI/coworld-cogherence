@@ -150,14 +150,22 @@ export function exploitTilesAt(events: StampedEvent[], turn: number): string[] {
   return out;
 }
 
-/** A tile's upkeep bill, mirroring the engine: a flat base + RESISTANCE — 1e
- *  per enemy neighbor, each allied neighbor offsetting half an enemy (neutral
- *  counts for neither). */
-export function tileCost(t: TileSnapshot, map: TileMap): number {
+/** A tile's upkeep bill, mirroring the engine: a base of floor(sqrt(owner's
+ *  tile count)) + RESISTANCE per enemy neighbor, each allied neighbor
+ *  offsetting half an enemy (neutral counts for neither). */
+export function tileCost(t: TileSnapshot, map: TileMap, ownedTiles: number): number {
   const nb = neighbors(t.q, t.r, map);
   const friendly = nb.filter((n) => n.alignment === t.alignment).length;
   const enemies = nb.filter((n) => n.alignment !== null && n.alignment !== t.alignment).length;
-  return tileUpkeepCost(friendly, enemies);
+  return tileUpkeepCost(friendly, enemies, ownedTiles);
+}
+
+/** Tiles owned per cog (drives the empire-scaled base bill). */
+export function tilesBy(snap: GameSnapshot): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const c of snap.cogs) out.set(c.id, 0);
+  for (const t of snap.tiles) if (t.alignment) out.set(t.alignment, (out.get(t.alignment) ?? 0) + 1);
+  return out;
 }
 
 /** Expected mineral income per cog at the NEXT Upkeep: Σ density × coherence /
@@ -197,11 +205,12 @@ export function mintEnergyBy(events: StampedEvent[], snap: GameSnapshot): Map<st
 /** Total upkeep owed per cog this turn (sum of its tiles' bills). */
 export function upkeepBy(snap: GameSnapshot): Map<string, number> {
   const map = tileMap(snap);
+  const counts = tilesBy(snap);
   const out = new Map<string, number>();
   for (const c of snap.cogs) out.set(c.id, 0);
   for (const t of snap.tiles) {
     if (!t.alignment) continue;
-    out.set(t.alignment, (out.get(t.alignment) ?? 0) + tileCost(t, map));
+    out.set(t.alignment, (out.get(t.alignment) ?? 0) + tileCost(t, map, counts.get(t.alignment) ?? 0));
   }
   return out;
 }
@@ -214,7 +223,7 @@ export function tileDrain(t: TileSnapshot, snap: GameSnapshot): { drain: number;
   if (!t.alignment) return null;
   const map = tileMap(snap);
   const mine = snap.tiles.filter((x) => x.alignment === t.alignment);
-  const bill = (x: TileSnapshot): number => tileCost(x, map);
+  const bill = (x: TileSnapshot): number => tileCost(x, map, mine.length);
   const desc = [...mine].sort((a, b) => b.coherence - a.coherence);
   let energy = snap.cogs.find((c) => c.id === t.alignment)?.energy ?? 0;
   const paid = new Set<TileSnapshot>();
