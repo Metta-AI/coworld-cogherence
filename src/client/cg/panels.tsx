@@ -8,7 +8,7 @@ import type { Message } from "../../shared/messages";
 import type { TurnEvent } from "../../shared/engine/log";
 import type { StampedEvent } from "../net/feed";
 import { cogColor, cogName } from "../colors";
-import { MINT_DIVISOR, TRANSFER_FEE } from "../../shared/engine/constants";
+import { MINT_DIVISOR, TRANSFER_FEE, UPKEEP_CALM } from "../../shared/engine/constants";
 import { HexBoard, type LatticeMode } from "../HexBoard";
 import { CGIcon, CogSigil, CogText, Mineral } from "./atoms";
 import {
@@ -23,6 +23,7 @@ import {
   tileMap,
   neighbors,
   tileStatus,
+  tileCost,
   tileDrain,
 } from "./derive";
 
@@ -317,6 +318,19 @@ export function TileInspector({ tileKey: key, snapshot }: { tileKey: string; sna
   const nc = nb.length;
   const status = tileStatus(t, map, snapshot.coherenceMax, ownerColor);
   const drain = tileDrain(t, snapshot);
+  // The bill, decomposed (mirrors tileUpkeepCost): upkeep = the calm base every
+  // aligned tile pays; resistance = what hostile surroundings add (the contested
+  // premium + 1e per enemy neighbor); regeneration = the bill paid a second time
+  // when the owner double-pays this tile to grow +1 coherence.
+  const alignedNb = nb.filter((n) => n.alignment !== null).length;
+  const enemies = alignedNb - friendly;
+  const calm = friendly * 2 > nc;
+  const bill = t.alignment ? tileCost(t, map) : 0;
+  const resistance = bill - UPKEEP_CALM;
+  const resistanceTip = [
+    ...(calm ? [] : [`no calm majority +${bill - enemies - UPKEEP_CALM}e`]),
+    ...(enemies > 0 ? [`${enemies} enemy neighbor${enemies > 1 ? "s" : ""} +${enemies}e`] : []),
+  ].join(" · ");
   const scarred = t.density < t.density0; // an exploit halved the deposit
   const mint = (t.density * t.coherence) / MINT_DIVISOR; // expected mineral/turn
   const row = (label: string, value: React.ReactNode): React.ReactElement => (
@@ -389,6 +403,29 @@ export function TileInspector({ tileKey: key, snapshot }: { tileKey: string; sna
                 "—"
               ),
             )}
+            {drain &&
+              row(
+                "· upkeep",
+                <span data-tip="base bill — every aligned tile pays this each turn" style={{ color: "var(--muted)" }}>
+                  −{UPKEEP_CALM}e
+                </span>,
+              )}
+            {drain &&
+              resistance > 0 &&
+              row(
+                "· resistance",
+                <span data-tip={resistanceTip} style={{ color: "var(--muted)" }}>
+                  −{resistance}e
+                </span>,
+              )}
+            {drain &&
+              drain.verdict === "grows" &&
+              row(
+                "· regeneration",
+                <span data-tip="the bill paid a second time — buys +1 coherence this turn" style={{ color: "var(--muted)" }}>
+                  −{bill}e
+                </span>,
+              )}
             {row("neighbors", `${friendly}/${nc} friendly`)}
           </tbody>
         </table>
