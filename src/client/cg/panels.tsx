@@ -130,29 +130,27 @@ export function AuctionPanel({ snapshot, events }: { snapshot: GameSnapshot; eve
 }
 
 // ===== Turn log ===========================================================
-// Each line is an ACTION a cog played, paired with its consequence — derived by
-// joining the recorded order events with the resolve/upkeep events of the same
-// turn (and the AFTER-board snapshot for outcomes that emit no event, e.g. a
-// reinforce or a repelled attack). World events without an order (tiles lost to
-// upkeep, the first-commit bonus) keep their own lines.
-
-function VerbTag({ verb, tone }: { verb: string; tone: string }): React.ReactElement {
-  return <span className={`cg-verb ${tone}`}>{verb}</span>;
-}
+// Three information-dense sections per turn: ACTIONS (every board order a cog
+// played, paired with its consequence — joined from the turn's events and the
+// AFTER-board for outcomes that emit no event), AUCTION (all bids as chips,
+// winner + clearing price), and UPKEEP (per-cog mint income, rotting tiles,
+// and losses on one compact row each).
 
 interface LogLine {
-  cog: string | null;
+  cog: string;
   verb: string;
   tone: string; // cg-verb class: align / exploit / transfer / bid
   action: string;
-  outcome: React.ReactNode;
+  outcome: string;
   failed?: boolean;
 }
 
-/** The consequence of one played order, joined from the turn's events + the after-board. */
+type PlayedOrder = Extract<TurnEvent, { type: "order" }>["order"];
+
+/** The consequence of one board order, joined from the turn's events + the after-board. */
 function orderOutcome(
   cog: string,
-  order: Extract<TurnEvent, { type: "order" }>["order"],
+  order: PlayedOrder,
   evs: TurnEvent[],
   rejection: string | undefined,
   map: ReturnType<typeof tileMap>,
@@ -192,20 +190,12 @@ function orderOutcome(
     }
     case "transfer":
       return { outcome: `delivered, −${TRANSFER_FEE}e fee`, failed: false };
-    case "bid": {
-      const a = evs.find((e) => e.type === "auction");
-      if (!a || a.type !== "auction") return { outcome: "no auction settled", failed: true };
-      if (a.winner === cog) return { outcome: `won, paid ${a.price}e`, failed: false };
-      if (!a.bids.some(([id]) => id === cog)) return { outcome: "void, no tiles held", failed: true };
-      return {
-        outcome: a.winner ? `outbid, ${cogName(cogIdx(a.winner))} paid ${a.price}e` : "no sale",
-        failed: true,
-      };
-    }
+    case "bid":
+      return { outcome: "", failed: false }; // bids render in the AUCTION section
   }
 }
 
-function orderLine(cog: string, order: Extract<TurnEvent, { type: "order" }>["order"]): { verb: string; tone: string; action: string } {
+function orderLine(order: PlayedOrder): { verb: string; tone: string; action: string } {
   switch (order.type) {
     case "align":
       return { verb: "ALIGN", tone: "align", action: `Align([${order.tile}], force=${order.force})` };
@@ -220,57 +210,174 @@ function orderLine(cog: string, order: Extract<TurnEvent, { type: "order" }>["or
   }
 }
 
+function SectionHead({ label, right }: { label: string; right?: React.ReactNode }): React.ReactElement {
+  return (
+    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", padding: "7px 0 2px", borderBottom: "1px solid var(--border)" }}>
+      <span className="cg-label" style={{ fontSize: 8.5, letterSpacing: "0.12em" }}>{label}</span>
+      {right != null && <span className="cg-mono" style={{ fontSize: 9, color: "var(--muted)" }}>{right}</span>}
+    </div>
+  );
+}
+
+const Quiet = ({ text }: { text: string }): React.ReactElement => (
+  <div className="cg-mono" style={{ fontSize: 9.5, color: "var(--muted)", padding: "3px 0" }}>{text}</div>
+);
+
 export function TurnLog({ snapshot, events }: { snapshot: GameSnapshot; events: StampedEvent[] }): React.ReactElement {
   const turn = lastResolvedTurn(snapshot);
-  const evs = eventsAt(events, turn);
+  const evs: TurnEvent[] = events.filter((e) => e.turn === turn).map((e) => e.event);
   const map = tileMap(snapshot);
   const rejectedBy = new Map<string, string>();
   for (const e of evs) if (e.type === "rejected") rejectedBy.set(e.cog, e.reason);
 
-  const lines: LogLine[] = [];
+  // — ACTIONS: board orders with consequences, grouped by seat; tempo bonus last
+  const actions: LogLine[] = [];
   for (const e of evs) {
-    if (e.type !== "order") continue;
-    const { verb, tone, action } = orderLine(e.cog, e.order);
+    if (e.type !== "order" || e.order.type === "bid") continue;
+    const { verb, tone, action } = orderLine(e.order);
     const { outcome, failed } = orderOutcome(e.cog, e.order, evs, rejectedBy.get(e.cog), map);
-    lines.push({ cog: e.cog, verb, tone, action, outcome, failed });
+    actions.push({ cog: e.cog, verb, tone, action, outcome, failed });
   }
-  lines.sort((a, b) => cogIdx(a.cog!) - cogIdx(b.cog!));
-  // world events with no originating order: upkeep losses + the tempo bonus
+  actions.sort((a, b) => cogIdx(a.cog) - cogIdx(b.cog));
+  const tempo = evs.find((e) => e.type === "firstCommit");
+
+  // — AUCTION: every bid order as a chip; the settle gives winner + price
+  const auction = evs.find((e) => e.type === "auction");
+  const bidders = evs
+    .filter((e): e is Extract<TurnEvent, { type: "order" }> => e.type === "order" && e.order.type === "bid")
+    .map((e) => {
+      const amount = (e.order as Extract<PlayedOrder, { type: "bid" }>).energy;
+      const rejected = rejectedBy.has(e.cog);
+      const eligible = auction?.type === "auction" && auction.bids.some(([id]) => id === e.cog);
+      const won = auction?.type === "auction" && auction.winner === e.cog;
+      return { cog: e.cog, amount, won, status: won ? "won" : rejected ? "set rejected" : eligible ? "outbid" : "void — holds no ground" };
+    })
+    .sort((a, b) => b.amount - a.amount);
+
+  // — UPKEEP: one dense row per cog — mint income, rotting tiles, losses
+  const upkeepRows = new Map<string, { mint: Partial<Record<string, number>>; rot: string[]; lost: string[] }>();
+  const upkeepRow = (cog: string) => {
+    let r = upkeepRows.get(cog);
+    if (!r) upkeepRows.set(cog, (r = { mint: {}, rot: [], lost: [] }));
+    return r;
+  };
   for (const e of evs) {
-    if (e.type === "lost") lines.push({ cog: e.cog, verb: "LOST", tone: "exploit", action: `[${e.tile}]`, outcome: "rotted to neutral, upkeep unpaid", failed: true });
-    else if (e.type === "firstCommit") lines.push({ cog: e.cog, verb: "TEMPO", tone: "bid", action: "first commit", outcome: `+${e.reward}⚡`, failed: false });
+    if (e.type === "mint") {
+      const r = upkeepRow(e.cog);
+      for (const m of MINERALS) if (e.gained[m] > 0) r.mint[m] = (r.mint[m] ?? 0) + e.gained[m];
+    } else if (e.type === "starved" && e.coherence > 0) upkeepRow(e.cog).rot.push(`[${e.tile}]→${e.coherence}`);
+    else if (e.type === "lost") upkeepRow(e.cog).lost.push(`[${e.tile}]`);
   }
+  const upkeepList = [...upkeepRows.entries()]
+    .filter(([, r]) => Object.keys(r.mint).length > 0 || r.rot.length > 0 || r.lost.length > 0)
+    .sort((a, b) => cogIdx(a[0]) - cogIdx(b[0]));
+
+  const dot = (i: number): React.ReactElement => (
+    <span style={{ width: 7, height: 7, borderRadius: 2, background: cogColor(i), flex: "0 0 auto", marginTop: 4 }} />
+  );
 
   return (
     <div className="cg-panel" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }} data-testid="turn-log">
       <div className="cg-panel-head">
         <span className="cg-panel-title">Turn Log</span>
         <span className="cg-mono" style={{ fontSize: 9, color: "var(--muted)" }}>
-          {turn >= 1 ? `T${String(turn).padStart(2, "0")} · ${lines.length}` : "awaiting first turn"}
+          {turn >= 1 ? `T${String(turn).padStart(2, "0")}` : "awaiting first turn"}
         </span>
       </div>
-      <div className="cg-panel-body cg-scroll" style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 5, padding: "8px 12px" }}>
-        {lines.length === 0 && (
-          <div className="cg-mono" style={{ fontSize: 10, color: "var(--muted)" }}>
-            nothing has resolved yet.
-          </div>
-        )}
-        {lines.map((l, i) => {
-          const ai = l.cog != null ? cogIdx(l.cog) : null;
-          return (
-            <div key={i} style={{ display: "grid", gridTemplateColumns: "74px 1fr", gap: 8, alignItems: "start", padding: "3px 0", borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
-              <VerbTag verb={l.verb} tone={l.tone} />
-              <div style={{ display: "flex", alignItems: "baseline", gap: 6, minWidth: 0 }}>
-                {ai != null && <span style={{ width: 7, height: 7, borderRadius: 2, background: cogColor(ai), flex: "0 0 auto", marginTop: 4 }} />}
-                <span className="cg-mono" style={{ fontSize: 10.5, color: "var(--text-dim)", lineHeight: 1.4 }}>
-                  {ai != null && <b style={{ color: cogColor(ai) }}>{cogName(ai)}: </b>}
-                  {l.action}
-                  <span style={{ color: l.failed ? "var(--exploit)" : "var(--coherence)" }}> =&gt; {l.outcome}</span>
-                </span>
+      <div className="cg-panel-body cg-scroll" style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 2, padding: "2px 12px 10px" }}>
+        {turn < 1 ? (
+          <Quiet text="nothing has resolved yet." />
+        ) : (
+          <>
+            <SectionHead label="Actions" right={`${actions.length}`} />
+            {actions.length === 0 && <Quiet text="no board orders — everyone held." />}
+            {actions.map((l, i) => {
+              const ai = cogIdx(l.cog);
+              return (
+                <div key={i} style={{ display: "grid", gridTemplateColumns: "64px 1fr", gap: 7, alignItems: "start", padding: "2px 0" }}>
+                  <span className={`cg-verb ${l.tone}`}>{l.verb}</span>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 5, minWidth: 0 }}>
+                    {dot(ai)}
+                    <span className="cg-mono" style={{ fontSize: 10.5, color: "var(--text-dim)", lineHeight: 1.4 }}>
+                      <b style={{ color: cogColor(ai) }}>{cogName(ai)}: </b>
+                      {l.action}
+                      <span style={{ color: l.failed ? "var(--exploit)" : "var(--coherence)" }}> =&gt; {l.outcome}</span>
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+            {tempo && tempo.type === "firstCommit" && (
+              <div className="cg-mono" style={{ fontSize: 9.5, color: "var(--muted)", padding: "2px 0" }}>
+                <b style={{ color: cogColor(cogIdx(tempo.cog)) }}>{cogName(cogIdx(tempo.cog))}</b> committed first · +{tempo.reward}⚡ · wins bid ties
               </div>
-            </div>
-          );
-        })}
+            )}
+
+            <SectionHead
+              label="Auction"
+              right={
+                auction?.type === "auction" && auction.winner
+                  ? <>♥ {cogName(cogIdx(auction.winner))} · {auction.price}e</>
+                  : "unsold"
+              }
+            />
+            {bidders.length === 0 ? (
+              <Quiet text="no bids — the heart goes unsold." />
+            ) : (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, padding: "3px 0" }}>
+                {bidders.map((b) => (
+                  <span
+                    key={b.cog}
+                    data-tip={`${cogName(cogIdx(b.cog))} bid ${b.amount}e — ${b.status}${b.won ? `, paid the 2nd price ${auction?.type === "auction" ? auction.price : 0}e` : ""}`}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                      padding: "1px 6px",
+                      borderRadius: 5,
+                      background: b.won ? "rgba(255,77,157,0.14)" : "var(--panel-2)",
+                      border: `1px solid ${b.won ? "var(--heart)" : "var(--border)"}`,
+                      opacity: b.status.startsWith("void") || b.status === "set rejected" ? 0.55 : 1,
+                    }}
+                  >
+                    <span style={{ width: 7, height: 7, borderRadius: 2, background: cogColor(cogIdx(b.cog)) }} />
+                    <span className="cg-mono" style={{ fontSize: 10, fontWeight: 600, color: b.won ? "var(--heart)" : "var(--text-dim)" }}>
+                      {b.amount}
+                      {b.won ? " ✓" : b.status === "outbid" ? "" : " ∅"}
+                    </span>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <SectionHead label="Upkeep" />
+            {upkeepList.length === 0 && <Quiet text="quiet turn — every bill paid, nothing minted." />}
+            {upkeepList.map(([cog, r]) => {
+              const ci = cogIdx(cog);
+              return (
+                <div key={cog} style={{ display: "flex", alignItems: "baseline", gap: 5, padding: "2px 0", minWidth: 0 }}>
+                  {dot(ci)}
+                  <span className="cg-mono" style={{ fontSize: 10, color: "var(--text-dim)", lineHeight: 1.5 }}>
+                    <b style={{ color: cogColor(ci) }}>{cogName(ci)}</b>
+                    {Object.keys(r.mint).length > 0 && (
+                      <span data-tip="minerals minted this upkeep (density × coherence / 5 per tile)">
+                        {MINERALS.filter((m) => (r.mint[m] ?? 0) > 0).map((m) => (
+                          <span key={m} style={{ color: "var(--coherence)" }}> +{r.mint[m]}{m}</span>
+                        ))}
+                      </span>
+                    )}
+                    {r.rot.length > 0 && (
+                      <span data-tip="unpaid tiles under resistance — each lost 1 coherence" style={{ color: "var(--exploit)" }}> · rot {r.rot.join(" ")}</span>
+                    )}
+                    {r.lost.length > 0 && (
+                      <span data-tip="rotted to 0 — the tile fell neutral" style={{ color: "var(--exploit)" }}> · lost {r.lost.join(" ")}</span>
+                    )}
+                  </span>
+                </div>
+              );
+            })}
+          </>
+        )}
       </div>
     </div>
   );
