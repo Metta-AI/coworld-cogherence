@@ -43,8 +43,10 @@ export function TooltipLayer(): React.ReactElement | null {
   }, [tip]);
 
   if (!tip) return null;
+  // Multiline tips are pre-formatted tables (mono font) — keep their alignment.
+  const pre = tip.text.includes("\n");
   return (
-    <div ref={ref} className="cg-tip" style={{ left: tip.x + OFF, top: tip.y + OFF }} role="tooltip">
+    <div ref={ref} className="cg-tip" style={{ left: tip.x + OFF, top: tip.y + OFF, whiteSpace: pre ? "pre" : undefined }} role="tooltip">
       {tip.text}
     </div>
   );

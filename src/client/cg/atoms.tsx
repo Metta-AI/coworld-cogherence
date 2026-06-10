@@ -132,12 +132,16 @@ export function CogSigil({ index, size = 30, glow = true }: { index: number; siz
 export function Wallet({ treasury, energy, upkeep, income }: { treasury: Treasury; energy: number; upkeep?: number; income?: number }): React.ReactElement {
   const sets = setsOf(treasury);
   const delta = income != null ? income - (upkeep ?? 0) : null;
+  const tipRow = (label: string, val: number, sign = false): string =>
+    `${label.padEnd(12)}${`${sign && val >= 0 ? "+" : ""}${val}e`.padStart(6)}`;
   const energyTip = [
-    `${energy} energy — ${sets > 0 ? `${sets} full COGS set${sets > 1 ? "s" : ""} ×10e + ` : ""}leftover singles ×1e`,
-    ...(income != null ? [`+${income}e minted last upkeep`] : []),
-    ...(upkeep != null && upkeep > 0 ? [`−${upkeep}e tile bills per turn`] : []),
-    ...(delta != null ? [`net ${delta >= 0 ? "+" : ""}${delta}e/turn`] : []),
-  ].join(" · ");
+    tipRow("energy", energy),
+    ...(sets > 0 ? [tipRow(`${sets} set${sets > 1 ? "s" : ""} ×10e`, sets * 10)] : []),
+    tipRow("singles ×1e", energy - sets * 10),
+    ...(income != null ? [tipRow("minted last", income, true)] : []),
+    ...(upkeep != null && upkeep > 0 ? [tipRow("bills /turn", -upkeep, true)] : []),
+    ...(delta != null ? [tipRow("net /turn", delta, true)] : []),
+  ].join("\n");
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
       {MINERALS.map((m) => (
