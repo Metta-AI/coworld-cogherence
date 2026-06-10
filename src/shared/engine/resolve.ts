@@ -24,6 +24,7 @@ export type ResolveEvent =
   | { type: "rejected"; cog: CogId; reason: string }
   | { type: "transfer"; from: CogId; to: CogId; mineral: Mineral; amount: number }
   | { type: "exploit"; cog: CogId; tile: HexKey; mineral: Mineral; minted: number }
+  | { type: "abandon"; cog: CogId; tile: HexKey; refund: number }
   | { type: "capture"; tile: HexKey; from: CogId | null; to: CogId | null; coherence: number; spent: number }
   | { type: "auction"; winner: CogId | null; price: number; bids: Array<[CogId, number]> };
 
@@ -35,6 +36,7 @@ const addT = (a: Treasury, b: Treasury): Treasury => ({ C: a.C + b.C, O: a.O + b
 interface Plan {
   aligns: Array<[HexKey, number]>;
   exploits: HexKey[];
+  abandons: HexKey[];
   transfers: Array<{ to: CogId; mineral: Mineral; amount: number }>;
   bid: number;
   sent: Treasury;
@@ -58,6 +60,7 @@ export function resolve(
     const orders = ordersByCog[cogId] ?? [];
     const aligns: Array<[HexKey, number]> = [];
     const exploits: HexKey[] = [];
+    const abandons: HexKey[] = [];
     const transfers: Array<{ to: CogId; mineral: Mineral; amount: number }> = [];
     const sent = emptyT();
     let bid = 0;
@@ -73,6 +76,9 @@ export function resolve(
       } else if (o.type === "exploit") {
         if (!isOwn(state, cogId, o.tile)) reject = `illegal exploit ${o.tile}`;
         else exploits.push(o.tile);
+      } else if (o.type === "abandon") {
+        if (!isOwn(state, cogId, o.tile)) reject = `illegal abandon ${o.tile}`;
+        else abandons.push(o.tile);
       } else if (o.type === "transfer") {
         if (!state.cogs[o.to] || o.to === cogId) reject = `illegal transfer to ${o.to}`;
         else {
@@ -109,7 +115,7 @@ export function resolve(
     if (alignTotal > 0) {
       // donors are the cog's OTHER tiles: not the align targets themselves, and
       // not tiles it is exploiting away this same turn
-      const excluded = new Set([...exploits, ...aligns.map(([k]) => k)]);
+      const excluded = new Set([...exploits, ...abandons, ...aligns.map(([k]) => k)]);
       let pool = 0;
       for (const [k, t] of Object.entries(state.tiles)) {
         if (t.alignment === cogId && !excluded.has(k)) pool += Math.max(0, t.coherence - 1);
@@ -119,7 +125,7 @@ export function resolve(
         continue;
       }
     }
-    plans.set(cogId, { aligns, exploits, transfers, bid, sent, spendBase });
+    plans.set(cogId, { aligns, exploits, abandons, transfers, bid, sent, spendBase });
   }
 
   // 2. heart auction — sealed second-price among valid Cogs with a positive bid.
@@ -191,6 +197,26 @@ export function resolve(
       windfall.get(cogId)![t.mineral] += minted;
       events.push({ type: "exploit", cog: cogId, tile: tk, mineral: t.mineral, minted });
       tiles[tk] = { ...t, alignment: null, coherence: 0, density: Math.floor(t.density * EXPLOIT_DENSITY) };
+    }
+  }
+
+  // 3c-b. abandons: the tile returns to neutral and its standing coherence comes
+  // home as ENERGY (next-turn money) — paid as units of the cog's most abundant
+  // mineral, each worth exactly +1e (adding to the max never completes a set).
+  for (const cogId of state.cogOrder) {
+    const p = plans.get(cogId);
+    if (!p) continue;
+    for (const tk of p.abandons) {
+      const t = tiles[tk];
+      if (!t || t.alignment !== cogId) continue; // dup / already gone
+      const refund = t.coherence;
+      if (refund > 0) {
+        const cog = state.cogs[cogId]!;
+        const mineral = MINERALS.reduce((a, b) => (cog.treasury[a] >= cog.treasury[b] ? a : b));
+        windfall.get(cogId)![mineral] += refund;
+      }
+      events.push({ type: "abandon", cog: cogId, tile: tk, refund });
+      tiles[tk] = { ...t, alignment: null, coherence: 0 };
     }
   }
 

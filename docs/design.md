@@ -55,7 +55,7 @@ Coherence is **not a stat you set**; it emerges from the spatial configuration.
 - A **strict majority** of its in-board neighbors sharing its alignment makes the tile **calm** — its upkeep bill drops to the calm rate (§6). Coherence itself moves only with the bill: paid double → **+1** (capped), unpaid → **−1**.
 - Otherwise (a tie or a minority) → Coherence **−1**, floored at 0.
 
-Enemy *and* neutral neighbors both count *against* the majority, and every non-neutral neighbor adds a surcharge to the bill — crowded ground is expensive ground. **Neutral tiles stay at Coherence 0** — they neither grow nor decay until a Cog claims them. **Edge and corner tiles** use their real in-board neighbor count for the majority test.
+Enemy *and* neutral neighbors both count *against* the majority, and every ENEMY-aligned neighbor adds a surcharge to the bill — friendly neighbors never make ground more expensive. **Neutral tiles stay at Coherence 0** — they neither grow nor decay until a Cog claims them. **Edge and corner tiles** use their real in-board neighbor count for the majority test.
 
 **The neighborhood, visualized.** Every interior tile has 6 neighbors; the ±1 rule just counts how many share its alignment:
 
@@ -66,7 +66,7 @@ Enemy *and* neutral neighbors both count *against* the majority, and every non-n
 ```
 
 Tile **X** tallies its 6 neighbor slots (enemy *and* neutral count against it):
-- X is **A**, neighbors `A A A A · B` → **4 of 6 → strict majority → calm rate**, +5 surcharge for the five aligned neighbors.
+- X is **A**, neighbors `A A A A · B` → **4 of 6 → strict majority → calm rate**, +1 surcharge for the lone enemy neighbor → 2e.
 - X is **A**, neighbors `A A · · B B` → only 2 → **minority → −1** (a salient rots).
 
 A calm interior tile is cheap to hold and grow; a lone forward tile bills the contested rate and rots whenever its owner can't pay. Edge/corner tiles just have fewer slots for the majority test.
@@ -130,7 +130,7 @@ A huge one-time burst that abandons the tile and **scars the land forever**. Goo
 
 That 10-vs-1 gap is the political economy in one line: a balanced portfolio is **2.5× more efficient per mineral**. Since almost no Cog's land yields all four, **trade is survival, not flavor** — the mineral map *is* the diplomatic map.
 
-**Upkeep:** each aligned tile bills **3 energy/turn** (**1** if a strict majority of its in-board neighbors share its alignment) **+1 per non-neutral neighbor**. A tile whose bill goes unpaid **loses 1 Coherence** (neutral at 0); a tile paid **double** gains **+1** (max 10). Bills are funded heartland-first. Calm interiors are cheap engines; contested crowded frontiers are money pits.
+**Upkeep:** each aligned tile bills **3 energy/turn** (**1** if a strict majority of its in-board neighbors share its alignment) **+1 per enemy-aligned neighbor**. A tile whose bill goes unpaid **loses 1 Coherence** (neutral at 0); a tile paid **double** gains **+1** (max 10). Bills are funded heartland-first. Calm interiors are cheap engines; contested crowded frontiers are money pits.
 
 **Timing (one-turn lag):** minerals minted in Upkeep land in the treasury for *next* turn — you always Commit against last turn's production. Energy itself is never banked: it's recomputed from the treasury the moment it's needed, and any unconverted potential simply stays as minerals. The full execution order (Exploit → Align → Transfer → auction → Upkeep) is fixed in **§14**.
 
@@ -319,7 +319,7 @@ t1 is A's frontier O-tile (B eyes it); t2 is unclaimed **S** that A badly needs;
 ### 4. Upkeep — the world breathes (§14.5)
 - **Mint** (Density × Coherence → owner, for *next* turn): t1 → 2 O to B; t2 → **6 S to A** (A finally has S income); t3 (neutral) → nothing.
 - **Bills (§6):** t2 sits inside A's cluster (4 of 6 neighbors A) → calm rate; A double-pays → **+1 → 3.** t1 is now a lone **B** salient ringed by A → contested + 6 surcharges, a bill B can't sustain → **−1 → 0.** *B's prize is already rotting; A can retake the husk next turn for a trickle.*
-- **Upkeep skim:** each tile bills by its neighborhood (calm 1 / contested 3, +1 per aligned neighbor); a Cog that can't pay loses Coherence instead.
+- **Upkeep skim:** each tile bills by its neighborhood (calm 1 / contested 3, +1 per enemy neighbor); a Cog that can't pay loses Coherence instead.
 - **Total Coherence:** across these tiles, aligned Coherence went 4 + 2 = **6 → 0 + 3 = 3.** War + Exploit **frayed the board** even though the tiles only changed hands.
 
 ### What this turn demonstrates

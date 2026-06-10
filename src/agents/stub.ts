@@ -153,6 +153,7 @@ export const randomAgent = (id: string, seed: number): Agent => {
       if (e >= 1) cands.push({ type: "bid", energy: 1 });
       if (owned.length > 1) {
         for (const t of owned) cands.push({ type: "exploit", tile: key(t.hex) }); // never strip-mine your last tile
+        for (const t of owned) cands.push({ type: "abandon", tile: key(t.hex) }); // nor abandon it
       }
       if (cands.length === 0) return [];
       return [cands[randInt(rng, cands.length)]!];

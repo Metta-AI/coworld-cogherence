@@ -49,6 +49,7 @@ export const turnEventSchema = z.discriminatedUnion("type", [
     .object({ type: z.literal("transfer"), from: z.string(), to: z.string(), mineral: mineralSchema, amount: z.number().int() })
     .strict(),
   z.object({ type: z.literal("exploit"), cog: z.string(), tile: z.string(), mineral: mineralSchema, minted: z.number() }).strict(),
+  z.object({ type: z.literal("abandon"), cog: z.string(), tile: z.string(), refund: z.number().int() }).strict(),
   z
     .object({ type: z.literal("capture"), tile: z.string(), from: cogIdNullable, to: cogIdNullable, coherence: z.number().int(), spent: z.number().int() })
     .strict(),

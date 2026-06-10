@@ -12,6 +12,7 @@ const transferSchema = z.object({ to: z.string(), mineral: z.enum(MINERALS), amo
 export const submitOrdersSchema = z.object({
   thoughts: z.string().optional(),
   aligns: z.array(alignSchema).optional(),
+  abandons: z.array(z.string()).optional(),
   exploits: z.array(z.string()).optional(),
   transfers: z.array(transferSchema).optional(),
   bid: z.number().int().nonnegative().optional(),
@@ -44,6 +45,11 @@ export const SUBMIT_ORDERS_TOOL: ToolDef = {
         type: "array",
         description: "Tile keys you own to strip-mine for a one-time windfall (the tile goes neutral and its density permanently drops).",
         items: { type: "string" },
+      abandons: {
+        type: "array",
+        items: { type: "string" },
+        description: "Tile keys you own to return to neutral — their standing coherence comes home as energy (next-turn money).",
+      },
       },
       transfers: {
         type: "array",
@@ -69,6 +75,7 @@ export const SUBMIT_ORDERS_TOOL: ToolDef = {
 export function toOrders(p: SubmitOrders): Order[] {
   const orders: Order[] = [];
   for (const a of p.aligns ?? []) orders.push({ type: "align", tile: a.tile, coherence: a.coherence });
+  for (const t of p.abandons ?? []) orders.push({ type: "abandon", tile: t });
   for (const t of p.exploits ?? []) orders.push({ type: "exploit", tile: t });
   for (const tr of p.transfers ?? []) orders.push({ type: "transfer", to: tr.to, mineral: tr.mineral, amount: tr.amount });
   if (p.bid !== undefined && p.bid > 0) orders.push({ type: "bid", energy: p.bid });

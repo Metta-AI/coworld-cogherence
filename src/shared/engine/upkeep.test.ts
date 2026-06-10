@@ -25,17 +25,18 @@ const FLOOR = () => 0.999999; // rng never below any fractional part -> mint = f
 const CEIL = () => 0; // rng below every positive fractional part -> mint = ceil(raw)
 
 // Bills under the pay-or-rot model (see tileUpkeepCost):
-//   lone tile (no in-board neighbors):       contested 3 + 0 aligned = 3e
-//   friendly pair (each other's only nbr):   calm 1 + 1 aligned      = 2e
-//   enemy pair:                              contested 3 + 1 aligned = 4e
+//   lone tile (no in-board neighbors):       contested 3            = 3e
+//   friendly pair (each other's only nbr):   calm 1 + 0 enemies     = 1e
+//   enemy pair:                              contested 3 + 1 enemy  = 4e
 
 describe("upkeep", () => {
-  it("tileUpkeepCost: calm vs contested base + surcharge per non-neutral neighbor", () => {
+  it("tileUpkeepCost: calm vs contested base + surcharge per ENEMY neighbor", () => {
     expect(tileUpkeepCost(0, 0, 0)).toBe(3); // lone tile in the wilderness
-    expect(tileUpkeepCost(1, 1, 1)).toBe(2); // friendly pair — calm, one aligned neighbor
+    expect(tileUpkeepCost(1, 1, 1)).toBe(1); // friendly pair — calm, friends add nothing
     expect(tileUpkeepCost(0, 1, 1)).toBe(4); // enemy pair — contested + surcharge
-    expect(tileUpkeepCost(4, 6, 6)).toBe(7); // calm interior of a crowded blob: 1 + 6
-    expect(tileUpkeepCost(3, 6, 6)).toBe(9); // even 3-of-6 split is NOT a majority: 3 + 6
+    expect(tileUpkeepCost(6, 6, 6)).toBe(1); // calm interior of a friendly blob stays cheap
+    expect(tileUpkeepCost(4, 6, 6)).toBe(3); // calm but bordered by 2 enemies: 1 + 2
+    expect(tileUpkeepCost(3, 6, 6)).toBe(6); // even 3-of-6 split is NOT a majority: 3 + 3
   });
 
   it("a paid tile holds; paying double grows it +1", () => {
@@ -76,10 +77,10 @@ describe("upkeep", () => {
   });
 
   it("a calm pair is cheap to hold and to grow", () => {
-    // friendly pair bills 2e each (calm + 1 neighbor). T(8): base 4, doubles 4 -> both grow.
+    // friendly pair bills 1e each. T(4): base 2, doubles 2 -> both grow, 0 left.
     const s = makeState({
       tiles: [tile(0, 0, "A", 3), tile(1, 0, "A", 2)],
-      cogOrder: ["A"], treasuries: { A: T(8, 0, 0, 0) },
+      cogOrder: ["A"], treasuries: { A: T(4, 0, 0, 0) },
     });
     const { state } = upkeep(s, FLOOR);
     expect(at(state, 0, 0).coherence).toBe(4);
@@ -88,10 +89,10 @@ describe("upkeep", () => {
   });
 
   it("doubles go strongest-first when the wallet only stretches so far", () => {
-    // friendly pair, 2e each: base 4 paid, 2 left -> only the stronger tile doubles.
+    // friendly pair, 1e each: base 2 paid, 1 left -> only the stronger tile doubles.
     const s = makeState({
       tiles: [tile(0, 0, "A", 3), tile(1, 0, "A", 2)],
-      cogOrder: ["A"], treasuries: { A: T(6, 0, 0, 0) },
+      cogOrder: ["A"], treasuries: { A: T(3, 0, 0, 0) },
     });
     const { state } = upkeep(s, FLOOR);
     expect(at(state, 0, 0).coherence).toBe(4); // doubled
@@ -100,15 +101,15 @@ describe("upkeep", () => {
   });
 
   it("tiles at COHERENCE_MAX never double-pay (nothing to buy)", () => {
-    // friendly pair at max bills 2e each; the double pass skips them.
+    // friendly pair at max bills 1e each; the double pass skips them.
     const s = makeState({
       tiles: [tile(0, 0, "A", COHERENCE_MAX), tile(1, 0, "A", COHERENCE_MAX)],
       cogOrder: ["A"], treasuries: { A: T(8, 0, 0, 0) },
     });
     const { state } = upkeep(s, FLOOR);
     expect(at(state, 0, 0).coherence).toBe(COHERENCE_MAX);
-    // 8 - 4 base = 4 C left, + each maxed d1 tile mints 1*10/10 = 1 C -> 6
-    expect(tre(state, "A")).toEqual(T(6, 0, 0, 0));
+    // 8 - 2 base = 6 C left, + each maxed d1 tile mints 1*10/10 = 1 C -> 8
+    expect(tre(state, "A")).toEqual(T(8, 0, 0, 0));
   });
 
   it("contested ground is expensive: an enemy pair bills 4e each", () => {

@@ -43,7 +43,7 @@ CLI flags: `--seed <n>` · `--agents greedy,peaceful,random,...` (overrides `--c
 
 ## Core rules
 
-- **Coherence = margin of dominance.** Coherence moves with the upkeep bill: a tile whose bill goes unpaid loses 1 (neutral at 0); a tile paid double gains 1. The bill is cheap on calm majority-friendly ground and expensive on contested, crowded ground. An Align is a tug-of-war where the winner's new coherence = its force minus the runner-up's.
+- **Coherence = margin of dominance.** Coherence moves with the upkeep bill: a tile whose bill goes unpaid loses 1 (neutral at 0); a tile paid double gains 1. The bill is cheap on calm majority-friendly ground and expensive on contested borders (each enemy neighbor adds a surcharge). An Align is a tug-of-war where the winner's new coherence = its force minus the runner-up's.
 - **Economy.** Aligned tiles mint `density × coherence` minerals each Upkeep; a full **C + O + Ge + S** set converts to 10 energy vs 1 for a single, so balanced trade is efficient. Affordability is monotonic (`maxEnergy ≥ need`).
 - **Hearts.** One heart is auctioned each turn (sealed second-price, paid in energy). Most hearts at turn 100 wins.
 - **Exploit.** Strip-mine an owned tile for a `2 × coherence × density` windfall — but it goes neutral and its density permanently halves.

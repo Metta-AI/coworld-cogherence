@@ -18,6 +18,8 @@ const BidOrder = z.object({ type: z.literal("bid"), energy: z.number().int().non
 const AlignOrder = z.object({ type: z.literal("align"), tile: z.string(), coherence: z.number().int().positive() });
 /** Strip-mine an owned tile for a one-time windfall. */
 const ExploitOrder = z.object({ type: z.literal("exploit"), tile: z.string() });
+/** Return an owned tile to neutral; its standing coherence comes home as energy. */
+const AbandonOrder = z.object({ type: z.literal("abandon"), tile: z.string() });
 /** Send minerals to another Cog. */
 const TransferOrder = z.object({
   type: z.literal("transfer"),
@@ -27,7 +29,7 @@ const TransferOrder = z.object({
 });
 
 /** A single agent order. Validated at the agent boundary (Commit phase). */
-export const OrderSchema = z.discriminatedUnion("type", [AlignOrder, ExploitOrder, TransferOrder, BidOrder]);
+export const OrderSchema = z.discriminatedUnion("type", [AlignOrder, ExploitOrder, AbandonOrder, TransferOrder, BidOrder]);
 export type Order = z.infer<typeof OrderSchema>;
 
 /** True iff `tile` exists and is aligned to `cog` (used to validate Exploit). */

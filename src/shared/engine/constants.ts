@@ -12,15 +12,15 @@ export const MAX_TURNS = 100;
 
 /** Per-tile upkeep, per turn: a CALM tile (a strict majority of its in-board
  *  neighbors share its alignment) pays the calm rate; contested or isolated
- *  tiles pay the full rate. Every non-neutral (aligned) neighbor adds a
- *  surcharge — crowded ground is expensive ground. Coherence is then purely
- *  economic: an unpaid tile loses 1 (neutral at 0); a tile paid DOUBLE gains 1
- *  (capped at COHERENCE_MAX). */
+ *  tiles pay the full rate. Every ENEMY-aligned neighbor adds a surcharge —
+ *  friendly neighbors never make ground more expensive. Coherence is then
+ *  purely economic: an unpaid tile loses 1 (neutral at 0); a tile paid DOUBLE
+ *  gains 1 (capped at COHERENCE_MAX). */
 export const UPKEEP_CALM = 1;
 export const UPKEEP_CONTESTED = 3;
-export const UPKEEP_PER_ALIGNED_NEIGHBOR = 1;
+export const UPKEEP_PER_ENEMY_NEIGHBOR = 1;
 export const tileUpkeepCost = (friendly: number, aligned: number, inBoard: number): number =>
-  (friendly * 2 > inBoard ? UPKEEP_CALM : UPKEEP_CONTESTED) + aligned * UPKEEP_PER_ALIGNED_NEIGHBOR;
+  (friendly * 2 > inBoard ? UPKEEP_CALM : UPKEEP_CONTESTED) + (aligned - friendly) * UPKEEP_PER_ENEMY_NEIGHBOR;
 
 /** Mineral minted per Upkeep = density × coherence / MINT_DIVISOR, stochastically
  *  rounded: a raw 2.3 mints 2, plus 1 with probability 0.3. With COHERENCE_MAX 10

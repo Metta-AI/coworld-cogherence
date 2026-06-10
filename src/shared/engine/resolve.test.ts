@@ -192,6 +192,34 @@ describe("resolve", () => {
     expect(at(state, 0, 0)).toMatchObject({ alignment: "A", coherence: 5, density: 4 }); // exploit did NOT happen
   });
 
+  it("abandon returns the tile to neutral and refunds its coherence as energy (next-turn money)", () => {
+    const s = makeState({
+      tiles: [tile(0, 0, "A", 5, "C", 2), tile(1, 0, "A", 2)], cogOrder: ["A"],
+      treasuries: { A: T(0, 3, 0, 0) }, // O is most abundant -> the refund lands there
+    });
+    const { state, events } = resolve(s, { A: [{ type: "abandon", tile: "0,0" }] });
+    expect(at(state, 0, 0)).toMatchObject({ alignment: null, coherence: 0, density: 2 }); // no scarring
+    expect(tre(state, "A")).toEqual(T(0, 8, 0, 0)); // +5 O (worth exactly +5e as singles)
+    expect(events).toContainEqual({ type: "abandon", cog: "A", tile: "0,0", refund: 5 });
+  });
+
+  it("abandoning a tile you don't own rejects the whole set", () => {
+    const s = makeState({ tiles: [tile(0, 0, "A", 3), tile(5, 0, "B", 2)], cogOrder: ["A", "B"] });
+    const { state, events } = resolve(s, { A: [{ type: "abandon", tile: "5,0" }] });
+    expect(at(state, 5, 0)).toMatchObject({ alignment: "B", coherence: 2 });
+    expect(events.some((e) => e.type === "rejected" && e.cog === "A")).toBe(true);
+  });
+
+  it("an abandoned tile cannot fund Aligns this turn", () => {
+    const s = makeState({
+      tiles: [tile(0, 0, "A", 5), tile(1, 0, null, 0)], cogOrder: ["A"], treasuries: { A: T() },
+    });
+    const { events } = resolve(s, {
+      A: [{ type: "abandon", tile: "0,0" }, { type: "align", tile: "1,0", coherence: 2 }],
+    });
+    expect(events.some((e) => e.type === "rejected" && e.cog === "A")).toBe(true);
+  });
+
   it("align donations come from the largest other tiles first, each floored at 1", () => {
     const s = makeState({
       tiles: [tile(0, 0, null, 0), tile(1, 0, "A", 5), tile(2, 0, "A", 3)], cogOrder: ["A"],
