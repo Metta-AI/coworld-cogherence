@@ -711,15 +711,15 @@ export function LatticePanel({
   mode,
   setMode,
   highlight = null,
-  onTileClick,
+  onTileContextMenu,
 }: {
   snapshot: GameSnapshot;
   events: StampedEvent[];
   mode: LatticeMode;
   setMode: (m: LatticeMode) => void;
   highlight?: string | null;
-  /** Operator tile click (cog view: opens the queue-order context menu). */
-  onTileClick?: (key: string, at: { x: number; y: number }) => void;
+  /** Operator tile right-click (cog view: opens the queue-order context menu). */
+  onTileContextMenu?: (key: string, at: { x: number; y: number }) => void;
 }): React.ReactElement {
   // The inspector is a hover card: it tracks the tile under the cursor and sits
   // just beside it, flipping at the panel's right/bottom edges. Leaving the
@@ -759,7 +759,7 @@ export function LatticePanel({
           exploited={exploited}
           emphasis={emphasis}
           highlight={highlight}
-        onTileClick={onTileClick}
+        onTileContextMenu={onTileContextMenu}
           />
       </div>
       <div style={{ position: "absolute", top: 12, left: 14 }}>
@@ -773,7 +773,7 @@ export function LatticePanel({
       </div>
       <div className="cg-glass" style={{ position: "absolute", bottom: 12, left: 14, padding: "5px 9px", borderRadius: 8, border: "1px solid var(--border)", opacity: 0.75 }}>
         <span className="cg-mono" style={{ fontSize: 9, color: "var(--muted)" }}>
-          scroll zoom · drag pan · 2×click reset
+          scroll zoom · drag pan · 2×click reset{onTileContextMenu ? " · right-click queue order" : ""}
         </span>
       </div>
       {hover && (

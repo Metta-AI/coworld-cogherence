@@ -301,7 +301,7 @@ export function CogView({
             mode={mode}
             setMode={setMode}
             highlight={cogId}
-            onTileClick={live && atLatest ? (key, at) => setMenu({ tileKey: key, at }) : undefined}
+            onTileContextMenu={live && atLatest ? (key, at) => setMenu({ tileKey: key, at }) : undefined}
           />
         }
         right={<CogChannels snapshot={snapshot} cogId={cogId} messages={messages} onSeekTurn={onSeekTurn} />}

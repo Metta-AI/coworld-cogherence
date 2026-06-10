@@ -34,7 +34,7 @@ function PendingActions({ pending, onCancel }: { pending: Order[]; onCancel?: (i
       </div>
       {pending.length === 0 ? (
         <div className="cg-mono" style={{ fontSize: 9.5, color: "var(--muted)", padding: "4px 0" }}>
-          none queued — click a tile on the lattice to add one.
+          none queued — right-click a tile on the lattice to add one.
         </div>
       ) : (
         pending.map((o, i) => (
