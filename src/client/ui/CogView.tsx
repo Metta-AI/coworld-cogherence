@@ -321,6 +321,10 @@ export function CogView({
                 atLatest={atLatest}
                 pending={pending}
                 onCancelPending={(i) => postPending(pending.filter((_, j) => j !== i))}
+                onReady={() => {
+                  void fetch(`/cog/${cogId}/ready`, { method: "POST" });
+                  setPending([]); // the server consumes the queue as it submits
+                }}
               />
             )}
             <TurnLog snapshot={snapshot} events={events} />

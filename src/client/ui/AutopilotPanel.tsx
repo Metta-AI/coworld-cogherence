@@ -70,12 +70,15 @@ export function AutopilotPanel({
   atLatest = true,
   pending = [],
   onCancelPending,
+  onReady,
 }: {
   cogId: string;
   atLatest?: boolean;
   /** Operator orders queued for the next Commit (server-side state). */
   pending?: Order[];
   onCancelPending?: (i: number) => void;
+  /** Manual mode: submit the queue for this Commit and mark the cog ready. */
+  onReady?: () => void;
 }): React.ReactElement {
   const [persona, setPersona] = useState("");
   const [paused, setPaused] = useState(false);
@@ -113,9 +116,9 @@ export function AutopilotPanel({
   if (!atLatest) {
     return (
       <div className="panel steering" data-testid="autopilot">
-        <h2>Autopilot</h2>
+        <h2>Control</h2>
         <div className="cg-mono" style={{ fontSize: 10.5, color: paused ? "var(--exploit)" : "var(--coherence)" }}>
-          {paused ? "○ disabled — benched" : "● enabled"}
+          {paused ? "○ manual control" : "● autopilot"}
         </div>
         <div className="cg-mono" style={{ fontSize: 10.5, color: "var(--text-dim)", whiteSpace: "pre-wrap", marginTop: 6 }}>
           {persona || "no guidance set"}
@@ -130,29 +133,41 @@ export function AutopilotPanel({
 
   return (
     <div className="panel steering" data-testid="autopilot">
-      <h2>Autopilot</h2>
+      <h2>Control</h2>
       <label className={`steer-toggle ${paused ? "is-paused" : ""}`}>
         <span className={`cg-switch ${!paused ? "on" : ""}`}>
           <input type="checkbox" checked={!paused} onChange={(e) => post({ paused: !e.target.checked })} />
           <span className="cg-knob" />
         </span>
-        <span>Enabled</span>
+        <span>Auto Pilot</span>
       </label>
-      <textarea
-        className="steer-persona"
-        data-testid="steer-persona"
-        value={persona}
-        onChange={(e) => setPersona(e.target.value)}
-        placeholder="Guidance / persona — e.g. “play aggressively and betray Bob”. Prepended to this Cog's prompt next turn."
-        rows={3}
-      />
-      <div className="steer-actions">
-        <button type="button" onClick={() => post({ persona })}>
-          Send Guidance
-        </button>
-        <span className="steer-status">{saved === "saved" ? "✓ sent" : saved === "saving" ? "sending…" : ""}</span>
-      </div>
-      <PendingActions pending={pending} onCancel={onCancelPending} />
+      {!paused ? (
+        <>
+          <textarea
+            className="steer-persona"
+            data-testid="steer-persona"
+            value={persona}
+            onChange={(e) => setPersona(e.target.value)}
+            placeholder="Guidance / persona — e.g. “play aggressively and betray Bob”. Prepended to this Cog's prompt next turn."
+            rows={3}
+          />
+          <div className="steer-actions">
+            <button type="button" onClick={() => post({ persona })}>
+              Send Guidance
+            </button>
+            <span className="steer-status">{saved === "saved" ? "✓ sent" : saved === "saving" ? "sending…" : ""}</span>
+          </div>
+        </>
+      ) : (
+        <>
+          <PendingActions pending={pending} onCancel={onCancelPending} />
+          <div className="steer-actions" style={{ marginTop: 8 }}>
+            <button type="button" data-testid="ready-btn" onClick={onReady} data-tip="submit the queued actions for this Commit and mark this cog ready (empty queue = hold)">
+              Ready
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

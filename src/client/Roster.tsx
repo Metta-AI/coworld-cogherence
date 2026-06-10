@@ -14,6 +14,8 @@ export function Roster({
   focus = null,
   onToggleFocus,
   live = false,
+  ready,
+  waiting,
 }: {
   snapshot: GameSnapshot;
   /** Event stream (for last-mint income in the energy math); omit to hide it. */
@@ -23,6 +25,10 @@ export function Roster({
   onToggleFocus?: (cogId: string) => void;
   /** Live game: show the + control that seats a new cog. */
   live?: boolean;
+  /** Cogs done with the current phase window (server status `done`). */
+  ready?: string[];
+  /** Cogs still deciding (server status `pending`). */
+  waiting?: string[];
 }): React.ReactElement {
   const ranked = rankedByHearts(snapshot.cogs);
   const terr = territory(snapshot);
@@ -94,6 +100,15 @@ export function Roster({
                     <span data-tip="total coherence across its tiles — the standing order of its territory" style={{ color: "var(--coherence)" }}> · {coh} coh</span>
                   </div>
                 </div>
+                {ready?.includes(c.id) ? (
+                  <span className="cg-mono" data-tip="locked in — done with the current phase" style={{ fontSize: 9, fontWeight: 700, color: "var(--coherence)", border: "1px solid var(--coherence)", borderRadius: 5, padding: "1px 5px" }}>
+                    ✓ ready
+                  </span>
+                ) : waiting?.includes(c.id) ? (
+                  <span className="cg-mono" data-tip="still deciding this phase" style={{ fontSize: 9, color: "var(--muted)" }}>
+                    …
+                  </span>
+                ) : null}
                 <div data-tip={`${c.hearts} hearts — most hearts at turn 100 wins`} style={{ display: "flex", alignItems: "center", gap: 4 }}>
                   <CGIcon name="heart" size={16} />
                   <span className="cg-num cg-glow" style={{ fontSize: 22, color: "var(--heart)", lineHeight: 1 }}>

@@ -4,6 +4,7 @@
 import React, { useState } from "react";
 import type { GameSnapshot } from "../../shared/snapshot";
 import type { Message } from "../../shared/messages";
+import type { ServerStatus } from "../../shared/protocol";
 import type { StampedEvent } from "../net/feed";
 import type { LatticeMode } from "../HexBoard";
 import { Roster } from "../Roster";
@@ -16,12 +17,15 @@ export function GlobalView({
   messages,
   onSeekTurn,
   live = false,
+  status = null,
 }: {
   snapshot: GameSnapshot;
   events: StampedEvent[];
   messages: Message[];
   onSeekTurn?: (turn: number) => void;
   live?: boolean;
+  /** Live server status — drives the per-cog phase-ready indicators. */
+  status?: ServerStatus | null;
 }): React.ReactElement {
   const [mode, setMode] = useState<LatticeMode>("coherence");
   // Clicking a roster cog spotlights its territory on the lattice (toggle).
@@ -35,7 +39,15 @@ export function GlobalView({
         defaultRight={332}
         left={
           <div className="cg-col">
-            <Roster snapshot={snapshot} events={events} focus={focus} onToggleFocus={toggleFocus} live={live} />
+            <Roster
+              snapshot={snapshot}
+              events={events}
+              focus={focus}
+              onToggleFocus={toggleFocus}
+              live={live}
+              ready={live ? status?.done : undefined}
+              waiting={live ? status?.pending : undefined}
+            />
             <AuctionPanel snapshot={snapshot} events={events} />
           </div>
         }

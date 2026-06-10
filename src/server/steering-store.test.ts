@@ -48,26 +48,50 @@ describe("steerableAgent", () => {
     expect(a.negotiate!(view)).toEqual([{ to: "public", text: "hi" }]);
   });
 
-  it("benches (no orders / no messages) when paused, without calling the agent", () => {
-    const store = new SteeringStore();
-    store.update("cog0", { paused: true });
-    let called = false;
-    const spy: Agent = { id: "cog0", commit: () => ((called = true), []), negotiate: () => ((called = true), []) };
-    const a = steerableAgent(spy, store);
-    expect(a.commit(view)).toEqual([]);
-    expect(a.negotiate!(view)).toEqual([]);
-    expect(called).toBe(false); // short-circuited; underlying model never invoked
-  });
-
-  it("queued operator orders OVERRIDE the agent's commit — even while benched — and submit once", () => {
+  it("a MANUAL cog waits during Commit until the operator hits Ready (queue submits then)", async () => {
     const store = new SteeringStore();
     store.update("cog0", { paused: true, pending: [{ type: "align", tile: "1,0", energy: 9 }] });
     let called = false;
-    const spy: Agent = { id: "cog0", commit: () => ((called = true), [{ type: "bid", energy: 7 }]) };
+    const spy: Agent = { id: "cog0", commit: () => ((called = true), [{ type: "bid", energy: 7 }]), negotiate: () => ((called = true), []) };
     const a = steerableAgent(spy, store);
-    expect(a.commit(view)).toEqual([{ type: "align", tile: "1,0", energy: 9 }]); // manual control wins
-    expect(called).toBe(false);
-    expect(a.commit(view)).toEqual([]); // queue consumed; still benched
+    expect(a.negotiate!(view)).toEqual([]); // silent in Negotiate
+    const orders = a.commit(view) as Promise<unknown>;
+    let resolved = false;
+    void orders.then(() => (resolved = true));
+    await new Promise((r) => setTimeout(r, 10));
+    expect(resolved).toBe(false); // parked — waiting for the operator
+    store.markReady("cog0");
+    expect(await orders).toEqual([{ type: "align", tile: "1,0", energy: 9 }]);
+    expect(called).toBe(false); // the model was never invoked
+    expect(store.get("cog0").pending).toEqual([]); // consumed
+  });
+
+  it("Ready BEFORE the commit window arms it: the next commit submits immediately", async () => {
+    const store = new SteeringStore();
+    store.update("cog0", { paused: true, pending: [{ type: "exploit", tile: "0,0" }] });
+    store.markReady("cog0"); // negotiate phase, say
+    const a = steerableAgent({ id: "cog0", commit: () => [] }, store);
+    expect(await a.commit(view)).toEqual([{ type: "exploit", tile: "0,0" }]);
+  });
+
+  it("Ready with an empty queue is an explicit hold ([])", async () => {
+    const store = new SteeringStore();
+    store.update("cog0", { paused: true });
+    const a = steerableAgent({ id: "cog0", commit: () => [{ type: "bid", energy: 7 }] }, store);
+    const orders = a.commit(view) as Promise<unknown>;
+    store.markReady("cog0");
+    expect(await orders).toEqual([]);
+  });
+
+  it("on AUTOPILOT, queued operator orders override the agent's commit and submit once", () => {
+    const store = new SteeringStore();
+    store.update("cog0", { pending: [{ type: "align", tile: "1,0", energy: 9 }] });
+    let calls = 0;
+    const spy: Agent = { id: "cog0", commit: () => (calls++, [{ type: "bid", energy: 7 }]) };
+    const a = steerableAgent(spy, store);
+    expect(a.commit(view)).toEqual([{ type: "align", tile: "1,0", energy: 9 }]); // queue wins
+    expect(calls).toBe(0);
+    expect(a.commit(view)).toEqual([{ type: "bid", energy: 7 }]); // consumed; agent resumes
   });
 
   it("preserves an absent negotiate hook", () => {

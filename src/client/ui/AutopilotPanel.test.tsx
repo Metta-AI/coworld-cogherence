@@ -50,22 +50,40 @@ describe("AutopilotPanel", () => {
     });
   });
 
-  it("lists pending actions and cancels one by index", async () => {
+  it("manual mode lists pending actions, cancels by index, and Ready fires onReady", async () => {
     const onCancel = vi.fn();
+    const onReady = vi.fn();
+    // manual: the steering fetch reports paused: true
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => Promise.resolve({ json: () => Promise.resolve({ persona: "", paused: true }) } as Response)),
+    );
     const pending = [
       { type: "align" as const, tile: "3,-4", energy: 5 },
       { type: "exploit" as const, tile: "0,0" },
     ];
-    const { getByTestId, getAllByText } = render(<AutopilotPanel cogId="cog0" pending={pending} onCancelPending={onCancel} />);
+    const { getByTestId, getAllByText } = render(
+      <AutopilotPanel cogId="cog0" pending={pending} onCancelPending={onCancel} onReady={onReady} />,
+    );
     await waitFor(() => expect(getByTestId("pending-actions").textContent).toContain("Align([3,-4], 5e)"));
     expect(getByTestId("pending-actions").textContent).toContain("Exploit([0,0])");
     fireEvent.click(getAllByText("✕")[1]!);
     expect(onCancel).toHaveBeenCalledWith(1);
+    fireEvent.click(getByTestId("ready-btn"));
+    expect(onReady).toHaveBeenCalled();
+  });
+
+  it("autopilot mode shows the guidance controls, not the queue", async () => {
+    const { getByTestId, queryByTestId, getByText } = render(<AutopilotPanel cogId="cog0" pending={[]} />);
+    await waitFor(() => expect((getByTestId("steer-persona") as HTMLTextAreaElement).value).toBe("be cautious"));
+    expect(getByText("Send Guidance")).toBeTruthy();
+    expect(queryByTestId("pending-actions")).toBeNull();
+    expect(queryByTestId("ready-btn")).toBeNull();
   });
 
   it("is read-only off the latest turn: shows state, offers no controls", async () => {
     const { queryByRole, queryByText, getByText } = render(<AutopilotPanel cogId="cog0" atLatest={false} />);
-    await waitFor(() => expect(getByText(/enabled/)).toBeTruthy());
+    await waitFor(() => expect(getByText(/autopilot/)).toBeTruthy());
     expect(getByText("be cautious")).toBeTruthy(); // the current directive, displayed
     expect(queryByRole("checkbox")).toBeNull();
     expect(queryByText("Send Guidance")).toBeNull();

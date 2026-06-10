@@ -134,7 +134,7 @@ export function App({ replay: injected, live: liveProp }: { replay?: Replay; liv
       ) : (
         <>
           {loc.view === "global" && (
-            <GlobalView snapshot={snapshot} events={visibleEvents} messages={visibleMessages} onSeekTurn={seekTurn} live={liveMode} />
+            <GlobalView snapshot={snapshot} events={visibleEvents} messages={visibleMessages} onSeekTurn={seekTurn} live={liveMode} status={store.status} />
           )}
           {loc.view === "feed" && <FeedView messages={visibleMessages} />}
           {loc.view === "cog" && loc.cogId && (
