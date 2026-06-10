@@ -1,6 +1,6 @@
 // A single Cog's HUD: its identity (treasury → derived energy, territory shape),
-// its last committed resolution, what its model saw + decided, and the channels
-// it can read — beside the public lattice with its own territory in focus.
+// the full Turn Log, what its model saw + decided, and the channels it can
+// read — beside the public lattice with its own territory in focus.
 import React, { useState } from "react";
 import type { GameSnapshot } from "../../shared/snapshot";
 import type { Message } from "../../shared/messages";
@@ -8,20 +8,11 @@ import type { StampedEvent } from "../net/feed";
 import type { LatticeMode } from "../HexBoard";
 import { cogColor, cogName } from "../colors";
 import { EnergyChip, CGIcon, Mineral } from "../cg/atoms";
-import { LatticePanel, ChannelMessage } from "../cg/panels";
+import { LatticePanel, ChannelMessage, TurnLog } from "../cg/panels";
 import { ResizableColumns } from "../cg/ResizableColumns";
-import {
-  MINERALS,
-  MINERAL_NAME,
-  setsOf,
-  territory,
-  rankedByHearts,
-  auctionAt,
-  eventsAt,
-  lastResolvedTurn,
-} from "../cg/derive";
+import { MINERALS, MINERAL_NAME, setsOf, territory, rankedByHearts } from "../cg/derive";
 import { PromptsPanel } from "../PromptsPanel";
-import { SteeringPanel } from "./SteeringPanel";
+import { AutopilotPanel } from "./AutopilotPanel";
 import type { ActPromptFrame } from "../net/feed";
 
 const cogIdx = (id: string): number => Number(id.replace(/\D/g, "")) || 0;
@@ -102,64 +93,6 @@ function Identity({ snapshot, cogId }: { snapshot: GameSnapshot; cogId: string }
   );
 }
 
-function Orders({ snapshot, cogId, events }: { snapshot: GameSnapshot; cogId: string; events: StampedEvent[] }): React.ReactElement {
-  const turn = lastResolvedTurn(snapshot);
-  const evs = eventsAt(events, turn);
-  const board = evs.filter((e) => (e.type === "capture" && e.to === cogId) || (e.type === "exploit" && e.cog === cogId));
-  const transfersIn = evs.filter((e) => e.type === "transfer" && e.to === cogId);
-  const a = auctionAt(events, turn);
-  const wonHeart = a?.winner === cogId;
-  const myBid = a?.bids.find(([id]) => id === cogId)?.[1];
-  return (
-    <div className="cg-panel" style={{ flex: "0 0 auto", display: "flex", flexDirection: "column" }} data-testid="orders">
-      <div className="cg-panel-head">
-        <span className="cg-panel-title">Last Resolution</span>
-        <span className="cg-mono" style={{ fontSize: 9, color: "var(--muted)" }}>{turn >= 1 ? `T${String(turn).padStart(2, "0")}` : "—"}</span>
-      </div>
-      <div className="cg-panel-body cg-scroll" style={{ maxHeight: 240, overflowY: "auto", display: "flex", flexDirection: "column", gap: 5, padding: "10px 12px" }}>
-        <div className="cg-label" style={{ fontSize: 8.5 }}>board actions</div>
-        {board.length === 0 && <div className="cg-mono" style={{ fontSize: 10, color: "var(--muted)" }}>held — no board orders resolved.</div>}
-        {board.map((e, i) => {
-          if (e.type === "exploit")
-            return (
-              <div key={i} style={{ display: "flex", alignItems: "baseline", gap: 7, padding: "3px 0" }}>
-                <span className="cg-verb exploit" style={{ flex: "0 0 auto" }}>EXPLOIT</span>
-                <span className="cg-mono" style={{ fontSize: 10.5, color: "var(--exploit)", lineHeight: 1.4 }}>{e.tile} → +{e.minted} {e.mineral}, scarred</span>
-              </div>
-            );
-          if (e.type === "capture")
-            return (
-              <div key={i} style={{ display: "flex", alignItems: "baseline", gap: 7, padding: "3px 0" }}>
-                <span className="cg-verb align" style={{ flex: "0 0 auto" }}>{e.from ? "FLIP" : "ALIGN"}</span>
-                <span className="cg-mono" style={{ fontSize: 10.5, color: "var(--text-dim)", lineHeight: 1.4 }}>{e.tile} → coherence {e.coherence}</span>
-              </div>
-            );
-          return null;
-        })}
-        <div className="cg-label" style={{ fontSize: 8.5, marginTop: 6 }}>resolution</div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          {a && (
-            <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "6px 9px", background: wonHeart ? "rgba(255,77,157,0.08)" : "var(--panel-2)", borderRadius: 7, border: `1px solid ${wonHeart ? "rgba(255,77,157,0.35)" : "var(--border)"}` }}>
-              <CGIcon name="heart" size={15} />
-              <span className="cg-mono" style={{ fontSize: 10.5, color: wonHeart ? "var(--heart)" : "var(--muted)" }}>
-                {wonHeart ? `Won the heart — paid ${a.price}e (2nd price)` : `Lost the auction${myBid != null ? ` · your bid ${myBid}e` : ""}`}
-              </span>
-            </div>
-          )}
-          {transfersIn.map((e, i) =>
-            e.type === "transfer" ? (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 7, padding: "6px 9px", background: "var(--panel-2)", borderRadius: 7, border: "1px solid var(--border)" }}>
-                <span className="cg-verb transfer">RECV</span>
-                <span className="cg-mono" style={{ fontSize: 10.5, color: "var(--text-dim)" }}>+{e.amount} {e.mineral} from {cogName(cogIdx(e.from))}</span>
-              </div>
-            ) : null,
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function CogChannels({ snapshot, cogId, messages, onSeekTurn }: { snapshot: GameSnapshot; cogId: string; messages: Message[]; onSeekTurn?: (turn: number) => void }): React.ReactElement {
   const visible = messages
     .filter((m) => m.to === "public" || m.from === cogId || m.to === cogId)
@@ -188,6 +121,7 @@ export function CogView({
   messages,
   events,
   live = false,
+  atLatest = true,
   onSeekTurn,
 }: {
   snapshot: GameSnapshot;
@@ -196,6 +130,8 @@ export function CogView({
   messages: Message[];
   events: StampedEvent[];
   live?: boolean;
+  /** Whether the board is on the newest turn — steering is read-only in the past. */
+  atLatest?: boolean;
   onSeekTurn?: (turn: number) => void;
 }): React.ReactElement {
   const [mode, setMode] = useState<LatticeMode>("coherence");
@@ -209,8 +145,8 @@ export function CogView({
         left={
           <div className="cg-col cg-scroll" style={{ overflowY: "auto" }}>
             <Identity snapshot={snapshot} cogId={cogId} />
-            <Orders snapshot={snapshot} cogId={cogId} events={events} />
-            {live && <SteeringPanel cogId={cogId} />}
+            <TurnLog snapshot={snapshot} events={events} />
+            {live && <AutopilotPanel cogId={cogId} atLatest={atLatest} />}
             <div className="cg-panel">
               <PromptsPanel actPrompts={mine} />
             </div>

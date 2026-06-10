@@ -145,6 +145,7 @@ export function App({ replay: injected, live: liveProp }: { replay?: Replay; liv
               messages={visibleMessages}
               events={visibleEvents}
               live={liveMode}
+              atLatest={index >= snaps.length - 1}
               onSeekTurn={seekTurn}
             />
           )}
@@ -153,7 +154,8 @@ export function App({ replay: injected, live: liveProp }: { replay?: Replay; liv
             events={store.events}
             index={index}
             onSeek={(i) => {
-              setFollow(false);
+              // jumping to the newest turn re-engages follow: new turns keep advancing the board
+              setFollow(liveMode && i >= snaps.length - 1);
               setIndex(i);
             }}
             playing={liveMode ? !paused : playing}

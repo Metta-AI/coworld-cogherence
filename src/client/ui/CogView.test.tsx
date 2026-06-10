@@ -27,15 +27,15 @@ describe("CogView", () => {
     expect(getByTestId("cog-channels").textContent).toContain("hi Alice"); // ids in text render as names
   });
 
-  it("hides the operator steering panel in replay mode, shows it when live", () => {
+  it("hides the autopilot panel in replay mode, shows it when live", () => {
     const replay = render(<CogView snapshot={snap} cogId="cog0" actPrompts={{}} messages={[]} events={[]} />);
-    expect(replay.queryByTestId("steering")).toBeNull();
+    expect(replay.queryByTestId("autopilot")).toBeNull();
 
     vi.stubGlobal(
       "fetch",
       vi.fn(() => Promise.resolve({ json: () => Promise.resolve({ persona: "", paused: false }) } as Response)),
     );
     const live = render(<CogView snapshot={snap} cogId="cog0" actPrompts={{}} messages={[]} events={[]} live />);
-    expect(live.getByTestId("steering")).toBeTruthy();
+    expect(live.getByTestId("autopilot")).toBeTruthy();
   });
 });

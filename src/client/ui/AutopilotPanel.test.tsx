@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, fireEvent, waitFor } from "@testing-library/react";
-import { SteeringPanel } from "./SteeringPanel";
+import { AutopilotPanel } from "./AutopilotPanel";
 
-describe("SteeringPanel", () => {
+describe("AutopilotPanel", () => {
   let calls: Array<{ url: string; init?: RequestInit }>;
 
   beforeEach(() => {
@@ -22,17 +22,17 @@ describe("SteeringPanel", () => {
     vi.unstubAllGlobals();
   });
 
-  it("loads the cog's current steering on mount", async () => {
-    const { getByTestId } = render(<SteeringPanel cogId="cog2" />);
+  it("loads the cog's current guidance on mount", async () => {
+    const { getByTestId } = render(<AutopilotPanel cogId="cog2" />);
     await waitFor(() => expect((getByTestId("steer-persona") as HTMLTextAreaElement).value).toBe("be cautious"));
     expect(calls[0]!.url).toBe("/cog/cog2/steering");
   });
 
-  it("POSTs a persona edit when Apply is clicked", async () => {
-    const { getByTestId, getByText } = render(<SteeringPanel cogId="cog0" />);
+  it("POSTs the guidance when Send Guidance is clicked", async () => {
+    const { getByTestId, getByText } = render(<AutopilotPanel cogId="cog0" />);
     await waitFor(() => expect((getByTestId("steer-persona") as HTMLTextAreaElement).value).toBe("be cautious"));
     fireEvent.change(getByTestId("steer-persona"), { target: { value: "betray Bob now" } });
-    fireEvent.click(getByText("Apply persona"));
+    fireEvent.click(getByText("Send Guidance"));
     await waitFor(() => {
       const post = calls.find((c) => c.init?.method === "POST");
       expect(post).toBeTruthy();
@@ -40,13 +40,21 @@ describe("SteeringPanel", () => {
     });
   });
 
-  it("POSTs a pause toggle immediately", async () => {
-    const { getByRole } = render(<SteeringPanel cogId="cog1" />);
-    await waitFor(() => expect(getByRole("checkbox")).toBeTruthy());
+  it("unchecking Enabled benches the cog (paused: true) immediately", async () => {
+    const { getByRole } = render(<AutopilotPanel cogId="cog1" />);
+    await waitFor(() => expect((getByRole("checkbox") as HTMLInputElement).checked).toBe(true)); // enabled = !paused
     fireEvent.click(getByRole("checkbox"));
     await waitFor(() => {
       const post = calls.find((c) => c.init?.method === "POST");
       expect(JSON.parse(post!.init!.body as string)).toEqual({ paused: true });
     });
+  });
+
+  it("is read-only off the latest turn: shows state, offers no controls", async () => {
+    const { queryByRole, queryByText, getByText } = render(<AutopilotPanel cogId="cog0" atLatest={false} />);
+    await waitFor(() => expect(getByText(/enabled/)).toBeTruthy());
+    expect(getByText("be cautious")).toBeTruthy(); // the current directive, displayed
+    expect(queryByRole("checkbox")).toBeNull();
+    expect(queryByText("Send Guidance")).toBeNull();
   });
 });
