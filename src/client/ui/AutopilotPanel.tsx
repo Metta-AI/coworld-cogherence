@@ -132,7 +132,10 @@ export function AutopilotPanel({
     <div className="panel steering" data-testid="autopilot">
       <h2>Autopilot</h2>
       <label className={`steer-toggle ${paused ? "is-paused" : ""}`}>
-        <input type="checkbox" checked={!paused} onChange={(e) => post({ paused: !e.target.checked })} />
+        <span className={`cg-switch ${!paused ? "on" : ""}`}>
+          <input type="checkbox" checked={!paused} onChange={(e) => post({ paused: !e.target.checked })} />
+          <span className="cg-knob" />
+        </span>
         <span>Enabled</span>
       </label>
       <textarea
