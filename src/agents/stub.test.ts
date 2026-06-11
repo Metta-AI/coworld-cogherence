@@ -2,24 +2,23 @@ import { describe, it, expect } from "vitest";
 import { peacefulAgent, greedyAgent, randomAgent } from "./stub";
 import { runGame } from "../shared/engine/game";
 import { isLegalAlignTarget, isOwn } from "../shared/engine/orders";
-import { maxEnergy } from "../shared/engine/energy";
 import type { GameState, Tile, CogId, Treasury, CogState } from "../shared/engine/types";
 import { key } from "../shared/engine/hex";
 
 const tile = (q: number, r: number, alignment: CogId | null, coherence: number, mineral: any = "C", density = 1): Tile =>
   ({ hex: { q, r }, alignment, coherence, mineral, density, density0: density });
 const T = (C = 0, O = 0, Ge = 0, S = 0): Treasury => ({ C, O, Ge, S });
-const stateWith = (tiles: Tile[], cogOrder: CogId[], treasuries: Record<CogId, Treasury> = {}): GameState => {
+const stateWith = (tiles: Tile[], cogOrder: CogId[], energies: Record<CogId, number> = {}): GameState => {
   const map: Record<string, Tile> = {};
   for (const t of tiles) map[key(t.hex)] = t;
   const cogs: Record<CogId, CogState> = {};
-  cogOrder.forEach((id, i) => (cogs[id] = { id, index: i, name: id, treasury: treasuries[id] ?? T(), hearts: 0 }));
+  cogOrder.forEach((id, i) => (cogs[id] = { id, index: i, name: id, treasury: T(), energy: energies[id] ?? 0, hearts: 0 }));
   return { turn: 1, phase: "commit", seed: 0, tiles: map, cogs, cogOrder, log: [] };
 };
 
 describe("stub agents", () => {
   it("peacefulAgent claims neutral land or reinforces, never targets an enemy tile", async () => {
-    const s = stateWith([tile(0, 0, "A", 3), tile(0, 1, null, 0), tile(1, 0, "B", 2)], ["A", "B"], { A: T(1, 1, 1, 1) });
+    const s = stateWith([tile(0, 0, "A", 3), tile(0, 1, null, 0), tile(1, 0, "B", 2)], ["A", "B"], { A: 10 });
     const orders = await peacefulAgent("A").commit({ state: s, me: "A" });
     expect(orders).toHaveLength(1);
     const o = orders[0]!;
@@ -29,16 +28,16 @@ describe("stub agents", () => {
 
   it("greedyAgent raids the weak adjacent enemy from its coherence pool and bids", async () => {
     // A's tile at coherence 8 -> pool 7, reserve 2 -> raid force 1+2=3 fits comfortably
-    const s = stateWith([tile(0, 0, "A", 8), tile(1, 0, "B", 1)], ["A", "B"], { A: T(2, 2, 2, 2) });
+    const s = stateWith([tile(0, 0, "A", 8), tile(1, 0, "B", 1)], ["A", "B"], { A: 20 });
     const orders = await greedyAgent("A").commit({ state: s, me: "A" });
     expect(orders.some((o) => o.type === "align" && o.tile === "1,0")).toBe(true);
     expect(orders.some((o) => o.type === "bid")).toBe(true);
   });
 
   it("randomAgent only emits legal, affordable orders", async () => {
-    const s = stateWith([tile(0, 0, "A", 3), tile(0, 1, null, 0), tile(1, 0, "B", 2)], ["A", "B"], { A: T(1, 1, 1, 1) });
+    const s = stateWith([tile(0, 0, "A", 3), tile(0, 1, null, 0), tile(1, 0, "B", 2)], ["A", "B"], { A: 10 });
     const agent = randomAgent("A", 42);
-    const e = maxEnergy(s.cogs.A!.treasury);
+    const e = s.cogs.A!.energy;
     for (let i = 0; i < 50; i++) {
       for (const o of await agent.commit({ state: s, me: "A" })) {
         if (o.type === "align") {
@@ -64,7 +63,7 @@ describe("stub agents", () => {
   });
 
   it("randomAgent is seed-sensitive and reproducible per seed", () => {
-    const s = stateWith([tile(0, 0, "A", 3), tile(0, 1, null, 0)], ["A"], { A: T(2, 2, 2, 2) });
+    const s = stateWith([tile(0, 0, "A", 3), tile(0, 1, null, 0)], ["A"], { A: 20 });
     const stream = (seed: number) => {
       const ag = randomAgent("A", seed);
       return Array.from({ length: 8 }, () => JSON.stringify(ag.commit({ state: s, me: "A" })));
@@ -81,7 +80,7 @@ describe("stub agents", () => {
   });
 
   it("stub agents negotiate: peaceful broadcasts a public message on its speaking turn", async () => {
-    const s = stateWith([tile(0, 0, "A", 3), tile(0, 1, null, 0)], ["A", "B"], { A: T(1, 1, 1, 1) }); // turn 1
+    const s = stateWith([tile(0, 0, "A", 3), tile(0, 1, null, 0)], ["A", "B"], { A: 10 }); // turn 1
     const posts = await peacefulAgent("A").negotiate!({ state: s, me: "A" });
     expect(posts.length).toBeGreaterThan(0);
     expect(posts[0]!.to).toBe("public");

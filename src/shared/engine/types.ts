@@ -38,6 +38,9 @@ export interface CogState {
   /** Display name — a default seat name, or whatever a claimer chose. */
   name: string;
   treasury: Treasury;
+  /** STORED energy — the only spendable currency. Minerals are trade goods
+   *  until a full COGS set is CONVERTED (+SET_ENERGY each). */
+  energy: number;
   hearts: number;
 }
 

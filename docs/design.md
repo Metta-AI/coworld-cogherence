@@ -89,7 +89,7 @@ Total board Coherence is the board's organized order: consolidation and clean bo
 
 ## 5. Actions (verbs)
 
-Energy is the **sole limiter**: do as much as you can afford. Every order draws on the derived energy pool (§6).
+Energy is the **sole limiter**: do as much as you can afford. Every order draws on STORED energy (§6).
 
 ### Align — the constructive verb (expand / capture / reinforce)
 Pour energy into a tile as **pressure** toward your alignment. Resolution is a **tug-of-war**, settled simultaneously across every Cog targeting the tile:
@@ -131,15 +131,15 @@ On a tile you hold: return it to **neutral** and recover its standing **Coherenc
 
 **Mineral production (every Upkeep):** each aligned tile mints **⌊Density × Coherence ÷ 10⌋** of its mineral into its Cog's **treasury** — deterministic. A tile at full Coherence yields ⌊its Density⌋ and weaker tiles proportionally less, so output rewards *both* good geography (Density, 0–10 power-law seeded) *and* stable, consolidated holdings (Coherence).
 
-**Energy is derived, not stored.** Whenever energy is needed, the engine auto-converts treasury minerals, greedily forming sets first:
-- A full **COGS set** (1 C + 1 O + 1 Ge + 1 S) → **10 energy.**
-- Any **single** leftover element → **1 energy.**
+**Energy is STORED — and it is the only spendable currency.** Cogs start with **100⚡** and an empty treasury; every spend (aligns, fees, bids, upkeep) draws stored energy alone. Minerals are **trade goods** with exactly one bridge to money — **CONVERSION**:
+- A full **COGS set** (1 C + 1 O + 1 Ge + 1 S) converts to **10 energy** (the Convert Set button; autopilot cogs convert automatically each turn).
+- **Singles have no energy value.** A lopsided pile is dead weight until balanced.
 
-That 10-vs-1 gap is the political economy in one line: a balanced portfolio is **2.5× more efficient per mineral**. Since almost no Cog's land yields all four, **trade is survival, not flavor** — the mineral map *is* the diplomatic map.
+That all-or-nothing set rule is the political economy in one line: since almost no Cog's land yields all four minerals, **trade is survival, not flavor** — the mineral map *is* the diplomatic map.
 
 **Upkeep:** each aligned tile bills just a base of **⌊√(tiles owned)⌋ energy/turn** (a 4-tile empire pays 2 per tile, a 25-tile one pays 5 — sprawl taxes itself), funded heartland-first. **Resistance costs no energy** — neighbors move Coherence instead: every Upkeep a tile shifts **+1 per allied neighbor − 1 per enemy neighbor** (net, cap 10; neutral counts for nothing; at 0 the tile goes neutral). The ally bonus rides on a **paid** bill — unpaid ground takes the enemy drain with no healing. Outnumbered frontiers bleed; backed lines hold themselves.
 
-**Timing (one-turn lag):** minerals minted in Upkeep land in the treasury for *next* turn — you always Commit against last turn's production. Energy itself is never banked: it's recomputed from the treasury the moment it's needed, and any unconverted potential simply stays as minerals. The full execution order (Exploit → Align → Transfer → auction → Upkeep) is fixed in **§14**.
+**Timing (one-turn lag):** minerals minted in Upkeep land in the treasury for *next* turn — you always Commit against last turn's production, and only energy already converted spends. The full execution order (Exploit → Align → Transfer → auction → Upkeep) is fixed in **§14**.
 
 ---
 
@@ -285,12 +285,12 @@ Negotiate is **timed**: a fixed wall-clock or token budget per Cog per round, pl
 *Three Cogs (**A**, **B**, **C**), mid-game, Turn 42. Talk → secret orders → simultaneous reveal → the world reacting, with real numbers.*
 
 ### Start of turn — what each Cog holds
-Treasuries carry over from Turn 41's Upkeep — you always spend *last* turn's production (§6, one-turn lag). Energy is derived greedily, sets first (§6):
+Treasuries carry over from Turn 41's Upkeep — you always spend *last* turn's production (§6, one-turn lag). Convertible value = full sets only (§6):
 
 | Cog | C | O | Ge | S | Energy available |
 |---|---|---|---|---|---|
-| A | 2 | 2 | 2 | 1 | 1 COGS set (10) + 3 singles = **13** |
-| B | 5 | 0 | 5 | 4 | no set (0 O) + 14 singles = **14** |
+| A | 2 | 2 | 2 | 1 | 1 convertible COGS set = **+10⚡** |
+| B | 5 | 0 | 5 | 4 | no set (0 O) = **+0⚡** — dead weight until traded |
 | C | 1 | 1 | 1 | 1 | 1 set = **10** |
 
 Tracked tiles:
@@ -332,5 +332,5 @@ t1 is A's frontier O-tile (B eyes it); t2 is unclaimed **S** that A badly needs;
 - **Tug-of-war is king:** a winning Align flips t1 in one turn — no grind-to-0 required (§4/§5).
 - **The reveal is the drama:** A paid the O it promised; B broke the truce — exposed together (§9).
 - **Greed self-punishes:** B's grab is a salient that erodes immediately (§4).
-- **Trade is survival:** A's balanced wallet (a COGS set → 13e) buys more force per mineral than B's setless 14 singles (§6).
+- **Trade is survival:** A's balanced wallet converts (a COGS set → +10⚡) while B's setless 14 minerals convert to nothing (§6).
 - **Buying victory costs the world:** the heart drained energy B can't spend on its rotting frontier (§8).

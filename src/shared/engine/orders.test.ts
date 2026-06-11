@@ -14,8 +14,8 @@ const stateWith = (tiles: Tile[]): GameState => {
   return {
     turn: 1, phase: "commit", seed: 0, tiles: map,
     cogs: {
-      A: { id: "A", index: 0, name: "A", treasury: emptyTreasury(), hearts: 0 },
-      B: { id: "B", index: 1, name: "B", treasury: emptyTreasury(), hearts: 0 },
+      A: { id: "A", index: 0, name: "A", treasury: emptyTreasury(), energy: 0, hearts: 0 },
+      B: { id: "B", index: 1, name: "B", treasury: emptyTreasury(), energy: 0, hearts: 0 },
     },
     cogOrder: ["A", "B"], log: [],
   };

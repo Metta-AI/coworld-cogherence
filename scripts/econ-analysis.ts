@@ -3,7 +3,6 @@
 // Usage: npx tsx scripts/econ-analysis.ts
 import { newGame, stepTurn } from "../src/shared/engine/game";
 import { greedyAgent, peacefulAgent, randomAgent } from "../src/agents/stub";
-import { maxEnergy } from "../src/shared/engine/energy";
 import type { Agent } from "../src/agents/types";
 import type { GameState, CogId } from "../src/shared/engine/types";
 import type { Order } from "../src/shared/engine/orders";
@@ -13,7 +12,7 @@ import type { Order } from "../src/shared/engine/orders";
 const turtle = (id: string): Agent => ({
   id,
   commit: (view) => {
-    const e = maxEnergy(view.state.cogs[view.me]!.treasury);
+    const e = view.state.cogs[view.me]!.energy;
     return e >= 2 ? [{ type: "bid", energy: Math.floor(e * 0.8) } as Order] : [];
   },
 });
@@ -63,7 +62,7 @@ async function run(seed: number, agents: Agent[], turns = 100): Promise<Telemetr
   const hearts: Record<string, number> = {};
   for (const id of st.cogOrder) {
     hearts[id] = st.cogs[id]!.hearts;
-    energy[id] = maxEnergy(st.cogs[id]!.treasury);
+    energy[id] = st.cogs[id]!.energy;
     tiles[id] = tiles[id] ?? 0;
   }
   return {

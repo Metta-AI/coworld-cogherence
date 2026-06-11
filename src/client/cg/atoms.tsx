@@ -78,9 +78,8 @@ export function Wallet({ treasury, energy, upkeep, income, expected }: { treasur
   const tipRow = (label: string, val: number, sign = false): string =>
     `${label.padEnd(12)}${`${sign && val >= 0 ? "+" : ""}${val}e`.padStart(6)}`;
   const energyTip = [
-    tipRow("energy", energy),
-    ...(sets > 0 ? [tipRow(`${sets} set${sets > 1 ? "s" : ""} ×10e`, sets * 10)] : []),
-    tipRow("singles ×1e", energy - sets * 10),
+    tipRow("energy stored", energy),
+    ...(sets > 0 ? [tipRow(`convertible: ${sets} set${sets > 1 ? "s" : ""} ×10e`, sets * 10)] : []),
     ...(income != null ? [tipRow("minted last", income, true)] : []),
     ...(upkeep != null && upkeep > 0 ? [tipRow("bills /turn", -upkeep, true)] : []),
     ...(delta != null ? [tipRow("net /turn", delta, true)] : []),

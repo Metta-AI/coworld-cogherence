@@ -32,22 +32,17 @@ export const BARREN_FRACTION = 0.5;
  *  Upkeep — deterministic; a full-coherence tile yields floor(density). */
 export const mintOf = (density: number, coherence: number): number => Math.floor((density * coherence) / 10);
 
-/** Energy yielded by a full COGS set (1×C + 1×O + 1×Ge + 1×S). */
+/** Energy yielded by CONVERTING a full COGS set (1×C + 1×O + 1×Ge + 1×S).
+ *  Conversion is the ONLY mineral→energy bridge; singles have no direct value. */
 export const SET_ENERGY = 10;
 
-/** Energy each Cog starts with — seeded as a balanced COGS wallet, so a fresh
- *  Cog can act from turn 1. maxEnergy(starting treasury) == STARTING_ENERGY. */
+/** STORED energy each Cog starts with (the treasury starts empty — mints
+ *  bring minerals in, which convert or trade). */
 export const STARTING_ENERGY = 100;
 
-/** First-mover tempo bonus (from cogame-polis): the first Cog to lock its Commit
- *  each turn earns exactly this much ENERGY — paid as units of its most abundant
- *  mineral, whose marginal value is precisely +1 energy each (adding to the max
- *  never completes a COGS set) — rewarding decisiveness without warping the
- *  mineral economy. */
+/** First-mover tempo bonus (from cogame-polis): the first Cog to lock its
+ *  Commit each turn earns exactly this much stored ENERGY. */
 export const FIRST_COMMIT_REWARD = 2;
-
-/** Energy yielded by a single leftover mineral. */
-export const SINGLE_ENERGY = 1;
 
 /** Exploit windfall: EXPLOIT_MULT × coherence × floor(density) units of the
  *  tile's MINERAL (coherence pre-drop) — a huge one-time mineral burst. The

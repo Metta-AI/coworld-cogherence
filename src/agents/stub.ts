@@ -10,12 +10,11 @@
 import type { Agent, AgentView, Post } from "./types";
 import type { Order } from "../shared/engine/orders";
 import type { Tile } from "../shared/engine/types";
-import { maxEnergy } from "../shared/engine/energy";
 import { neighbors, key, distance } from "../shared/engine/hex";
 import { ALIGN_MAX_ENERGY, ALIGN_REPEAT_SURCHARGE, alignEnergyCost, upkeepBase } from "../shared/engine/constants";
 import { makeRng, randInt } from "../shared/engine/rng";
 
-const myEnergy = (view: AgentView): number => maxEnergy(view.state.cogs[view.me]!.treasury);
+const myEnergy = (view: AgentView): number => view.state.cogs[view.me]!.energy;
 const ownedTiles = (view: AgentView): Tile[] =>
   Object.values(view.state.tiles).filter((t) => t.alignment === view.me);
 /** What an Align of `force` from `dist` hexes away bills (force² + dist²); a

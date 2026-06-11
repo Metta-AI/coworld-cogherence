@@ -10,7 +10,6 @@
 
 import type { GameState, CogId, HexKey, Tile, Treasury, CogState } from "./types";
 import { neighbors, key } from "./hex";
-import { chargeEnergy, maxEnergy } from "./energy";
 import { COHERENCE_MAX, mintOf, upkeepBase } from "./constants";
 
 /** Events emitted by an Upkeep phase (for the turn log / replay). */
@@ -49,6 +48,7 @@ export function upkeep(state: GameState): { state: GameState; events: UpkeepEven
     const cog = state.cogs[cogId];
     if (!cog) continue;
     let treasury = cog.treasury;
+    let energy = cog.energy;
     const owned = ownedBy.get(cogId)!;
 
     // count neighbors from the pre-upkeep snapshot (simultaneous across cogs)
@@ -69,12 +69,13 @@ export function upkeep(state: GameState): { state: GameState; events: UpkeepEven
     }
     const desc = [...owned].sort((a, b) => state.tiles[b]!.coherence - state.tiles[a]!.coherence);
 
-    // 1. the empire-scaled base bill, heartland first (resistance bills nothing)
+    // 1. the empire-scaled base bill, heartland first, from STORED energy
+    //    (resistance bills nothing; minerals don't spend — they convert)
     const base = upkeepBase(owned.length);
     const paid = new Set<HexKey>();
     for (const k of desc) {
-      if (maxEnergy(treasury) >= base) {
-        treasury = chargeEnergy(treasury, base)!;
+      if (energy >= base) {
+        energy -= base;
         paid.add(k);
       }
     }
@@ -104,7 +105,7 @@ export function upkeep(state: GameState): { state: GameState; events: UpkeepEven
       events.push({ type: "mint", cog: cogId, gained });
     }
 
-    cogs[cogId] = { ...cog, treasury };
+    cogs[cogId] = { ...cog, treasury, energy };
   }
 
   return { state: { ...state, tiles, cogs }, events };

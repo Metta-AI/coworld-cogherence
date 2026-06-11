@@ -9,7 +9,8 @@ import type { GameSnapshot, TileSnapshot } from "../../shared/snapshot";
 import type { TurnEvent } from "../../shared/engine/log";
 import type { StampedEvent } from "../net/feed";
 import { mintOf, upkeepBase } from "../../shared/engine/constants";
-import { maxEnergy } from "../../shared/engine/energy";
+import { fullSets } from "../../shared/engine/energy";
+import { SET_ENERGY } from "../../shared/engine/constants";
 
 export const MINERALS = ["C", "O", "Ge", "S"] as const;
 export type Mineral = (typeof MINERALS)[number];
@@ -172,18 +173,17 @@ export function expectedMintBy(snap: GameSnapshot): Map<string, Record<Mineral, 
   return out;
 }
 
-/** Energy value of each cog's mint on the turn that produced `snap`, valued
- *  STANDALONE — maxEnergy of the minted bundle itself. The marginal value
- *  against the owner's wallet is PRIVATE information (rival treasuries arrive
- *  redacted), so the public number must not depend on it — otherwise every
- *  viewer computes a different Production table. */
+/** Energy value of each cog's mint on the turn that produced `snap`: the full
+ *  COGS sets INSIDE the minted bundle × SET_ENERGY (energy is stored; minerals
+ *  only convert as sets). Treasury-independent on purpose — rival treasuries
+ *  arrive redacted, so a wallet-aware number would differ per viewer. */
 export function mintEnergyBy(events: StampedEvent[], snap: GameSnapshot): Map<string, number> {
   const turn = lastResolvedTurn(snap);
   const out = new Map<string, number>();
   for (const c of snap.cogs) out.set(c.id, 0);
   for (const e of events) {
     if (e.turn !== turn || e.event.type !== "mint") continue;
-    out.set(e.event.cog, maxEnergy(e.event.gained));
+    out.set(e.event.cog, fullSets(e.event.gained) * SET_ENERGY);
   }
   return out;
 }

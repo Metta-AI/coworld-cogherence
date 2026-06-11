@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { generateBoard, addCog } from "./board";
 import { key } from "./hex";
-import { maxEnergy } from "./energy";
 import { DENSITY_MAX, BOARD_RADIUS } from "./constants";
 
 const R = BOARD_RADIUS;
@@ -68,7 +67,7 @@ describe("generateBoard", () => {
     expect(g.cogOrder).toEqual(["cog0", "cog1", "cog2", "cog3", "cog4"]);
     const home = Object.values(g.tiles).find((t) => t.alignment === "cog4")!;
     expect(home.coherence).toBeGreaterThan(0);
-    expect(maxEnergy(g.cogs.cog4!.treasury)).toBe(100);
+    expect(g.cogs.cog4!.energy).toBe(100); // stored energy; treasury starts empty
     g = addCog(g); // the sixth and final seat
     expect(g.cogOrder).toHaveLength(6);
     expect(() => addCog(g)).toThrow(/at most 6/);
@@ -76,7 +75,7 @@ describe("generateBoard", () => {
 
   it("starts each cog with 100 energy (a balanced wallet)", () => {
     const g = generateBoard(7, 4);
-    for (const id of g.cogOrder) expect(maxEnergy(g.cogs[id]!.treasury)).toBe(100);
+    for (const id of g.cogOrder) expect(g.cogs[id]!.energy).toBe(100); // stored energy seed
   });
 
   it("home tiles start with positive coherence", () => {

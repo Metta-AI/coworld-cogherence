@@ -33,11 +33,10 @@ describe("game", () => {
 
   it("awards the first committer the tempo bonus and logs a firstCommit event", () => {
     const g = newGame(7, 4);
-    const sum = (t: Treasury) => t.C + t.O + t.Ge + t.S;
     const without = stepTurn(g, {});
     const withFirst = stepTurn(g, {}, ["cog1"]);
-    // cog1's wallet is FIRST_COMMIT_REWARD richer than if it hadn't moved first.
-    expect(sum(withFirst.cogs.cog1!.treasury)).toBe(sum(without.cogs.cog1!.treasury) + FIRST_COMMIT_REWARD);
+    // cog1's stored energy is FIRST_COMMIT_REWARD richer than if it hadn't moved first.
+    expect(withFirst.cogs.cog1!.energy).toBe(without.cogs.cog1!.energy + FIRST_COMMIT_REWARD);
     expect(withFirst.log[0]!.events.find((e) => e.type === "firstCommit")).toMatchObject({
       cog: "cog1",
       reward: FIRST_COMMIT_REWARD,

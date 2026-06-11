@@ -5,7 +5,8 @@ import type { GameState, CogId } from "../shared/engine/types";
 import type { Order } from "../shared/engine/orders";
 import type { Agent } from "../agents/types";
 import type { ServerMessage, ServerStatus } from "../shared/protocol";
-import { newGame, stepTurn, scoreGame } from "../shared/engine/game";
+import { newGame, stepTurn, scoreGame, convertCogSets } from "../shared/engine/game";
+import { fullSets } from "../shared/engine/energy";
 import { addCog } from "../shared/engine/board";
 import { toSnapshot } from "../shared/snapshot";
 import { PhaseCoordinator } from "./phase-coordinator";
@@ -124,6 +125,17 @@ export class GameRunner {
     this.emit({ type: "serverStatus", status: this.status() });
   }
 
+  /** Convert `sets` of a cog's full COGS sets into stored energy (the Convert
+   *  Set button). Conversion only adds energy, so mid-window application is
+   *  safe. Returns false when the treasury can't cover it. */
+  convert(cogId: CogId, sets = 1): boolean {
+    const next = convertCogSets(this.state, cogId, sets);
+    if (next === this.state) return false;
+    this.state = next;
+    this.emit({ type: "snapshot", snapshot: toSnapshot(this.state) });
+    return true;
+  }
+
   /** Flip wait-ready mode live. Turning it OFF releases a currently-parked
    *  commit window (un-submitted cogs default to [] — exactly as if the
    *  deadline had just fired); turning it ON applies from the next window. */
@@ -224,6 +236,14 @@ export class GameRunner {
       }
 
       const startedAt = Date.now();
+      // Autopilot cogs can't click the Convert Set button — convert their full
+      // sets for them each turn so the strict stored-energy economy never
+      // starves a bot. Manual (paused) cogs convert by hand.
+      for (const a of this.agents) {
+        if (this.steering?.paused(a.id)) continue;
+        const sets = fullSets(this.state.cogs[a.id]?.treasury ?? { C: 0, O: 0, Ge: 0, S: 0 });
+        if (sets > 0) this.state = convertCogSets(this.state, a.id, sets);
+      }
       const snapshot = this.state;
 
       // Negotiate phase (free-form cheap talk): a deadline-bounded window so the

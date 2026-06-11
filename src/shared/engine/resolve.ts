@@ -14,7 +14,6 @@
 
 import type { GameState, CogId, HexKey, Mineral, Treasury, CogState } from "./types";
 import { MINERALS } from "./types";
-import { chargeEnergy, maxEnergy } from "./energy";
 import { resolveTile } from "./coherence";
 import { alignDistance, isLegalAlignTarget, isOwn } from "./orders";
 import type { Order } from "./orders";
@@ -113,15 +112,16 @@ export function resolve(
       continue;
     }
 
-    // affordability: must hold the minerals it is sending, then afford worst-case
-    // ENERGY spend (= Σ align energy + #transfers×FEE + bid) from treasury − sent.
+    // affordability: must hold the minerals it is sending, then afford the
+    // worst-case ENERGY spend (= Σ align energy + #transfers×FEE + bid) from
+    // STORED energy alone — minerals don't spend, they CONVERT (explicitly).
     if (MINERALS.some((m) => cog.treasury[m] < sent[m])) {
       events.push({ type: "rejected", cog: cogId, reason: "insufficient minerals to transfer" });
       continue;
     }
     const alignCost = aligns.reduce((s, [, e]) => s + e, 0);
     const spendBase = transfers.length * TRANSFER_FEE + alignCost;
-    if (maxEnergy(subT(cog.treasury, sent)) < spendBase + bid) {
+    if (cog.energy < spendBase + bid) {
       events.push({ type: "rejected", cog: cogId, reason: "cannot afford committed spend" });
       continue;
     }
@@ -156,29 +156,31 @@ export function resolve(
   // 3. apply effects -> new tiles + treasuries.
   const tiles = { ...state.tiles };
   const postCharge = new Map<CogId, Treasury>();
+  const postEnergy = new Map<CogId, number>();
   const windfall = new Map<CogId, Treasury>();
+  const energyWindfall = new Map<CogId, number>(); // abandon refunds (next-turn money)
   const incoming = new Map<CogId, Treasury>();
   for (const cogId of state.cogOrder) {
     windfall.set(cogId, emptyT());
+    energyWindfall.set(cogId, 0);
     incoming.set(cogId, emptyT());
   }
 
-  // 3a. charge ACTUAL spend (= spendBase + clearing price if auction winner) from
-  // treasury − sent. Monotonic affordability guarantees chargeEnergy succeeds.
+  // 3a. charge ACTUAL spend (= spendBase + clearing price if auction winner)
+  // from STORED energy; sent minerals leave the treasury. The budget gate
+  // validated energy >= spendBase + bid >= actual (second price ≤ bid).
   for (const cogId of state.cogOrder) {
     const cog = state.cogs[cogId]!;
     const p = plans.get(cogId);
     if (!p) {
       postCharge.set(cogId, { ...cog.treasury });
+      postEnergy.set(cogId, cog.energy);
       continue;
     }
     const actual = p.spendBase + (winner === cogId ? clearingPrice : 0);
-    const afterSend = subT(cog.treasury, p.sent);
-    const charged = chargeEnergy(afterSend, actual);
-    // Invariant: the budget gate validated maxEnergy(afterSend) >= worstCase >= actual,
-    // and chargeEnergy is monotonic, so this is always non-null. Fail loud if that ever breaks.
-    if (charged === null) throw new Error(`resolve: affordability invariant violated for ${cogId}`);
-    postCharge.set(cogId, charged);
+    if (cog.energy < actual) throw new Error(`resolve: affordability invariant violated for ${cogId}`);
+    postCharge.set(cogId, subT(cog.treasury, p.sent));
+    postEnergy.set(cogId, cog.energy - actual);
   }
 
   // 3b. transfers -> recipient incoming (next-turn money). Rejected Cogs still
@@ -212,8 +214,7 @@ export function resolve(
   }
 
   // 3c-b. abandons: the tile returns to neutral and its standing coherence comes
-  // home as ENERGY (next-turn money) — paid as units of the cog's most abundant
-  // mineral, each worth exactly +1e (adding to the max never completes a set).
+  // home as STORED energy (next-turn money).
   for (const cogId of state.cogOrder) {
     const p = plans.get(cogId);
     if (!p) continue;
@@ -221,11 +222,7 @@ export function resolve(
       const t = tiles[tk];
       if (!t || t.alignment !== cogId) continue; // dup / already gone
       const refund = t.coherence;
-      if (refund > 0) {
-        const cog = state.cogs[cogId]!;
-        const mineral = MINERALS.reduce((a, b) => (cog.treasury[a] >= cog.treasury[b] ? a : b));
-        windfall.get(cogId)![mineral] += refund;
-      }
+      if (refund > 0) energyWindfall.set(cogId, energyWindfall.get(cogId)! + refund);
       events.push({ type: "abandon", cog: cogId, tile: tk, refund });
       tiles[tk] = { ...t, alignment: null, coherence: 0 };
     }
@@ -259,14 +256,16 @@ export function resolve(
     tiles[tk] = { ...t, alignment: res.alignment, coherence: res.coherence };
   }
 
-  // 3e. assemble cog states: new treasury = postCharge + windfall + incoming
-  // (windfall & incoming added AFTER charging => next-turn money).
+  // 3e. assemble cog states: new treasury = postCharge + windfall + incoming;
+  // new energy = postEnergy + abandon refunds (added AFTER charging => all
+  // windfalls are next-turn money).
   const cogs: Record<CogId, CogState> = {};
   for (const cogId of state.cogOrder) {
     const base = state.cogs[cogId]!;
     cogs[cogId] = {
       ...base,
       treasury: addT(addT(postCharge.get(cogId)!, windfall.get(cogId)!), incoming.get(cogId)!),
+      energy: postEnergy.get(cogId)! + energyWindfall.get(cogId)!,
       hearts: base.hearts + (winner === cogId ? 1 : 0),
     };
   }

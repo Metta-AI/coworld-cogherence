@@ -18,7 +18,7 @@ import { AutopilotPanel } from "./AutopilotPanel";
 
 const cogIdx = (id: string): number => Number(id.replace(/\D/g, "")) || 0;
 
-function Identity({ snapshot, cogId }: { snapshot: GameSnapshot; cogId: string }): React.ReactElement | null {
+function Identity({ snapshot, cogId, live }: { snapshot: GameSnapshot; cogId: string; live?: boolean }): React.ReactElement | null {
   const me = snapshot.cogs.find((c) => c.id === cogId);
   if (!me) return null;
   const color = cogColor(me.index);
@@ -69,15 +69,38 @@ function Identity({ snapshot, cogId }: { snapshot: GameSnapshot; cogId: string }
               ))}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 9, paddingTop: 9, borderTop: "1px solid var(--border)" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 5 }} data-tip="STORED energy — the only spendable currency; convert full COGS sets to refill">
                 <EnergyChip />
                 <span className="cg-num" style={{ fontSize: 22, color: "var(--energy)" }}>{me.energy}</span>
                 <span className="cg-mono" style={{ fontSize: 9, color: "var(--muted)" }}>energy</span>
               </div>
               <div style={{ flex: 1 }} />
-              <div className="cg-mono" style={{ fontSize: 10, color: sets ? "var(--coherence)" : "var(--exploit)" }}>
-                {sets ? `${sets} COGS set${sets > 1 ? "s" : ""} ×10` : "no set — singles only"}
-              </div>
+              {live ? (
+                <button
+                  type="button"
+                  data-testid="convert-set"
+                  disabled={sets < 1}
+                  data-tip={sets < 1 ? "needs one of EACH mineral — trade for what you lack" : `burn 1×C O Ge S → +10 energy (${sets} set${sets > 1 ? "s" : ""} ready)`}
+                  onClick={() => void fetch(`/cog/${cogId}/convert`, { method: "POST" })}
+                  className="cg-mono"
+                  style={{
+                    background: "none",
+                    border: `1px solid ${sets ? "var(--coherence)" : "var(--border)"}`,
+                    borderRadius: 6,
+                    padding: "3px 9px",
+                    cursor: sets ? "pointer" : "default",
+                    fontSize: 10,
+                    letterSpacing: "0.06em",
+                    color: sets ? "var(--coherence)" : "var(--muted-2)",
+                  }}
+                >
+                  Convert Set → +10⚡
+                </button>
+              ) : (
+                <div className="cg-mono" style={{ fontSize: 10, color: sets ? "var(--coherence)" : "var(--muted)" }}>
+                  {sets ? `${sets} set${sets > 1 ? "s" : ""} convertible` : "no full set"}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -343,7 +366,7 @@ export function CogView({
         defaultRight={320}
         left={
           <div className="cg-col cg-scroll" style={{ overflowY: "auto" }}>
-            <Identity snapshot={snapshot} cogId={cogId} />
+            <Identity snapshot={snapshot} cogId={cogId} live={live} />
             {live && (
               <AutopilotPanel
                 cogId={cogId}

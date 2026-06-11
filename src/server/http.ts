@@ -114,6 +114,15 @@ export function createApp(
     }
   });
 
+  // Convert Set: burn one full COGS set (1 of each mineral) for stored energy.
+  app.post("/cog/:id/convert", (req, res) => {
+    if (runner.convert(req.params.id)) {
+      const c = runner.state.cogs[req.params.id]!;
+      return res.json({ ok: true, energy: c.energy, treasury: c.treasury });
+    }
+    return res.status(409).json({ ok: false, error: "needs one of each mineral" });
+  });
+
   // Operator steering (Phase D): read + edit a cog's persona / paused flag live.
   app.get("/cog/:id/steering", (req, res) => res.json(steering?.get(req.params.id) ?? { persona: "", paused: false, pending: [], standingBid: 0 }));
   // Operator READY (manual mode): submit the queued orders for this Commit now.

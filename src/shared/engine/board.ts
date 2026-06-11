@@ -10,10 +10,9 @@ import type { GameState, Tile, CogState, CogId, Treasury } from "./types";
 import { BARREN_FRACTION, BOARD_RADIUS, COHERENCE_MAX, DENSITY_MAX, DENSITY_POWER, SET_ENERGY, STARTING_ENERGY } from "./constants";
 
 /** A balanced starting wallet worth exactly STARTING_ENERGY (maxEnergy of N full sets). */
-const startingTreasury = (): Treasury => {
-  const each = STARTING_ENERGY / SET_ENERGY;
-  return { C: each, O: each, Ge: each, S: each };
-};
+/** Fresh cogs start with STORED energy and an empty treasury — mints bring
+ *  minerals in, which convert (full sets) or trade. */
+const startingTreasury = (): Treasury => ({ C: 0, O: 0, Ge: 0, S: 0 });
 
 /** The six corner hexes in rotational order — the board's home sites. */
 const boardCorners = (): Array<{ q: number; r: number }> => {
@@ -61,7 +60,7 @@ export function generateBoard(seed: number, numCogs: number, names?: string[]): 
   for (let i = 0; i < numCogs; i++) {
     const id: CogId = `cog${i}`;
     cogOrder.push(id);
-    cogs[id] = { id, index: i, name: names?.[i]?.trim() || defaultCogName(i), treasury: startingTreasury(), hearts: 0 };
+    cogs[id] = { id, index: i, name: names?.[i]?.trim() || defaultCogName(i), treasury: startingTreasury(), energy: STARTING_ENERGY, hearts: 0 };
     const home = corners[Math.floor((i * corners.length) / numCogs)]!;
     const tile = tiles[key(home)]!;
     tile.alignment = id;
@@ -93,7 +92,7 @@ export function addCog(state: GameState, name?: string): GameState {
   };
   const cogs: Record<CogId, CogState> = {
     ...state.cogs,
-    [id]: { id, index, name: name?.trim() || defaultCogName(index), treasury: startingTreasury(), hearts: 0 },
+    [id]: { id, index, name: name?.trim() || defaultCogName(index), treasury: startingTreasury(), energy: STARTING_ENERGY, hearts: 0 },
   };
   return { ...state, tiles, cogs, cogOrder: [...state.cogOrder, id] };
 }
