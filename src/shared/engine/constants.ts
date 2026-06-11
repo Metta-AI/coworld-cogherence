@@ -14,17 +14,14 @@ export const MAX_TURNS = 100;
  *  floor(sqrt(tiles owned)) per tile, so total base spend grows ~N^1.5 and
  *  sprawl taxes itself — plus RESISTANCE: RESISTANCE_COST energy per
  *  enemy-aligned neighbor. Allies do NOT cheapen defense (neutral neighbors
- *  count for nothing) — their value is healing speed instead: a tile may
- *  regenerate up to maxRegen(allies) Coherence per Upkeep, each +1 costing
- *  REGEN_COST on top of a paid bill. An unpaid tile UNDER resistance loses 1
- *  (neutral at 0) while zero-resistance ground holds even unpaid. */
-export const REGEN_COST = 3;
+ *  count for nothing) — their value is FREE healing instead: a paid tile
+ *  regenerates +1 Coherence per allied neighbor every Upkeep (cap
+ *  COHERENCE_MAX). An unpaid tile UNDER resistance loses 1 (neutral at 0)
+ *  while zero-resistance ground holds even unpaid. */
 export const RESISTANCE_COST = 10;
 export const upkeepBase = (ownedTiles: number): number => Math.floor(Math.sqrt(Math.max(0, ownedTiles)));
 export const tileUpkeepCost = (enemies: number, ownedTiles: number): number =>
   upkeepBase(ownedTiles) + RESISTANCE_COST * enemies;
-/** Coherence a tile may regenerate in one Upkeep: 1, +1 per two allied neighbors. */
-export const maxRegen = (friendly: number): number => 1 + Math.floor(friendly / 2);
 
 /** Density: a tile's deposit richness, 0..DENSITY_MAX as a FLOAT — distributed
  *  by a power law at board generation (density = MAX × u^DENSITY_POWER: most

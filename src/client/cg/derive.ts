@@ -8,7 +8,7 @@
 import type { GameSnapshot, TileSnapshot } from "../../shared/snapshot";
 import type { TurnEvent } from "../../shared/engine/log";
 import type { StampedEvent } from "../net/feed";
-import { REGEN_COST, maxRegen, mintOf, tileUpkeepCost } from "../../shared/engine/constants";
+import { mintOf, tileUpkeepCost } from "../../shared/engine/constants";
 import { maxEnergy } from "../../shared/engine/energy";
 
 export const MINERALS = ["C", "O", "Ge", "S"] as const;
@@ -214,16 +214,14 @@ export function upkeepBy(snap: GameSnapshot): Map<string, number> {
 }
 
 /** Predict a tile's energy drain next Upkeep by simulating its owner's funding
- *  pass (mirrors the engine: base bills heartland-first, then regen strongest-
- *  first, up to maxRegen(allies) steps per tile): bill + REGEN_COST × steps
- *  when it will regenerate, the bill alone when merely held, 0 when the wallet
- *  runs out (it rots). */
+ *  pass (mirrors the engine: base bills heartland-first): the bill when paid —
+ *  a paid tile also regenerates +1 Coherence per allied neighbor for FREE
+ *  (steps) — or 0 when the wallet runs out (it rots). */
 export function tileDrain(t: TileSnapshot, snap: GameSnapshot): { drain: number; verdict: "grows" | "holds" | "rots"; steps?: number } | null {
   if (!t.alignment) return null;
   const map = tileMap(snap);
   const mine = snap.tiles.filter((x) => x.alignment === t.alignment);
   const bill = (x: TileSnapshot): number => tileCost(x, map, mine.length);
-  const allies = (x: TileSnapshot): number => neighbors(x.q, x.r, map).filter((n) => n.alignment === x.alignment).length;
   const desc = [...mine].sort((a, b) => b.coherence - a.coherence);
   let energy = snap.cogs.find((c) => c.id === t.alignment)?.energy ?? 0;
   const paid = new Set<TileSnapshot>();
@@ -234,26 +232,12 @@ export function tileDrain(t: TileSnapshot, snap: GameSnapshot): { drain: number;
       paid.add(x);
     }
   }
-  const grows = new Map<TileSnapshot, number>();
-  for (const x of desc) {
-    if (!paid.has(x)) continue;
-    const cap = Math.min(maxRegen(allies(x)), snap.coherenceMax - x.coherence);
-    let bought = 0;
-    while (bought < cap && energy >= REGEN_COST) {
-      energy -= REGEN_COST;
-      bought++;
-    }
-    if (bought > 0) grows.set(x, bought);
-    if (energy < REGEN_COST) break;
-  }
   const self = mine.find((x) => x.q === t.q && x.r === t.r)!;
+  if (!paid.has(self)) return { drain: 0, verdict: "rots" };
+  const allies = neighbors(self.q, self.r, map).filter((n) => n.alignment === self.alignment).length;
+  const steps = Math.min(allies, snap.coherenceMax - self.coherence);
   const b = bill(self);
-  const steps = grows.get(self) ?? 0;
-  return steps > 0
-    ? { drain: b + REGEN_COST * steps, verdict: "grows", steps }
-    : paid.has(self)
-      ? { drain: b, verdict: "holds" }
-      : { drain: 0, verdict: "rots" };
+  return steps > 0 ? { drain: b, verdict: "grows", steps } : { drain: b, verdict: "holds" };
 }
 
 export interface TileStatus {

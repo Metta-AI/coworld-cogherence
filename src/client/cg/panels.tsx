@@ -8,7 +8,7 @@ import type { Message } from "../../shared/messages";
 import type { TurnEvent } from "../../shared/engine/log";
 import type { StampedEvent } from "../net/feed";
 import { cogColor, cogName } from "../colors";
-import { TRANSFER_FEE, upkeepBase, maxRegen, mintOf, exploitYield, REGEN_COST, RESISTANCE_COST } from "../../shared/engine/constants";
+import { TRANSFER_FEE, upkeepBase, mintOf, exploitYield, RESISTANCE_COST } from "../../shared/engine/constants";
 import { HexBoard, type LatticeMode } from "../HexBoard";
 import { CGIcon, CogText, EnergyChip, Mineral, TilePill } from "./atoms";
 import { subscribeTileHighlight } from "./tile-highlight";
@@ -510,8 +510,8 @@ export function TileInspector({ tileKey: key, snapshot }: { tileKey: string; sna
   const drain = tileDrain(t, snapshot);
   // The bill, decomposed (mirrors tileUpkeepCost): upkeep = the empire-scaled
   // base every aligned tile pays; resistance = RESISTANCE_COST per enemy
-  // neighbor (allies do not discount it; neutral counts for nothing);
-  // regeneration = REGEN_COST per +1 coherence, up to maxRegen(allies)/turn.
+  // neighbor (allies do not discount it; neutral counts for nothing).
+  // Regeneration is FREE: a paid tile heals +1 coherence per allied neighbor.
   const enemies = t.alignment ? nb.filter((n) => n.alignment !== null && n.alignment !== t.alignment).length : 0;
   const ownedCount = t.alignment ? snapshot.tiles.filter((x) => x.alignment === t.alignment).length : 0;
   const base = upkeepBase(ownedCount);
@@ -594,8 +594,8 @@ export function TileInspector({ tileKey: key, snapshot }: { tileKey: string; sna
                   <span
                     data-tip={
                       drain.verdict === "grows"
-                        ? `bill + ${REGEN_COST}e × ${drain.steps ?? 1} regen — up to ${maxRegen(friendly)} coherence/turn here (1 + allies/2)`
-                        : `bill paid — the tile holds (each +1 coherence costs ${REGEN_COST}e, up to ${maxRegen(friendly)}/turn here)`
+                        ? `bill paid — heals +${drain.steps ?? 1} coherence/turn for free (+1 per allied neighbor)`
+                        : "bill paid — the tile holds (allied neighbors would heal it for free, +1 each per turn)"
                     }
                     style={{ color: "var(--exploit)" }}
                   >
@@ -624,9 +624,9 @@ export function TileInspector({ tileKey: key, snapshot }: { tileKey: string; sna
             {drain &&
               drain.verdict === "grows" &&
               row(
-                "· regeneration",
-                <span data-tip={`${REGEN_COST}e per +1 coherence — allies raise the ceiling: up to ${maxRegen(friendly)}/turn here (1 + allies/2)`} style={{ color: "var(--muted)" }}>
-                  −{REGEN_COST * (drain.steps ?? 1)}e{(drain.steps ?? 1) > 1 ? ` (+${drain.steps})` : ""}
+                "regeneration",
+                <span data-tip="free — a paid tile heals +1 coherence per allied neighbor every upkeep" style={{ color: "var(--coherence)" }}>
+                  +{drain.steps} coh/turn
                 </span>,
               )}
             {row(

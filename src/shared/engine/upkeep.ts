@@ -5,15 +5,15 @@
 // Heartland is funded first (descending coherence). An unpaid tile UNDER
 // resistance loses 1 Coherence (and goes neutral at 0) — zero-resistance ground
 // holds even when the wallet runs dry, so collapse stays localized to
-// frontiers. Allies buy healing speed instead: a paid tile may regenerate up to
-// maxRegen(allies) = 1 + allies/2 Coherence per turn, each +1 costing
-// REGEN_COST. Aligned tiles then mint their mineral at density×coherence.
+// frontiers. Allies are FREE healing instead: a paid tile regenerates +1
+// Coherence per allied neighbor every Upkeep, capped at COHERENCE_MAX.
+// Aligned tiles then mint their mineral at density×coherence.
 // Pure: the input state is never mutated.
 
 import type { GameState, CogId, HexKey, Tile, Treasury, CogState } from "./types";
 import { neighbors, key } from "./hex";
 import { chargeEnergy, maxEnergy } from "./energy";
-import { COHERENCE_MAX, REGEN_COST, maxRegen, mintOf, tileUpkeepCost } from "./constants";
+import { COHERENCE_MAX, mintOf, tileUpkeepCost } from "./constants";
 
 /** Events emitted by an Upkeep phase (for the turn log / replay). */
 export type UpkeepEvent =
@@ -32,10 +32,9 @@ const addT = (a: Treasury, b: Treasury): Treasury => ({ C: a.C + b.C, O: a.O + b
  * The Upkeep phase: (1) bill every owned tile via tileUpkeepCost and pay base
  * upkeep heartland-first — unpaid tiles UNDER resistance lose 1 Coherence
  * (neutral at 0) while zero-resistance tiles hold;
- * (2) with what's left, regenerate strongest-first: each +1 Coherence costs
- * REGEN_COST, up to maxRegen(allied neighbors) per tile per turn, capped at
- * COHERENCE_MAX; (3) mint floor(density × coherence / 10) of each aligned tile's mineral.
- * Pure.
+ * (2) every PAID tile regenerates +1 Coherence per allied neighbor, FREE,
+ * capped at COHERENCE_MAX; (3) mint floor(density × coherence / 10) of each
+ * aligned tile's mineral. Pure.
  */
 export function upkeep(state: GameState): { state: GameState; events: UpkeepEvent[] } {
   const events: UpkeepEvent[] = [];
@@ -92,20 +91,12 @@ export function upkeep(state: GameState): { state: GameState; events: UpkeepEven
       }
     }
 
-    // 2. regen: REGEN_COST per +1 Coherence on top of a paid bill, up to
-    //    maxRegen(allies) steps per tile, strongest first — a flat price, so
-    //    once it's unaffordable we're done.
+    // 2. regen: a paid tile heals +1 Coherence per allied neighbor, free.
     for (const k of desc) {
       if (!paid.has(k)) continue;
       const t = tiles[k]!;
-      const cap = Math.min(maxRegen(friendlyOf.get(k)!), COHERENCE_MAX - t.coherence);
-      let bought = 0;
-      while (bought < cap && maxEnergy(treasury) >= REGEN_COST) {
-        treasury = chargeEnergy(treasury, REGEN_COST)!;
-        bought++;
-      }
-      if (bought > 0) tiles[k] = { ...t, coherence: t.coherence + bought };
-      if (maxEnergy(treasury) < REGEN_COST) break;
+      const grown = Math.min(friendlyOf.get(k)!, COHERENCE_MAX - t.coherence);
+      if (grown > 0) tiles[k] = { ...t, coherence: t.coherence + grown };
     }
 
     // 3. mint (post-upkeep coherence) — floor(density × coherence / 10) per

@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { upkeep } from "./upkeep";
 import type { GameState, Tile, CogId, Mineral, Treasury, CogState } from "./types";
 import { key } from "./hex";
-import { COHERENCE_MAX, maxRegen, tileUpkeepCost, upkeepBase } from "./constants";
+import { COHERENCE_MAX, tileUpkeepCost, upkeepBase } from "./constants";
 
 const tile = (q: number, r: number, alignment: CogId | null, coherence: number, mineral: Mineral = "C", density = 1): Tile =>
   ({ hex: { q, r }, alignment, coherence, mineral, density, density0: density });
@@ -24,8 +24,8 @@ const at = (g: GameState, q: number, r: number) => g.tiles[key({ q, r })]!;
 //   any tile:        floor(sqrt(tiles owned)) base
 //   + 10e x enemies  allies do NOT cheapen defense; neutral counts for nothing
 // Cogs holding 1-3 tiles pay base 1, so the small scenarios below stay simple.
-// Allies buy HEALING SPEED instead: a paid tile regenerates up to
-// maxRegen(allies) = 1 + allies/2 coherence per turn, each +1 costing 3e.
+// Allies ARE the healing instead: a paid tile regenerates +1 coherence per
+// allied neighbor every turn, free (cap COHERENCE_MAX).
 
 describe("upkeep", () => {
   it("tileUpkeepCost: empire-scaled base + 10e per enemy (allies never cheapen defense)", () => {
@@ -33,14 +33,6 @@ describe("upkeep", () => {
     expect(tileUpkeepCost(0, 4)).toBe(2); // quiet tile in a 4-tile empire
     expect(tileUpkeepCost(1, 1)).toBe(11); // one enemy neighbor: base + 10e
     expect(tileUpkeepCost(3, 9)).toBe(33); // 3 enemies in a 9-tile empire: 3 + 30
-  });
-
-  it("maxRegen: allies buy healing speed — 1 + one per two allied neighbors", () => {
-    expect(maxRegen(0)).toBe(1);
-    expect(maxRegen(1)).toBe(1);
-    expect(maxRegen(2)).toBe(2);
-    expect(maxRegen(4)).toBe(3);
-    expect(maxRegen(6)).toBe(4);
   });
 
   it("upkeepBase scales as floor(sqrt(tiles)): sprawl taxes itself", () => {
@@ -59,23 +51,16 @@ describe("upkeep", () => {
       cogOrder: ["A"], treasuries: { A: T(8, 0, 0, 0) },
     });
     const { state } = upkeep(s);
-    expect(at(state, 0, 0).coherence).toBe(5); // paid, no regen budget left
+    expect(at(state, 0, 0).coherence).toBe(5); // paid; isolated tiles have no allies to heal them
     expect(tre(state, "A")).toEqual(T(0, 0, 0, 0)); // 8 - 4x2 = 0; mint floor(1x5/10) = 0 each
   });
 
-  it("a paid tile holds; paying the 3e regen grows it +1", () => {
-    // lone tile bills 1e. T(4): pay 1 (holds), then 3 regen (grows) -> 0 left.
+  it("a lone paid tile holds — healing comes only from allied neighbors", () => {
+    // lone tile bills 1e; no allies -> no regen, money can't buy it.
     const s = makeState({ tiles: [tile(0, 0, "A", 8, "Ge", 3)], cogOrder: ["A"], treasuries: { A: T(4, 0, 0, 0) } });
     const { state } = upkeep(s);
-    expect(at(state, 0, 0).coherence).toBe(9); // 8 -> regenerated -> 9
-    expect(tre(state, "A")).toEqual(T(0, 0, 2, 0)); // 4-1-3=0 C; mint floor(3*9/10)=2 Ge
-  });
-
-  it("base upkeep paid but regen unaffordable -> coherence simply holds", () => {
-    const s = makeState({ tiles: [tile(0, 0, "A", 8, "C", 3)], cogOrder: ["A"], treasuries: { A: T(3, 0, 0, 0) } });
-    const { state } = upkeep(s);
-    expect(at(state, 0, 0).coherence).toBe(8); // paid 1, 2 left < 3 -> no regen
-    expect(tre(state, "A")).toEqual(T(4, 0, 0, 0)); // 3-1=2 C + mint floor(3*8/10)=2 C
+    expect(at(state, 0, 0).coherence).toBe(8); // held — no allies, no healing
+    expect(tre(state, "A")).toEqual(T(3, 0, 2, 0)); // 4-1=3 C; mint floor(3*8/10)=2 Ge
   });
 
   it("mints floor(density × coherence / 10), deterministically — floats floor away", () => {
@@ -106,8 +91,8 @@ describe("upkeep", () => {
     expect(tre(state, "A")).toEqual(T(0, 0, 0, 0)); // 11e spent; mints floor(5/10) + floor(2/10) = 0
   });
 
-  it("a friendly pair is cheap to hold and to grow", () => {
-    // friendly pair bills 1e each. T(8): base 2, regen 3+3 -> both grow, 0 left.
+  it("a paid friendly pair heals +1 each, free — allies are the regen", () => {
+    // friendly pair bills 1e each. T(8): base 2 paid; each tile has 1 ally -> +1 free.
     const s = makeState({
       tiles: [tile(0, 0, "A", 3), tile(1, 0, "A", 2)],
       cogOrder: ["A"], treasuries: { A: T(8, 0, 0, 0) },
@@ -115,23 +100,11 @@ describe("upkeep", () => {
     const { state } = upkeep(s);
     expect(at(state, 0, 0).coherence).toBe(4);
     expect(at(state, 1, 0).coherence).toBe(3);
-    expect(tre(state, "A")).toEqual(T(0, 0, 0, 0));
+    expect(tre(state, "A")).toEqual(T(6, 0, 0, 0)); // healing cost nothing: 8 - 2 bills, mints 0
   });
 
-  it("regen goes strongest-first when the wallet only stretches so far", () => {
-    // friendly pair, 1e each: base 2 paid, 3 left -> only the stronger tile regenerates.
-    const s = makeState({
-      tiles: [tile(0, 0, "A", 3), tile(1, 0, "A", 2)],
-      cogOrder: ["A"], treasuries: { A: T(5, 0, 0, 0) },
-    });
-    const { state } = upkeep(s);
-    expect(at(state, 0, 0).coherence).toBe(4); // regenerated
-    expect(at(state, 1, 0).coherence).toBe(2); // held only
-    expect(tre(state, "A")).toEqual(T(0, 0, 0, 0));
-  });
-
-  it("tiles at COHERENCE_MAX never pay regen (nothing to buy)", () => {
-    // friendly pair at max bills 1e each; the regen pass skips them.
+  it("tiles at COHERENCE_MAX stay capped — allies can't overheal", () => {
+    // friendly pair at max bills 1e each; the regen pass caps at max.
     const s = makeState({
       tiles: [tile(0, 0, "A", COHERENCE_MAX), tile(1, 0, "A", COHERENCE_MAX)],
       cogOrder: ["A"], treasuries: { A: T(8, 0, 0, 0) },
@@ -166,18 +139,28 @@ describe("upkeep", () => {
     expect(tre(state, "B")).toEqual(T(10, 0, 0, 0)); // unpaid bills charge nothing; mint 0
   });
 
-  it("allies speed healing: two allied neighbors let a paid tile regen +2 in one turn", () => {
+  it("two allied neighbors heal a paid tile +2 in one turn, free", () => {
     // a mutually-adjacent A triangle: (0,0)@5 flanked by two maxed allies.
-    // owned=3 -> base 1, no enemies. T(9): bills 3, the maxed pair skip regen,
-    // (0,0) buys maxRegen(2)=2 steps at 3e each -> coherence 7.
+    // owned=3 -> base 1, no enemies. T(9): bills 3; (0,0) heals +1 per ally -> 7.
     const s = makeState({
       tiles: [tile(0, 0, "A", 5), tile(1, 0, "A", COHERENCE_MAX), tile(0, 1, "A", COHERENCE_MAX)],
       cogOrder: ["A"], treasuries: { A: T(9, 0, 0, 0) },
     });
     const { state } = upkeep(s);
-    expect(at(state, 0, 0).coherence).toBe(7); // +2 — allies sped the healing
-    // 9 - 3 bills - 6 regen = 0; mint floor(10/10)x2 + floor(7/10) = 1+1+0 = 2 C
-    expect(tre(state, "A")).toEqual(T(2, 0, 0, 0));
+    expect(at(state, 0, 0).coherence).toBe(7); // +2 — one per allied neighbor, free
+    // 9 - 3 bills = 6; mint floor(10/10)x2 + floor(7/10) = 1+1+0 = 2 C -> 8
+    expect(tre(state, "A")).toEqual(T(8, 0, 0, 0));
+  });
+
+  it("unpaid tiles do not heal — regen rides on a paid bill", () => {
+    // broke A: the sheltered pair holds (zero resistance) but gets NO free healing.
+    const s = makeState({
+      tiles: [tile(0, 0, "A", 3), tile(1, 0, "A", 2)],
+      cogOrder: ["A"], treasuries: { A: T() },
+    });
+    const { state } = upkeep(s);
+    expect(at(state, 0, 0).coherence).toBe(3); // held, not healed
+    expect(at(state, 1, 0).coherence).toBe(2);
   });
 
   it("any enemy neighbor makes ground rot when unpaid — allies don't shelter it", () => {
