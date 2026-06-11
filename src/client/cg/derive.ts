@@ -172,22 +172,18 @@ export function expectedMintBy(snap: GameSnapshot): Map<string, Record<Mineral, 
   return out;
 }
 
-/** Energy value of each cog's mint on the turn that produced `snap` — what the
- *  last Upkeep's minerals actually added to the derived-energy wallet (exact:
- *  maxEnergy with the mint minus maxEnergy without it, so set-completions count
- *  at full value). */
+/** Energy value of each cog's mint on the turn that produced `snap`, valued
+ *  STANDALONE — maxEnergy of the minted bundle itself. The marginal value
+ *  against the owner's wallet is PRIVATE information (rival treasuries arrive
+ *  redacted), so the public number must not depend on it — otherwise every
+ *  viewer computes a different Production table. */
 export function mintEnergyBy(events: StampedEvent[], snap: GameSnapshot): Map<string, number> {
   const turn = lastResolvedTurn(snap);
   const out = new Map<string, number>();
   for (const c of snap.cogs) out.set(c.id, 0);
   for (const e of events) {
-    const ev = e.event;
-    if (e.turn !== turn || ev.type !== "mint") continue;
-    const cog = snap.cogs.find((c) => c.id === ev.cog);
-    if (!cog) continue;
-    const g = ev.gained;
-    const before = { C: cog.treasury.C - g.C, O: cog.treasury.O - g.O, Ge: cog.treasury.Ge - g.Ge, S: cog.treasury.S - g.S };
-    out.set(cog.id, maxEnergy(cog.treasury) - maxEnergy(before));
+    if (e.turn !== turn || e.event.type !== "mint") continue;
+    out.set(e.event.cog, maxEnergy(e.event.gained));
   }
   return out;
 }
