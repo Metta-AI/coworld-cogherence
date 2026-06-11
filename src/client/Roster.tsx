@@ -80,8 +80,10 @@ export function Roster({
                 padding: "9px 10px",
                 borderRadius: 8,
                 background: "var(--panel-2)",
-                border: `1px solid ${active || i === 0 ? color : "var(--border)"}`,
-                borderLeft: `3px solid ${color}`,
+                // longhand only: mixing `border` + `borderLeft` shorthands makes React warn on every rerender
+                borderStyle: "solid",
+                borderWidth: "1px 1px 1px 3px",
+                borderColor: ((edge) => `${edge} ${edge} ${edge} ${color}`)(active || i === 0 ? color : "var(--border)"),
                 boxShadow: active ? `0 0 0 1px ${color}, 0 0 16px ${color}66` : i === 0 ? `0 0 14px ${color}22` : "none",
                 opacity: dimmed ? 0.5 : 1,
                 transition: "opacity 0.15s, box-shadow 0.15s, border-color 0.15s",

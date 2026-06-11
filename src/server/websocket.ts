@@ -55,6 +55,7 @@ export function attachWebsockets(
     let cogId: CogId | null;
     if (path === "/global/ws") cogId = null;
     else if (m) cogId = m[1]!;
+    else if (path === "/vite-hmr") return; // Vite HMR (dev) — vite's own upgrade listener owns this path
     else {
       socket.destroy();
       return;

@@ -1,7 +1,7 @@
 import { defineConfig } from "@playwright/test";
 
-// Smoke tests run against the live server (express + ws) serving the built
-// client; `preserve` regenerates public/replay.json and rebuilds dist/ first.
+// Smoke tests run against the live server (express + ws) serving the client
+// through Vite middleware — no build step; the port is up in ~2s.
 export default defineConfig({
   testDir: "tests/smoke",
   fullyParallel: false,

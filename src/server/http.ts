@@ -1,11 +1,15 @@
 // The express app: a small operator API (health + public/redacted state JSON) and
-// static serving of the built client (dist/) with SPA fallbacks. The live feed
-// itself goes over websockets (see websocket.ts); these routes are for probes,
-// tooling, and serving the bundle.
+// client serving with SPA fallbacks — through Vite in middleware mode when a dev
+// server is passed (source modules + HMR, no build step), or raw index.html
+// otherwise (tests exercise the API only). The live feed itself goes over
+// websockets (see websocket.ts); these routes are for probes, tooling, and
+// serving the client.
 import express from "express";
 import { z } from "zod";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+import { readFile } from "node:fs/promises";
+import type { ViteDevServer } from "vite";
 import { toSnapshot } from "../shared/snapshot";
 import { greedyAgent } from "../agents/stub";
 import { OrderSchema } from "../shared/engine/orders";
@@ -32,7 +36,7 @@ export function createApp(
   hub?: ActPromptHub,
   steering?: SteeringStore,
   recorder?: ReplayRecorder,
-  opts: { defaultLive?: boolean } = {},
+  opts: { defaultLive?: boolean; vite?: ViteDevServer } = {},
 ): express.Express {
   const app = express();
   app.use(express.json());
@@ -95,17 +99,20 @@ export function createApp(
     return res.json(steering.update(req.params.id, parsed.data));
   });
 
-  const dist = resolve(dirname(fileURLToPath(import.meta.url)), "../../dist");
-  // index:false so "/" falls through to the SPA handler below (which may redirect
-  // to ?live) instead of express.static serving index.html and shadowing it.
-  app.use(express.static(dist, { index: false }));
-  // SPA fallback for client routes (the built index.html drives view selection).
-  // On a live server, default the bare routes to the LIVE view (add ?live) so
+  // Client serving: Vite middleware transforms source modules on demand and
+  // hot-swaps client edits into the open page — no build step, no server
+  // restart, and the live game survives UI iteration. (Restarts are what left
+  // the preview pane stranded on its non-retrying "Awaiting server…" screen.)
+  const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+  if (opts.vite) app.use(opts.vite.middlewares);
+  // SPA fallback for client routes (index.html drives view selection). On a
+  // live server, default the bare routes to the LIVE view (add ?live) so
   // opening the URL watches the running game instead of the static recording —
   // live mode also lets you scrub buffered history, so nothing is lost.
-  app.get(["/", "/cog/:id", "/feed"], (req, res) => {
+  app.get(["/", "/cog/:id", "/feed"], async (req, res) => {
     if (opts.defaultLive && req.query.live === undefined) return res.redirect(`${req.path}?live`);
-    res.sendFile(resolve(dist, "index.html"));
+    const raw = await readFile(resolve(root, "index.html"), "utf-8");
+    res.type("html").send(opts.vite ? await opts.vite.transformIndexHtml(req.originalUrl, raw) : raw);
   });
 
   return app;

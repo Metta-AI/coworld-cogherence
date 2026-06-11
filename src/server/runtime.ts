@@ -33,6 +33,8 @@ export async function startServer(opts: {
   agentSpecs?: string[];
   defaultLive?: boolean;
   autorun?: boolean;
+  /** Serve the client through Vite middleware (source + HMR) instead of nothing. */
+  dev?: boolean;
 }): Promise<ServerHandle> {
   const runner = new GameRunner({
     seed: opts.seed,
@@ -49,8 +51,17 @@ export async function startServer(opts: {
     { seed: opts.seed, agents: opts.agentSpecs ?? opts.agents.map((a) => a.id), turns: opts.maxTurns ?? 100 },
     { hub: opts.hub, bus: opts.bus },
   );
-  const http = createServer(createApp(runner, opts.hub, opts.steering, recorder, { defaultLive: opts.defaultLive }));
+  const http = createServer();
   const ws = attachWebsockets(http, runner, opts.hub, opts.bus, recorder);
+  // Dev: Vite in middleware mode serves client SOURCE with HMR — client edits
+  // land in the open page without a restart. Its HMR websocket shares this
+  // http server on /vite-hmr (whitelisted in websocket.ts).
+  const vite = opts.dev
+    ? await (await import("vite")).createServer({
+        server: { middlewareMode: true, hmr: { server: http, path: "/vite-hmr" } },
+      })
+    : undefined;
+  http.on("request", createApp(runner, opts.hub, opts.steering, recorder, { defaultLive: opts.defaultLive, vite }));
   await new Promise<void>((r) => http.listen(opts.port ?? 0, r));
   const port = (http.address() as { port: number }).port;
   if (opts.autorun !== false) void runner.run();
@@ -60,6 +71,7 @@ export async function startServer(opts: {
     runner,
     close: async () => {
       ws.close();
+      await vite?.close();
       await new Promise<void>((res) => http.close(() => res()));
     },
   };

@@ -14,10 +14,8 @@
     "smoke": "playwright test",
     "play": "tsx src/cli.ts",
     "dev:llm": "AWS_REGION=${AWS_REGION:-us-west-2} tsx src/cli-llm.ts",
-    "preserve": "npm run play -- --seed 7 --cogs 4 --out public/replay.json && npm run build:web",
-    "serve": "tsx src/cli-serve.ts",
-    "preserve:llm": "npm run preserve",
-    "serve:llm": "AWS_REGION=${AWS_REGION:-us-west-2} tsx src/cli-serve.ts"
+    "serve": "tsx watch --clear-screen=false --ignore 'vite.config.ts.timestamp-*' src/cli-serve.ts",
+    "serve:llm": "AWS_REGION=${AWS_REGION:-us-west-2} tsx watch --clear-screen=false --ignore 'vite.config.ts.timestamp-*' src/cli-serve.ts"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3",
