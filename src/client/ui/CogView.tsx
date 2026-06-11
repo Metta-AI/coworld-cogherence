@@ -8,7 +8,7 @@ import type { StampedEvent } from "../net/feed";
 import type { LatticeMode } from "../HexBoard";
 import type { Order } from "../../shared/engine/orders";
 import { distance } from "../../shared/engine/hex";
-import { ALIGN_MAX_ENERGY, ALIGN_REPEAT_SURCHARGE, COHERENCE_MAX, EXPLOIT_MULT, alignEnergyCost } from "../../shared/engine/constants";
+import { ALIGN_MAX_ENERGY, ALIGN_REPEAT_SURCHARGE, COHERENCE_MAX, alignEnergyCost, exploitYield } from "../../shared/engine/constants";
 import { cogColor, cogName } from "../colors";
 import { EnergyChip, CGIcon, Mineral } from "../cg/atoms";
 import { LatticePanel, ChannelMessage, TurnLog } from "../cg/panels";
@@ -187,7 +187,7 @@ function TileMenu({
             <button type="button" className="cg-menu-row" onClick={() => onPick({ type: "exploit", tile: tileKey })}>
               <span style={row}>
                 <span className="cg-verb exploit">EXPLOIT</span>
-                <span className="cg-mono" style={{ fontSize: 10, color: "var(--coherence)" }}>+{Math.floor(EXPLOIT_MULT * t.coherence * t.density)} {t.mineral} · scars</span>
+                <span className="cg-mono" style={{ fontSize: 10, color: "var(--coherence)" }}>+{exploitYield(t.coherence, t.density)} {t.mineral} · scars</span>
               </span>
             </button>
             <button type="button" className="cg-menu-row" onClick={() => onPick({ type: "abandon", tile: tileKey })}>
@@ -320,7 +320,7 @@ export function CogView({
       return `${cost}e`;
     }
     if (o.type === "abandon") return t ? `+${t.coherence}e` : undefined;
-    if (o.type === "exploit") return t ? `+${EXPLOIT_MULT * t.coherence * t.density} ${t.mineral}` : undefined;
+    if (o.type === "exploit") return t ? `+${exploitYield(t.coherence, t.density)} ${t.mineral}` : undefined;
     return undefined;
   });
   const postPending = useCallback(

@@ -18,7 +18,7 @@ import { chargeEnergy, maxEnergy } from "./energy";
 import { resolveTile } from "./coherence";
 import { alignDistance, isLegalAlignTarget, isOwn } from "./orders";
 import type { Order } from "./orders";
-import { ALIGN_MAX_ENERGY, ALIGN_REPEAT_SURCHARGE, alignEnergyCost, COHERENCE_MAX, EXPLOIT_MULT, TRANSFER_FEE } from "./constants";
+import { ALIGN_MAX_ENERGY, ALIGN_REPEAT_SURCHARGE, alignEnergyCost, COHERENCE_MAX, exploitYield, TRANSFER_FEE } from "./constants";
 
 /** Events emitted by a Resolve phase (for the turn log / replay). */
 export type ResolveEvent =
@@ -201,11 +201,13 @@ export function resolve(
     for (const tk of p.exploits) {
       const t = tiles[tk];
       if (!t || t.alignment !== cogId) continue; // dup / already neutral
-      const minted = Math.floor(EXPLOIT_MULT * t.coherence * t.density);
+      const minted = exploitYield(t.coherence, t.density);
       windfall.get(cogId)![t.mineral] += minted;
       events.push({ type: "exploit", cog: cogId, tile: tk, mineral: t.mineral, minted });
-      // scarring scales with the order cashed out: density loses coherence/10
-      tiles[tk] = { ...t, alignment: null, coherence: 0, density: Math.max(0, t.density - t.coherence / 10) };
+      // scarring scales with the order cashed out: density loses coherence/10;
+      // a deposit ground below 1 collapses to 0 (too thin to mine again)
+      const scarred = t.density - t.coherence / 10;
+      tiles[tk] = { ...t, alignment: null, coherence: 0, density: scarred < 1 ? 0 : scarred };
     }
   }
 

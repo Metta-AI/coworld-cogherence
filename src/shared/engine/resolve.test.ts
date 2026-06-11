@@ -146,6 +146,16 @@ describe("resolve", () => {
     expect(tre(state, "A").O).toBe(120); // floor(10·4·3)
   });
 
+  it("a deposit scarred below density 1 collapses to 0 — too thin to mine again", () => {
+    // coherence 9 grinds 0.9 off a 1.5 deposit -> 0.6 -> snaps to 0
+    const s = makeState({
+      tiles: [tile(0, 0, "A", 9, "S", 1.5)], cogOrder: ["A"], treasuries: { A: T() },
+    });
+    const { state } = resolve(s, { A: [{ type: "exploit", tile: "0,0" }] });
+    expect(at(state, 0, 0).density).toBe(0);
+    expect(tre(state, "A").S).toBe(135); // floor(10·9·1.5) — always a whole number
+  });
+
   it("exploit resolves BEFORE align: an exploited tile is neutral/0 when a rival's align lands, so the rival takes the husk", () => {
     const s = makeState({
       tiles: [tile(0, 0, "A", 5, "C", 2), tile(1, 0, "B", 4)], cogOrder: ["A", "B"],
