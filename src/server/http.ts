@@ -84,6 +84,28 @@ export function createApp(
     }
   });
 
+  // Claim an agent by NAME — the shareable /cog/<name> entry point. Finds the
+  // cog wearing the name (case-insensitive) or seats a new one wearing it;
+  // either way AUTOPILOT GOES OFF: the claimer owns it now. 409 when the
+  // board is out of seats.
+  app.post("/cogs/claim", (req, res) => {
+    const parsed = z.object({ name: z.string().trim().min(1).max(24) }).strict().safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "invalid name" });
+    const name = parsed.data.name;
+    const existing = runner.state.cogOrder.find((id) => runner.state.cogs[id]!.name.toLowerCase() === name.toLowerCase());
+    if (existing) {
+      steering?.update(existing, { paused: true });
+      return res.json({ ok: true, id: existing, created: false });
+    }
+    try {
+      const id = runner.addCog((cid) => (steering ? steerableAgent(greedyAgent(cid), steering) : greedyAgent(cid)), name);
+      steering?.update(id, { paused: true });
+      return res.json({ ok: true, id, created: true });
+    } catch (e) {
+      return res.status(409).json({ ok: false, error: e instanceof Error ? e.message : String(e) });
+    }
+  });
+
   // Operator steering (Phase D): read + edit a cog's persona / paused flag live.
   app.get("/cog/:id/steering", (req, res) => res.json(steering?.get(req.params.id) ?? { persona: "", paused: false, pending: [], standingBid: 0 }));
   // Operator READY (manual mode): submit the queued orders for this Commit now.

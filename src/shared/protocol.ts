@@ -25,6 +25,7 @@ const cogSnapshotSchema = z
   .object({
     id: z.string(),
     index: z.number().int(),
+    name: z.string(),
     hearts: z.number().int(),
     treasury: treasurySchema,
     energy: z.number().int(),

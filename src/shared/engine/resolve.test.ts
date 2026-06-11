@@ -18,7 +18,7 @@ const makeState = (opts: {
   for (const t of opts.tiles) map[key(t.hex)] = t;
   const cogs: Record<CogId, CogState> = {};
   opts.cogOrder.forEach((id, i) => {
-    cogs[id] = { id, index: i, treasury: opts.treasuries?.[id] ?? T(), hearts: opts.hearts?.[id] ?? 0 };
+    cogs[id] = { id, index: i, name: id, treasury: opts.treasuries?.[id] ?? T(), hearts: opts.hearts?.[id] ?? 0 };
   });
   return { turn: 1, phase: "resolve", seed: 0, tiles: map, cogs, cogOrder: opts.cogOrder, log: [] };
 };

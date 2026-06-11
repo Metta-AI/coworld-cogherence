@@ -35,6 +35,8 @@ export interface Tile {
 export interface CogState {
   id: CogId;
   index: number;
+  /** Display name — a default seat name, or whatever a claimer chose. */
+  name: string;
   treasury: Treasury;
   hearts: number;
 }

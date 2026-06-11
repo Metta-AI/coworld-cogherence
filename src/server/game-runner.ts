@@ -133,9 +133,9 @@ export class GameRunner {
    *  the in-flight turn just treats it as holding (no orders collected yet) —
    *  and broadcasts the new board. Returns the seated cog's id; throws when the
    *  board is out of seats/corners (the HTTP layer surfaces that as an error). */
-  addCog(makeAgent: (id: CogId) => Agent): CogId {
+  addCog(makeAgent: (id: CogId) => Agent, name?: string): CogId {
     const id: CogId = `cog${this.state.cogOrder.length}`;
-    this.state = addCog(this.state);
+    this.state = addCog(this.state, name);
     this.agents.push(makeAgent(id));
     this.emit({ type: "snapshot", snapshot: toSnapshot(this.state) });
     this.emit({ type: "serverStatus", status: this.status() });

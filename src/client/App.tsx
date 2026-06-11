@@ -46,6 +46,23 @@ export function App({ replay: injected, live: liveProp }: { replay?: Replay; liv
   const [playing, setPlaying] = useState(false);
   const [connected, setConnected] = useState(false);
 
+  // A /cog/<name> URL (anything that isn't a cogN id) CLAIMS that agent on the
+  // live server: find-or-create by name, autopilot off — the share-a-link
+  // entry point. The pretty name stays in the address bar; the resolved id
+  // drives the feed and the view. Reloads re-claim (idempotent).
+  const claimName = liveMode && loc.view === "cog" && loc.cogId && !/^cog\d+$/.test(loc.cogId) ? loc.cogId : null;
+  const [claimed, setClaimed] = useState<{ name: string; id: string } | { name: string; error: string } | null>(null);
+  useEffect(() => {
+    if (!claimName) return;
+    fetch("/cogs/claim", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: claimName }) })
+      .then(async (r) => {
+        const j = await r.json();
+        setClaimed(r.ok ? { name: claimName, id: j.id as string } : { name: claimName, error: (j.error as string) ?? `claim failed (${r.status})` });
+      });
+  }, [claimName]);
+  const cogId = claimName ? (claimed && "id" in claimed && claimed.name === claimName ? claimed.id : null) : loc.cogId;
+  const claimError = claimed && "error" in claimed ? claimed.error : null;
+
   // Replay file mode (default, non-live, not injected).
   // Absolute path: a relative "./replay.json" resolves against the current route
   // (e.g. /cog/cog0 -> /cog/replay.json), which the SPA fallback answers with
@@ -62,14 +79,15 @@ export function App({ replay: injected, live: liveProp }: { replay?: Replay; liv
       });
   }, [injected, liveMode]);
 
-  // Live mode — connect to this view's ws endpoint
+  // Live mode — connect to this view's ws endpoint (a name URL waits for its claim)
   useEffect(() => {
     if (!liveMode || typeof window === "undefined") return;
-    const endpoint = loc.view === "cog" && loc.cogId ? `/cog/${loc.cogId}/ws` : "/global/ws";
+    if (loc.view === "cog" && !cogId) return; // claim in flight (or failed)
+    const endpoint = loc.view === "cog" && cogId ? `/cog/${cogId}/ws` : "/global/ws";
     storeRef.current = emptyStore();
     setConnected(true);
     return connectLiveFeed(storeRef.current, () => makeWorldSocket(`ws://${window.location.host}${endpoint}`), rerender);
-  }, [liveMode, loc.view, loc.cogId]);
+  }, [liveMode, loc.view, cogId]);
 
   const store = storeRef.current;
   const snaps = store.snapshots;
@@ -125,22 +143,26 @@ export function App({ replay: injected, live: liveProp }: { replay?: Replay; liv
         status={store.status}
         connected={connected && liveMode}
         view={loc.view}
-        cogId={loc.cogId}
+        cogId={cogId}
         live={liveMode}
         cogs={cogs}
       />
-      {!snapshot ? (
-        <p className="loading">{liveMode ? "Waiting for the live game…" : "Loading replay…"}</p>
+      {claimError ? (
+        <p className="loading">
+          Couldn’t claim “{claimName}” — {claimError}
+        </p>
+      ) : !snapshot ? (
+        <p className="loading">{claimName && !cogId ? `Claiming ${claimName}…` : liveMode ? "Waiting for the live game…" : "Loading replay…"}</p>
       ) : (
         <>
           {loc.view === "global" && (
             <GlobalView snapshot={snapshot} events={visibleEvents} messages={visibleMessages} onSeekTurn={seekTurn} live={liveMode} status={store.status} />
           )}
           {loc.view === "feed" && <FeedView messages={visibleMessages} />}
-          {loc.view === "cog" && loc.cogId && (
+          {loc.view === "cog" && cogId && (
             <CogView
               snapshot={snapshot}
-              cogId={loc.cogId}
+              cogId={cogId}
               messages={visibleMessages}
               events={visibleEvents}
               live={liveMode}

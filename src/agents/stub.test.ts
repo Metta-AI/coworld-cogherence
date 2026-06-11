@@ -13,7 +13,7 @@ const stateWith = (tiles: Tile[], cogOrder: CogId[], treasuries: Record<CogId, T
   const map: Record<string, Tile> = {};
   for (const t of tiles) map[key(t.hex)] = t;
   const cogs: Record<CogId, CogState> = {};
-  cogOrder.forEach((id, i) => (cogs[id] = { id, index: i, treasury: treasuries[id] ?? T(), hearts: 0 }));
+  cogOrder.forEach((id, i) => (cogs[id] = { id, index: i, name: id, treasury: treasuries[id] ?? T(), hearts: 0 }));
   return { turn: 1, phase: "commit", seed: 0, tiles: map, cogs, cogOrder, log: [] };
 };
 

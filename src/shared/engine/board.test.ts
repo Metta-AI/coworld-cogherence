@@ -52,6 +52,14 @@ describe("generateBoard", () => {
     expect(over8 / n).toBeCloseTo(0.5 * 0.106, 1);
   });
 
+  it("cogs wear names: roster defaults at generation, a custom name via addCog", () => {
+    const g = generateBoard(7, 4);
+    expect(g.cogOrder.map((id) => g.cogs[id]!.name)).toEqual(["Alice", "Bob", "Carol", "David"]);
+    const g2 = addCog(g, "daveey");
+    expect(g2.cogs.cog4!.name).toBe("daveey");
+    expect(addCog(g).cogs.cog4!.name).toBe("Erin"); // no name -> next roster default
+  });
+
   it("addCog seats the next cog at a free corner; throws when out of seats", () => {
     let g = generateBoard(7, 4);
     g = addCog(g);

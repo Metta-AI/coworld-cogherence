@@ -4,6 +4,7 @@
 // frames are dropped (validated at this boundary).
 import { serverMessageSchema, type ServerMessage, type ServerStatus } from "../../shared/protocol";
 import type { GameSnapshot } from "../../shared/snapshot";
+import { setCogNames } from "../colors";
 import type { TurnEvent } from "../../shared/engine/log";
 import type { Message } from "../../shared/messages";
 
@@ -48,6 +49,7 @@ export function applyFrame(store: FeedStore, m: ServerMessage): void {
       store.actPrompts = {};
     }
     store.snapshots.push(m.snapshot);
+    setCogNames(m.snapshot.cogs.map((c) => c.name)); // display names follow the live roster
   } else if (m.type === "event") store.events.push({ turn: m.turn, event: m.event });
   else if (m.type === "serverStatus") store.status = m.status;
   else if (m.type === "actPrompt") {

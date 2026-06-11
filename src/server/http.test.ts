@@ -43,6 +43,30 @@ describe("http", () => {
     srv.close();
   });
 
+  it("POST /cogs/claim -> by-name control: finds or creates, autopilot off", async () => {
+    const r2 = new GameRunner({ seed: 7, agents: [greedyAgent("cog0"), greedyAgent("cog1")], maxTurns: 100 });
+    const steering = new SteeringStore();
+    const srv = createApp(r2, undefined, steering).listen(0);
+    const p = (srv.address() as { port: number }).port;
+    const post = (body: unknown) =>
+      fetch(`http://127.0.0.1:${p}/cogs/claim`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    // existing name (case-insensitive) -> same cog, flipped to manual
+    const alice = await (await post({ name: "alice" })).json();
+    expect(alice).toEqual({ ok: true, id: "cog0", created: false });
+    expect(steering.paused("cog0")).toBe(true);
+    // unknown name -> a new cog wearing it, manual from birth
+    const dav = await (await post({ name: "daveey" })).json();
+    expect(dav).toEqual({ ok: true, id: "cog2", created: true });
+    expect(steering.paused("cog2")).toBe(true);
+    const snap = await (await fetch(`http://127.0.0.1:${p}/global.json`)).json();
+    expect(snap.cogs.find((c: { id: string }) => c.id === "cog2").name).toBe("daveey");
+    // re-claim is idempotent
+    expect(await (await post({ name: "DAVEEY" })).json()).toEqual({ ok: true, id: "cog2", created: false });
+    // garbage -> 400
+    expect((await post({ name: "" })).status).toBe(400);
+    srv.close();
+  });
+
   it("GET /cog/:id/act-prompts -> the cog's recorded entries", async () => {
     const hub = new ActPromptHub();
     hub.record({ cogId: "cog0", turn: 1, phase: "commit", content: "hello" });

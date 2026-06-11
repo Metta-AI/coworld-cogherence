@@ -61,7 +61,7 @@ export function generateBoard(seed: number, numCogs: number): GameState {
   for (let i = 0; i < numCogs; i++) {
     const id: CogId = `cog${i}`;
     cogOrder.push(id);
-    cogs[id] = { id, index: i, treasury: startingTreasury(), hearts: 0 };
+    cogs[id] = { id, index: i, name: defaultCogName(i), treasury: startingTreasury(), hearts: 0 };
     const home = corners[Math.floor((i * corners.length) / numCogs)]!;
     const tile = tiles[key(home)]!;
     tile.alignment = id;
@@ -76,7 +76,11 @@ export function generateBoard(seed: number, numCogs: number): GameState {
  * starting wallet, and a home tile at the first UNOWNED corner at full
  * coherence. Pure; throws when the board is out of seats or free corners.
  */
-export function addCog(state: GameState): GameState {
+/** Default seat names, one per corner; a claimed cog may wear any name (addCog). */
+export const COG_NAMES = ["Alice", "Bob", "Carol", "David", "Erin", "Frank"];
+export const defaultCogName = (index: number): string => COG_NAMES[index] ?? `Cog ${index + 1}`;
+
+export function addCog(state: GameState, name?: string): GameState {
   const index = state.cogOrder.length;
   if (index >= 6) throw new Error("addCog: the board seats at most 6 cogs");
   const id: CogId = `cog${index}`;
@@ -89,7 +93,7 @@ export function addCog(state: GameState): GameState {
   };
   const cogs: Record<CogId, CogState> = {
     ...state.cogs,
-    [id]: { id, index, treasury: startingTreasury(), hearts: 0 },
+    [id]: { id, index, name: name?.trim() || defaultCogName(index), treasury: startingTreasury(), hearts: 0 },
   };
   return { ...state, tiles, cogs, cogOrder: [...state.cogOrder, id] };
 }
