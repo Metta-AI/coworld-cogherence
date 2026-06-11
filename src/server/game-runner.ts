@@ -238,9 +238,11 @@ export class GameRunner {
       const startedAt = Date.now();
       // Autopilot cogs can't click the Convert Set button — convert their full
       // sets for them each turn so the strict stored-energy economy never
-      // starves a bot. Manual (paused) cogs convert by hand.
+      // starves a bot. Manual (paused) cogs convert by hand, unless they
+      // opted into auto-convert (the right-click convert menu).
       for (const a of this.agents) {
-        if (this.steering?.paused(a.id)) continue;
+        const st = this.steering?.get(a.id);
+        if (st?.paused && !st.autoConvert) continue;
         const sets = fullSets(this.state.cogs[a.id]?.treasury ?? { C: 0, O: 0, Ge: 0, S: 0 });
         if (sets > 0) this.state = convertCogSets(this.state, a.id, sets);
       }

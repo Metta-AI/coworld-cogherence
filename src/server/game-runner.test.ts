@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { GameRunner } from "./game-runner";
 import { greedyAgent, peacefulAgent } from "../agents/stub";
 import { MessageBus } from "./message-bus";
+import { SteeringStore, steerableAgent } from "./steering-store";
 import type { ServerMessage } from "../shared/protocol";
 import type { Order } from "../shared/engine/orders";
 import type { Agent } from "../agents/types";
@@ -118,6 +119,23 @@ describe("GameRunner", () => {
     runner.addCog((id) => greedyAgent(id), "zoe");
     runner.reset();
     expect(runner.state.cogs.cog0!.name).toBe("zoe");
+  });
+
+  it("auto-convert: a paused cog with the flag converts its sets at turn start; without it, sets sit", async () => {
+    const run = async (autoConvert: boolean) => {
+      const steering = new SteeringStore();
+      steering.update("cog0", { paused: true, autoConvert });
+      const runner = new GameRunner({ seed: 7, agents: [steerableAgent(greedyAgent("cog0"), steering)], maxTurns: 1, deadlineMs: 30, steering });
+      runner.state = { ...runner.state, cogs: { ...runner.state.cogs, cog0: { ...runner.state.cogs.cog0!, treasury: { C: 2, O: 1, Ge: 1, S: 1 } } } };
+      await runner.run();
+      return runner.state.cogs.cog0!;
+    };
+    const withAuto = await run(true);
+    expect(withAuto.energy).toBe(109); // 100 + 10 converted − 1 upkeep
+    expect(withAuto.treasury.O).toBe(0); // the set burned
+    const without = await run(false);
+    expect(without.energy).toBe(99); // 100 − 1 upkeep; manual cogs keep their sets
+    expect(without.treasury.O).toBe(1);
   });
 
   it("a hung negotiate can't stall the turn — it's raced against the deadline", async () => {

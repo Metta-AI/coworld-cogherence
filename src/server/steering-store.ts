@@ -19,9 +19,12 @@ export interface CogSteering {
   /** Standing heart bid: while > 0, every commit this cog submits carries a
    *  bid of this amount (replacing any bid the autopilot chose itself). */
   standingBid: number;
+  /** Convert every full COGS set automatically at the start of each turn —
+   *  always on for autopilot cogs; manual cogs opt in (right-click convert menu). */
+  autoConvert: boolean;
 }
 
-const empty = (): CogSteering => ({ persona: "", paused: false, pending: [], standingBid: 0 });
+const empty = (): CogSteering => ({ persona: "", paused: false, pending: [], standingBid: 0, autoConvert: false });
 
 /** A manual cog's parked commit: its resolver plus the autopilot thunk to run
  *  if the operator flips the cog back to autopilot mid-window. */

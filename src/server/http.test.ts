@@ -83,7 +83,7 @@ describe("http", () => {
     const srv = createApp(runner, undefined, steering).listen(0);
     const url = `http://127.0.0.1:${(srv.address() as { port: number }).port}`;
     // defaults
-    expect(await (await fetch(`${url}/cog/cog0/steering`)).json()).toEqual({ persona: "", paused: false, pending: [], standingBid: 0 });
+    expect(await (await fetch(`${url}/cog/cog0/steering`)).json()).toEqual({ persona: "", paused: false, pending: [], standingBid: 0, autoConvert: false });
     // edit — including a queued operator order
     const posted = await (
       await fetch(`${url}/cog/cog0/steering`, {
@@ -99,7 +99,7 @@ describe("http", () => {
       body: JSON.stringify({ pending: [{ type: "align", tile: "0,0", force: 0 }] }),
     });
     srv.close();
-    expect(posted).toEqual({ persona: "betray everyone", paused: true, pending: [{ type: "align", tile: "0,0", force: 3 }], standingBid: 0 });
+    expect(posted).toEqual({ persona: "betray everyone", paused: true, pending: [{ type: "align", tile: "0,0", force: 3 }], standingBid: 0, autoConvert: false });
     expect(steering.get("cog0").pending).toEqual([{ type: "align", tile: "0,0", force: 3 }]);
     expect(bad.status).toBe(400);
   });
