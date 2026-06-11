@@ -26,11 +26,16 @@ export const tileUpkeepCost = (enemies: number, ownedTiles: number): number =>
 /** Coherence a tile may regenerate in one Upkeep: 1, +1 per two allied neighbors. */
 export const maxRegen = (friendly: number): number => 1 + Math.floor(friendly / 2);
 
-/** Mineral minted per Upkeep = density × coherence / MINT_DIVISOR, stochastically
- *  rounded: a raw 2.3 mints 2, plus 1 with probability 0.3. At 5 a tile at full
- *  coherence (10) yields DOUBLE its density — sized so a quiet interior tile
- *  (1e bill) is profitable from mid coherence up, making empire viable. */
-export const MINT_DIVISOR = 5;
+/** Density: a tile's deposit richness, 0..DENSITY_MAX as a FLOAT — distributed
+ *  by a power law at board generation (density = MAX × u^DENSITY_POWER: most
+ *  tiles thin, a few rich) and ground down by Exploit. Always DISPLAYED as
+ *  floor(density). */
+export const DENSITY_MAX = 10;
+export const DENSITY_POWER = 2;
+
+/** Mining: floor(density × coherence / 10) units of the tile's mineral per
+ *  Upkeep — deterministic; a full-coherence tile yields floor(density). */
+export const mintOf = (density: number, coherence: number): number => Math.floor((density * coherence) / 10);
 
 /** Energy yielded by a full COGS set (1×C + 1×O + 1×Ge + 1×S). */
 export const SET_ENERGY = 10;
@@ -53,8 +58,8 @@ export const SINGLE_ENERGY = 1;
  *  MINERAL (coherence pre-drop) — a huge one-time mineral burst. */
 export const EXPLOIT_MULT = 10;
 
-/** Exploit scars the land: density = floor(density × EXPLOIT_DENSITY), min 0. */
-export const EXPLOIT_DENSITY = 0.5;
+/** Exploit scars the land: density loses coherence/10 (cashing a high-order
+ *  tile grinds the deposit down harder), floored at 0. */
 
 /** Energy charged per Transfer order. */
 export const TRANSFER_FEE = 1;

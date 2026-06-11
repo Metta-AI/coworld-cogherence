@@ -46,7 +46,7 @@ const nearestNeutral = (view: AgentView): { tile: Tile; dist: number } | null =>
   if (owned.length === 0) return null;
   let best: { tile: Tile; dist: number } | null = null;
   for (const t of Object.values(view.state.tiles)) {
-    if (t.alignment !== null || t.density === 0) continue;
+    if (t.alignment !== null || Math.floor(t.density) < 1) continue; // skip claimed + near-barren ground
     let d = Infinity;
     for (const o of owned) d = Math.min(d, distance(o.hex, t.hex));
     if (!best || d < best.dist || (d === best.dist && t.density > best.tile.density)) best = { tile: t, dist: d };

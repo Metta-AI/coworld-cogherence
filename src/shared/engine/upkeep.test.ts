@@ -20,10 +20,6 @@ const makeState = (opts: { tiles: Tile[]; cogOrder: CogId[]; treasuries?: Record
 const tre = (g: GameState, id: CogId) => g.cogs[id]!.treasury;
 const at = (g: GameState, q: number, r: number) => g.tiles[key({ q, r })]!;
 
-// Deterministic rounding controls for the stochastic mint:
-const FLOOR = () => 0.999999; // rng never below any fractional part -> mint = floor(raw)
-const CEIL = () => 0; // rng below every positive fractional part -> mint = ceil(raw)
-
 // Bills under the base + resistance model (see tileUpkeepCost):
 //   any tile:        floor(sqrt(tiles owned)) base
 //   + 10e x enemies  allies do NOT cheapen defense; neutral counts for nothing
@@ -62,31 +58,33 @@ describe("upkeep", () => {
       tiles: [tile(0, 0, "A", 5), tile(10, 0, "A", 5), tile(20, 0, "A", 5), tile(30, 0, "A", 5)],
       cogOrder: ["A"], treasuries: { A: T(8, 0, 0, 0) },
     });
-    const { state } = upkeep(s, FLOOR);
+    const { state } = upkeep(s);
     expect(at(state, 0, 0).coherence).toBe(5); // paid, no regen budget left
-    expect(tre(state, "A")).toEqual(T(4, 0, 0, 0)); // 8 - 4x2 = 0, + mint 4 x (5/5) C
+    expect(tre(state, "A")).toEqual(T(0, 0, 0, 0)); // 8 - 4x2 = 0; mint floor(1x5/10) = 0 each
   });
 
   it("a paid tile holds; paying the 3e regen grows it +1", () => {
     // lone tile bills 1e. T(4): pay 1 (holds), then 3 regen (grows) -> 0 left.
     const s = makeState({ tiles: [tile(0, 0, "A", 8, "Ge", 3)], cogOrder: ["A"], treasuries: { A: T(4, 0, 0, 0) } });
-    const { state } = upkeep(s, FLOOR);
+    const { state } = upkeep(s);
     expect(at(state, 0, 0).coherence).toBe(9); // 8 -> regenerated -> 9
-    expect(tre(state, "A")).toEqual(T(0, 0, 5, 0)); // 4-1-3=0 C; mint floor(3*9/5)=5 Ge
+    expect(tre(state, "A")).toEqual(T(0, 0, 2, 0)); // 4-1-3=0 C; mint floor(3*9/10)=2 Ge
   });
 
   it("base upkeep paid but regen unaffordable -> coherence simply holds", () => {
     const s = makeState({ tiles: [tile(0, 0, "A", 8, "C", 3)], cogOrder: ["A"], treasuries: { A: T(3, 0, 0, 0) } });
-    const { state } = upkeep(s, FLOOR);
+    const { state } = upkeep(s);
     expect(at(state, 0, 0).coherence).toBe(8); // paid 1, 2 left < 3 -> no regen
-    expect(tre(state, "A")).toEqual(T(6, 0, 0, 0)); // 3-1=2 C + mint floor(3*8/5)=4 C
+    expect(tre(state, "A")).toEqual(T(4, 0, 0, 0)); // 3-1=2 C + mint floor(3*8/10)=2 C
   });
 
-  it("mints density*coherence/MINT_DIVISOR, stochastically rounded by its fractional part", () => {
-    // lone tile bills 1e, paid exactly; coherence holds at 7 -> raw mint 3*7/5 = 4.2
+  it("mints floor(density × coherence / 10), deterministically — floats floor away", () => {
+    // lone tile bills 1e, paid exactly; coherence holds at 7 -> floor(3×7/10) = 2
     const s = makeState({ tiles: [tile(0, 0, "A", 7, "C", 3)], cogOrder: ["A"], treasuries: { A: T(1, 0, 0, 0) } });
-    expect(tre(upkeep(s, FLOOR).state, "A")).toEqual(T(4, 0, 0, 0)); // 4.2 -> floor -> 4 C
-    expect(tre(upkeep(s, CEIL).state, "A")).toEqual(T(5, 0, 0, 0)); // 4.2 -> +1 (prob 0.2) -> 5 C
+    expect(tre(upkeep(s).state, "A")).toEqual(T(2, 0, 0, 0));
+    // density is a FLOAT: 2.9 × 7 / 10 = 2.03 -> still mints 2
+    const s2 = makeState({ tiles: [tile(0, 0, "A", 7, "C", 2.9)], cogOrder: ["A"], treasuries: { A: T(1, 0, 0, 0) } });
+    expect(tre(upkeep(s2).state, "A")).toEqual(T(2, 0, 0, 0));
   });
 
   it("unpaid tiles under resistance rot -1, heartland funded first (lowest coherence starves)", () => {
@@ -99,13 +97,13 @@ describe("upkeep", () => {
       ],
       cogOrder: ["A", "B"], treasuries: { A: T(11, 0, 0, 0), B: T(33, 0, 0, 0) },
     });
-    const { state, events } = upkeep(s, FLOOR);
+    const { state, events } = upkeep(s);
     expect(at(state, 0, 0).coherence).toBe(5); // funded -> holds
     expect(at(state, 10, 0).coherence).toBe(2); // unpaid + pressed -> -1
     expect(at(state, 20, 0)).toMatchObject({ coherence: 0, alignment: null }); // 1 -> 0 -> neutral
     expect(events.some((e) => e.type === "starved" && e.tile === "10,0")).toBe(true);
     expect(events).toContainEqual({ type: "lost", cog: "A", tile: "20,0" });
-    expect(tre(state, "A")).toEqual(T(1, 0, 0, 0)); // 11e spent; mints 5/5=1 + floor(2/5)=0
+    expect(tre(state, "A")).toEqual(T(0, 0, 0, 0)); // 11e spent; mints floor(5/10) + floor(2/10) = 0
   });
 
   it("a friendly pair is cheap to hold and to grow", () => {
@@ -114,7 +112,7 @@ describe("upkeep", () => {
       tiles: [tile(0, 0, "A", 3), tile(1, 0, "A", 2)],
       cogOrder: ["A"], treasuries: { A: T(8, 0, 0, 0) },
     });
-    const { state } = upkeep(s, FLOOR);
+    const { state } = upkeep(s);
     expect(at(state, 0, 0).coherence).toBe(4);
     expect(at(state, 1, 0).coherence).toBe(3);
     expect(tre(state, "A")).toEqual(T(0, 0, 0, 0));
@@ -126,7 +124,7 @@ describe("upkeep", () => {
       tiles: [tile(0, 0, "A", 3), tile(1, 0, "A", 2)],
       cogOrder: ["A"], treasuries: { A: T(5, 0, 0, 0) },
     });
-    const { state } = upkeep(s, FLOOR);
+    const { state } = upkeep(s);
     expect(at(state, 0, 0).coherence).toBe(4); // regenerated
     expect(at(state, 1, 0).coherence).toBe(2); // held only
     expect(tre(state, "A")).toEqual(T(0, 0, 0, 0));
@@ -138,10 +136,10 @@ describe("upkeep", () => {
       tiles: [tile(0, 0, "A", COHERENCE_MAX), tile(1, 0, "A", COHERENCE_MAX)],
       cogOrder: ["A"], treasuries: { A: T(8, 0, 0, 0) },
     });
-    const { state } = upkeep(s, FLOOR);
+    const { state } = upkeep(s);
     expect(at(state, 0, 0).coherence).toBe(COHERENCE_MAX);
-    // 8 - 2 base = 6 C left, + each maxed d1 tile mints 10/5 = 2 C -> 10
-    expect(tre(state, "A")).toEqual(T(10, 0, 0, 0));
+    // 8 - 2 base = 6 C left, + each maxed d1 tile mints floor(10/10) = 1 C -> 8
+    expect(tre(state, "A")).toEqual(T(8, 0, 0, 0));
   });
 
   it("unpaid zero-resistance tiles HOLD — collapse stays on the frontier", () => {
@@ -150,7 +148,7 @@ describe("upkeep", () => {
       tiles: [tile(0, 0, "A", 3), tile(1, 0, "A", 2)],
       cogOrder: ["A"], treasuries: { A: T() },
     });
-    const { state, events } = upkeep(s, FLOOR);
+    const { state, events } = upkeep(s);
     expect(at(state, 0, 0).coherence).toBe(3); // held, not rotted
     expect(at(state, 1, 0).coherence).toBe(2);
     expect(events.some((e) => e.type === "starved" || e.type === "lost")).toBe(false);
@@ -161,11 +159,11 @@ describe("upkeep", () => {
       tiles: [tile(0, 0, "A", 5), tile(1, 0, "B", 5)],
       cogOrder: ["A", "B"], treasuries: { A: T(11, 0, 0, 0), B: T(10, 0, 0, 0) },
     });
-    const { state } = upkeep(s, FLOOR);
+    const { state } = upkeep(s);
     expect(at(state, 0, 0).coherence).toBe(5); // A affords the 11e bill -> holds
     expect(at(state, 1, 0).coherence).toBe(4); // B cannot -> under resistance, rots
-    expect(tre(state, "A")).toEqual(T(1, 0, 0, 0)); // charged 11; mint 5/5 = 1 C
-    expect(tre(state, "B")).toEqual(T(10, 0, 0, 0)); // unpaid bills charge nothing; mint floor(4/5)=0
+    expect(tre(state, "A")).toEqual(T(0, 0, 0, 0)); // charged 11; mint floor(5/10) = 0
+    expect(tre(state, "B")).toEqual(T(10, 0, 0, 0)); // unpaid bills charge nothing; mint 0
   });
 
   it("allies speed healing: two allied neighbors let a paid tile regen +2 in one turn", () => {
@@ -176,10 +174,10 @@ describe("upkeep", () => {
       tiles: [tile(0, 0, "A", 5), tile(1, 0, "A", COHERENCE_MAX), tile(0, 1, "A", COHERENCE_MAX)],
       cogOrder: ["A"], treasuries: { A: T(9, 0, 0, 0) },
     });
-    const { state } = upkeep(s, FLOOR);
+    const { state } = upkeep(s);
     expect(at(state, 0, 0).coherence).toBe(7); // +2 — allies sped the healing
-    // 9 - 3 bills - 6 regen = 0; mint floor(10/5)x2 + floor(7/5) = 2+2+1 = 5 C
-    expect(tre(state, "A")).toEqual(T(5, 0, 0, 0));
+    // 9 - 3 bills - 6 regen = 0; mint floor(10/10)x2 + floor(7/10) = 1+1+0 = 2 C
+    expect(tre(state, "A")).toEqual(T(2, 0, 0, 0));
   });
 
   it("any enemy neighbor makes ground rot when unpaid — allies don't shelter it", () => {
@@ -188,7 +186,7 @@ describe("upkeep", () => {
       tiles: [tile(-1, 0, "A", 4), tile(0, 0, "A", 4), tile(1, 0, "B", 4)],
       cogOrder: ["A", "B"], treasuries: { A: T(), B: T(11, 0, 0, 0) },
     });
-    const { state, events } = upkeep(s, FLOOR);
+    const { state, events } = upkeep(s);
     expect(at(state, 0, 0).coherence).toBe(3); // under resistance -> rots
     expect(events.some((e) => e.type === "starved" && e.tile === "0,0")).toBe(true);
   });
@@ -210,14 +208,14 @@ describe("upkeep", () => {
   });
 
   it("a starved tile mints density x its REDUCED coherence", () => {
-    // A's tile pressed by an enemy, no funds: rot 4 -> 3; mint floor(5*3/5) = 3 O.
+    // A's tile pressed by an enemy, no funds: rot 4 -> 3; mint floor(5×3/10) = 1 O.
     const s = makeState({
       tiles: [tile(0, 0, "A", 4, "O", 5), tile(1, 0, "B", 9)],
       cogOrder: ["A", "B"], treasuries: { A: T(), B: T(2, 0, 0, 0) },
     });
-    const { state } = upkeep(s, FLOOR);
+    const { state } = upkeep(s);
     expect(at(state, 0, 0).coherence).toBe(3);
-    expect(tre(state, "A")).toEqual(T(0, 3, 0, 0));
+    expect(tre(state, "A")).toEqual(T(0, 1, 0, 0));
   });
 
   it("a tile starved to Coherence 0 goes neutral and is reported lost", () => {
@@ -225,7 +223,7 @@ describe("upkeep", () => {
       tiles: [tile(0, 0, "A", 1), tile(1, 0, "B", 5)],
       cogOrder: ["A", "B"], treasuries: { A: T(), B: T(2, 0, 0, 0) },
     });
-    const { state, events } = upkeep(s, FLOOR);
+    const { state, events } = upkeep(s);
     expect(at(state, 0, 0)).toMatchObject({ alignment: null, coherence: 0 });
     expect(events).toContainEqual({ type: "lost", cog: "A", tile: "0,0" });
   });

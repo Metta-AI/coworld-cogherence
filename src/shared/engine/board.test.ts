@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { generateBoard, addCog } from "./board";
 import { key } from "./hex";
 import { maxEnergy } from "./energy";
-import { BOARD_RADIUS } from "./constants";
+import { DENSITY_MAX, BOARD_RADIUS } from "./constants";
 
 const R = BOARD_RADIUS;
 // The corners + center are forced to density 3, so they're excluded from the
@@ -23,28 +23,33 @@ describe("generateBoard", () => {
     expect(owned).toHaveLength(4);
     expect(new Set(owned.map((t) => t.alignment)).size).toBe(4);
   });
-  it("forces density 3 on the six corners and the center", () => {
+  it("forces max density on the six corners and the center", () => {
     const g = generateBoard(7, 4);
-    for (const hex of LANDMARKS) expect(g.tiles[key(hex)]!.density).toBe(3);
+    for (const hex of LANDMARKS) expect(g.tiles[key(hex)]!.density).toBe(DENSITY_MAX);
   });
 
-  it("weights density 20/48/24/8 across 0/1/2/3 (excluding the forced landmarks)", () => {
+  it("distributes density 0..10 by a power law: most tiles thin, rich ones rare", () => {
     const landmarkKeys = new Set(LANDMARKS.map(key));
-    const counts: Record<number, number> = { 0: 0, 1: 0, 2: 0, 3: 0 };
     let n = 0;
+    let sum = 0;
+    let under1 = 0;
+    let over8 = 0;
     for (let seed = 0; seed < 60; seed++) {
       for (const [k, t] of Object.entries(generateBoard(seed, 4).tiles)) {
-        if (landmarkKeys.has(k)) continue; // these are always density 3 by design
-        counts[t.density]!++;
+        if (landmarkKeys.has(k)) continue; // landmarks are forced to max
+        expect(t.density).toBeGreaterThanOrEqual(0);
+        expect(t.density).toBeLessThanOrEqual(DENSITY_MAX);
+        expect(Number.isInteger(t.density)).toBe(false); // a float field
         n++;
+        sum += t.density;
+        if (t.density < 1) under1++;
+        if (t.density > 8) over8++;
       }
     }
-    expect(counts[0]! / n).toBeCloseTo(0.2, 1); // within ~0.05 over ~7100 random tiles
-    expect(counts[1]! / n).toBeCloseTo(0.48, 1);
-    expect(counts[2]! / n).toBeCloseTo(0.24, 1);
-    expect(counts[3]! / n).toBeCloseTo(0.08, 1);
-    expect(counts[1]!).toBeGreaterThan(counts[2]!);
-    expect(counts[2]!).toBeGreaterThan(counts[3]!);
+    // density = 10·u² over u~U(0,1): mean 10/3, P(d<1)=√0.1≈0.316, P(d>8)=1−√0.8≈0.106
+    expect(sum / n).toBeCloseTo(10 / 3, 0);
+    expect(under1 / n).toBeCloseTo(0.316, 1);
+    expect(over8 / n).toBeCloseTo(0.106, 1);
   });
 
   it("addCog seats the next cog at a free corner; throws when out of seats", () => {

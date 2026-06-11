@@ -41,7 +41,7 @@ A **hex lattice** (~127 tiles for up to 6 Cogs; sized to player count). Each til
 | **Alignment** | `neutral` or a specific Cog |
 | **Coherence** | integer `0…6` — *margin of dominance* (see §4) |
 | **Mineral** | one of `C`, `O`, `Ge`, `S` |
-| **Density** | how rich the deposit is (degradable by Exploit) |
+| **Density** | how rich the deposit is — 0–10 as a float (power-law seeded: most tiles thin, a few rich; degradable by Exploit; displayed as ⌊density⌋) |
 
 **Setup:** each Cog starts with a small **home cluster**. Minerals are seeded so that **no Cog naturally holds all four types** — forcing trade from turn one. Interiors are safe; frontiers are contested (a consequence of §4, not a special rule).
 
@@ -113,8 +113,8 @@ Align is also what keeps the shared economy alive: adding Coherence *is* restori
 On a tile you hold:
 - Drop its **Coherence to 0**.
 - **Unalign** it (back to neutral — anyone can grab the husk).
-- Mint **10 × Coherence × Density** of its **mineral** as a windfall (uses Coherence *before* the drop).
-- **Permanently reduce its Density.**
+- Mint **⌊10 × Coherence × Density⌋** of its **mineral** as a windfall (uses Coherence *before* the drop).
+- **Permanently reduce its Density by Coherence/10** — cashing a high-order tile grinds the deposit down harder.
 
 A huge one-time burst that abandons the tile and **scars the land forever**. Good for cashing a frontier you're about to lose, scorched-earth retreats, or a war chest before an auction. Repeated Exploiting is an **irreversible death spiral** for the board. Exploit pays for itself (it mints), so it is the cheap emergency liquidity move.
 
@@ -129,7 +129,7 @@ On a tile you hold: return it to **neutral** and recover its standing **Coherenc
 
 ## 6. Economy — minerals, treasury, energy
 
-**Mineral production (every Upkeep):** each aligned tile mints **Density × Coherence ÷ 5** of its mineral into its Cog's **treasury**, *stochastically rounded* (a raw 2.3 mints 2, plus 1 with probability 0.3 — unbiased on average). On the 0–10 Coherence scale this means a tile at full Coherence yields **double its Density** and weaker tiles yield proportionally less, so output rewards *both* good geography (Density) *and* stable, consolidated holdings (Coherence) — and a sheltered interior tile (1e bill) turns profitable from mid Coherence up, making empire viable.
+**Mineral production (every Upkeep):** each aligned tile mints **⌊Density × Coherence ÷ 10⌋** of its mineral into its Cog's **treasury** — deterministic. A tile at full Coherence yields ⌊its Density⌋ and weaker tiles proportionally less, so output rewards *both* good geography (Density, 0–10 power-law seeded) *and* stable, consolidated holdings (Coherence).
 
 **Energy is derived, not stored.** Whenever energy is needed, the engine auto-converts treasury minerals, greedily forming sets first:
 - A full **COGS set** (1 C + 1 O + 1 Ge + 1 S) → **10 energy.**
@@ -313,7 +313,7 @@ t1 is A's frontier O-tile (B eyes it); t2 is unclaimed **S** that A badly needs;
 - **C** (10e): Align **t2** ← **force 2** *(5e)* · **bid 2.**
 
 ### 3. Resolve (canonical order §14.4)
-**① Exploit** — A scorches t3 (Coh 2, Ge, D1) before losing it: windfall = 10 × Coherence × Density = 10 × 2 × 1 = **20 Ge** to A (minted now, can fund the rest of A's turn); t3 → **neutral @ 0**, Density **1 → 0** (scarred, §12).
+**① Exploit** — A scorches t3 (Coh 2, Ge, D1) before losing it: windfall = ⌊10 × Coherence × Density⌋ = **20 Ge** to A; t3 → **neutral @ 0**, Density **1 → 0.8** (scarred by Coherence/10, §12).
 
 **② Align** (tug-of-war, all at once §5):
 - **t1:** incumbent A = standing 2 + 0 committed = **2**; challenger B arrives with **3**. B wins → **t1 flips to B @ Coherence 1** (3 − 2). *The betrayal lands.*
@@ -325,7 +325,7 @@ t1 is A's frontier O-tile (B eyes it); t2 is unclaimed **S** that A badly needs;
 
 ### 4. Upkeep — the world breathes (§14.5)
 - **Bills (§6):** each tile bills ⌊√(tiles owned)⌋ base + resistance (10e per enemy neighbor — allies don't reduce it); a Cog that can't pay a tile under resistance loses Coherence there instead. A is tapped out — but t2 sits inside A's cluster (4 A neighbors, no enemies) → **zero resistance, holds even unpaid.** t1 is now a lone **B** salient ringed by 6 A tiles → base + 6×10 ≈ **61e**, a bill B can't sustain → **−1 → 0.** *B's prize is already rotting; A can retake the husk next turn for a trickle.*
-- **Mint** (Density × Coherence ÷ 5 → owner, for *next* turn, stochastically rounded): t2 @ Coherence 1, Density 3 → **3/5 ≈ 1 S to A** (A finally has S income); t1 rotted to 0 → nothing; t3 (neutral) → nothing.
+- **Mint** (⌊Density × Coherence ÷ 10⌋ → owner, for *next* turn): t2 @ Coherence 1, Density 3 → ⌊0.3⌋ = **0 S yet** (income needs Coherence to climb); t1 rotted to 0 → nothing; t3 (neutral) → nothing.
 - **Total Coherence:** across these tiles, aligned Coherence went 2 + 2 = **4 → 0 + 1 = 1.** War + Exploit **frayed the board** even though the tiles only changed hands.
 
 ### What this turn demonstrates

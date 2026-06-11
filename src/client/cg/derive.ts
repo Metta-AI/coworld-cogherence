@@ -8,7 +8,7 @@
 import type { GameSnapshot, TileSnapshot } from "../../shared/snapshot";
 import type { TurnEvent } from "../../shared/engine/log";
 import type { StampedEvent } from "../net/feed";
-import { MINT_DIVISOR, REGEN_COST, maxRegen, tileUpkeepCost } from "../../shared/engine/constants";
+import { REGEN_COST, maxRegen, mintOf, tileUpkeepCost } from "../../shared/engine/constants";
 import { maxEnergy } from "../../shared/engine/energy";
 
 export const MINERALS = ["C", "O", "Ge", "S"] as const;
@@ -167,16 +167,15 @@ export function tilesBy(snap: GameSnapshot): Map<string, number> {
   return out;
 }
 
-/** Expected mineral income per cog at the NEXT Upkeep: Σ density × coherence /
- *  MINT_DIVISOR over its tiles, per mineral — the stochastic mint's expected
- *  value at current coherence. */
+/** Mineral income per cog at the NEXT Upkeep: Σ floor(density × coherence /
+ *  10) over its tiles, per mineral — deterministic at current coherence. */
 export function expectedMintBy(snap: GameSnapshot): Map<string, Record<Mineral, number>> {
   const out = new Map<string, Record<Mineral, number>>();
   for (const c of snap.cogs) out.set(c.id, { C: 0, O: 0, Ge: 0, S: 0 });
   for (const t of snap.tiles) {
     if (!t.alignment) continue;
     const r = out.get(t.alignment);
-    if (r) r[t.mineral as Mineral] += (t.density * t.coherence) / MINT_DIVISOR;
+    if (r) r[t.mineral as Mineral] += mintOf(t.density, t.coherence);
   }
   return out;
 }
@@ -266,7 +265,7 @@ export function tileStatus(t: TileSnapshot, map: TileMap, coherenceMax: number, 
   const nb = neighbors(t.q, t.r, map);
   const friendly = t.alignment ? nb.filter((n) => n.alignment === t.alignment).length : 0;
   const enemies = t.alignment ? nb.filter((n) => n.alignment !== null && n.alignment !== t.alignment).length : 0;
-  if (!t.alignment) return { label: t.density === 0 ? "BARREN" : "NEUTRAL", tone: "var(--muted)" };
+  if (!t.alignment) return { label: Math.floor(t.density) === 0 ? "BARREN" : "NEUTRAL", tone: "var(--muted)" };
   if (t.coherence >= coherenceMax) return { label: "FORTRESS", tone: ownerColor };
   if (t.coherence === 0) return { label: "HUSK · rotted", tone: "var(--exploit)" };
   if (2 * enemies > friendly) return { label: "ROTTING SALIENT", tone: "var(--exploit)" };

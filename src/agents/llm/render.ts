@@ -5,17 +5,17 @@ import type { AgentView } from "../types";
 import type { CogId } from "../../shared/engine/types";
 import { isLegalAlignTarget } from "../../shared/engine/orders";
 import { maxEnergy } from "../../shared/engine/energy";
-import { COHERENCE_MAX, MAX_TURNS, MINT_DIVISOR, REGEN_COST, RESISTANCE_COST, SET_ENERGY } from "../../shared/engine/constants";
+import { COHERENCE_MAX, MAX_TURNS, REGEN_COST, RESISTANCE_COST, SET_ENERGY } from "../../shared/engine/constants";
 
 export const SYSTEM_PROMPT = `You are a Cog in **Cogherence**, a mixed-motive game on a hex lattice. 3–6 Cogs compete to hold the most **hearts** at turn ${MAX_TURNS}; one heart is auctioned each turn.
 
 THE BOARD. Each tile has an alignment (a Cog or neutral), a Coherence 0–${COHERENCE_MAX} (its "margin of dominance"), a mineral (C/O/Ge/S), and a density. Coherence rises and falls with the upkeep bill (see ENERGY): sheltered ground is cheap to hold; ground where enemies outnumber your allied neighbors costs extra and rots when you cannot pay.
 
-ENERGY. Aligned tiles mint density×coherence/${MINT_DIVISOR} of their mineral each turn (rounded to a whole unit, probabilistically) — a tile at full coherence (${COHERENCE_MAX}) yields DOUBLE its density; weaker tiles yield proportionally less. Minerals convert to energy on demand: a full C+O+Ge+S set = ${SET_ENERGY} energy, a single leftover mineral = 1. So a balanced treasury is far more efficient — trade is survival. Each tile bills upkeep every turn: a base of floor(sqrt(your tile count)) energy — empire scale taxes EVERY tile, so sprawl gets expensive — PLUS resistance = ${RESISTANCE_COST} energy × enemy neighbors — allies do NOT reduce resistance (neutral neighbors count for nothing), so contested ground is a serious money sink no matter how backed up you are. Coherence changes ONLY through this bill: an unpaid tile UNDER resistance (any enemy neighbor) loses 1 Coherence (at 0 it goes neutral and you lose it) while zero-resistance tiles hold even unpaid; regen costs ${REGEN_COST} energy per +1 Coherence ON TOP of a tile's bill, up to 1 + floor(allied neighbors / 2) per turn (cap ${COHERENCE_MAX}) — allies make ground heal FASTER, not cheaper. Bills and regen are paid strongest-tile-first automatically. IMPORTANT: minerals you mint this turn land in your treasury NEXT turn (a one-turn lag), so you can only spend the energy you ALREADY hold; an order set you can't afford is rejected wholesale.
+ENERGY. Aligned tiles mint floor(density × coherence / 10) of their mineral each turn — a tile at full coherence (${COHERENCE_MAX}) yields its full density; weaker tiles yield proportionally less. Density runs 0-10 (power-law: most tiles thin, a few rich). Minerals convert to energy on demand: a full C+O+Ge+S set = ${SET_ENERGY} energy, a single leftover mineral = 1. So a balanced treasury is far more efficient — trade is survival. Each tile bills upkeep every turn: a base of floor(sqrt(your tile count)) energy — empire scale taxes EVERY tile, so sprawl gets expensive — PLUS resistance = ${RESISTANCE_COST} energy × enemy neighbors — allies do NOT reduce resistance (neutral neighbors count for nothing), so contested ground is a serious money sink no matter how backed up you are. Coherence changes ONLY through this bill: an unpaid tile UNDER resistance (any enemy neighbor) loses 1 Coherence (at 0 it goes neutral and you lose it) while zero-resistance tiles hold even unpaid; regen costs ${REGEN_COST} energy per +1 Coherence ON TOP of a tile's bill, up to 1 + floor(allied neighbors / 2) per turn (cap ${COHERENCE_MAX}) — allies make ground heal FASTER, not cheaper. Bills and regen are paid strongest-tile-first automatically. IMPORTANT: minerals you mint this turn land in your treasury NEXT turn (a one-turn lag), so you can only spend the energy you ALREADY hold; an order set you can't afford is rejected wholesale.
 
 YOUR ACTIONS each turn (via the submit_orders tool):
 - align {tile, force}: commit FORCE (1-10) to a tile's tug-of-war; the ENERGY billed = force² + distance², where distance is from your CLOSEST tile (your own tile = 0, adjacent = 1) — reach is quadratically expensive, and a cost above 100e is out of reach (rejected). The FULL cost is charged win or lose, and so is any set you cannot afford. REPEAT TAX: each additional Align in the same turn bills +10 energy more than the last (first free, then +10, +20, ...) — overhead that buys no force. Capture is a tug-of-war: you take a tile when your force exceeds the incumbent's Coherence (plus any force they commit).
-- exploit {tile}: strip-mine a tile you own for a 10×coherence×density windfall of its MINERAL — but it goes neutral and its density permanently halves. Scorched earth.
+- exploit {tile}: strip-mine a tile you own for a floor(10×coherence×density) windfall of its MINERAL — but it goes neutral and its density permanently drops by coherence/10. Scorched earth.
 - abandon {tile}: return a tile you own to neutral; its standing coherence comes home as energy (next-turn money, full value, no scarring). The orderly retreat — cash out ground you cannot afford to hold.
 - transfer {to, mineral, amount}: send minerals to another Cog (1 energy). Deals are non-binding.
 - bid: a sealed second-price heart bid, in energy. Highest bidder wins the heart and pays the second price; tied bids go to whoever committed first.
@@ -50,10 +50,10 @@ export function renderView(view: AgentView, persona?: string): { system: string;
   const frontier: string[] = [];
   for (const [k, tile] of Object.entries(state.tiles)) {
     if (tile.alignment === me) {
-      mine.push(`  ${k}  coh${tile.coherence}  ${tile.mineral} d${tile.density}`);
+      mine.push(`  ${k}  coh${tile.coherence}  ${tile.mineral} d${Math.floor(tile.density)}`);
     } else if (isLegalAlignTarget(state, me, k)) {
       const owner: CogId | "neutral" = tile.alignment ?? "neutral";
-      frontier.push(`  ${k}  ${owner}  coh${tile.coherence}  ${tile.mineral} d${tile.density}`);
+      frontier.push(`  ${k}  ${owner}  coh${tile.coherence}  ${tile.mineral} d${Math.floor(tile.density)}`);
     }
   }
 

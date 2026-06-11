@@ -7,7 +7,7 @@ import { makeRng, randInt } from "./rng";
 import { hexesInRadius, key } from "./hex";
 import { MINERALS } from "./types";
 import type { GameState, Tile, CogState, CogId, Treasury } from "./types";
-import { BOARD_RADIUS, COHERENCE_MAX, SET_ENERGY, STARTING_ENERGY } from "./constants";
+import { BOARD_RADIUS, COHERENCE_MAX, DENSITY_MAX, DENSITY_POWER, SET_ENERGY, STARTING_ENERGY } from "./constants";
 
 /** A balanced starting wallet worth exactly STARTING_ENERGY (maxEnergy of N full sets). */
 const startingTreasury = (): Treasury => {
@@ -40,20 +40,20 @@ export function generateBoard(seed: number, numCogs: number): GameState {
   const tiles: Record<string, Tile> = {};
   for (const hex of hexes) {
     const mineral = MINERALS[randInt(rng, MINERALS.length)]!;
-    // Weighted density: 20% barren (no deposit), and across the rest most
-    // deposits are thin while rich ones stay rare — 20/48/24/8 over 0/1/2/3.
-    const roll = rng();
-    const density = roll < 0.2 ? 0 : roll < 0.68 ? 1 : roll < 0.92 ? 2 : 3;
+    // Power-law density over 0..DENSITY_MAX: density = MAX × u^POWER — most
+    // tiles are thin (floor 0-2), rich deposits are rare. Stored as a float;
+    // every display floors it.
+    const density = DENSITY_MAX * rng() ** DENSITY_POWER;
     tiles[key(hex)] = { hex, alignment: null, coherence: 0, mineral, density, density0: density };
   }
 
   // The six corners of the hex board, in rotational order; spread cogs across them.
   const corners = boardCorners();
 
-  // Strategic landmarks — the six corners and the center — are always rich (density 3).
+  // Strategic landmarks — the six corners and the center — are always rich.
   for (const hex of [...corners, { q: 0, r: 0 }]) {
-    tiles[key(hex)]!.density = 3;
-    tiles[key(hex)]!.density0 = 3;
+    tiles[key(hex)]!.density = DENSITY_MAX;
+    tiles[key(hex)]!.density0 = DENSITY_MAX;
   }
 
   const cogs: Record<CogId, CogState> = {};

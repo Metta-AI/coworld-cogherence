@@ -13,8 +13,7 @@
 import type { GameState, CogId, HexKey, Tile, Treasury, CogState } from "./types";
 import { neighbors, key } from "./hex";
 import { chargeEnergy, maxEnergy } from "./energy";
-import { makeRng } from "./rng";
-import { MINT_DIVISOR, COHERENCE_MAX, REGEN_COST, maxRegen, tileUpkeepCost } from "./constants";
+import { COHERENCE_MAX, REGEN_COST, maxRegen, mintOf, tileUpkeepCost } from "./constants";
 
 /** Events emitted by an Upkeep phase (for the turn log / replay). */
 export type UpkeepEvent =
@@ -29,29 +28,16 @@ export type UpkeepEvent =
 
 const addT = (a: Treasury, b: Treasury): Treasury => ({ C: a.C + b.C, O: a.O + b.O, Ge: a.Ge + b.Ge, S: a.S + b.S });
 
-/** Round x down to floor(x), plus 1 with probability equal to its fractional part
- *  (so 2.3 → 2 with p=0.7, 3 with p=0.3). Unbiased: E[result] = x. */
-function stochasticRound(x: number, rng: () => number): number {
-  const floor = Math.floor(x);
-  return floor + (rng() < x - floor ? 1 : 0);
-}
-
 /**
  * The Upkeep phase: (1) bill every owned tile via tileUpkeepCost and pay base
  * upkeep heartland-first — unpaid tiles UNDER resistance lose 1 Coherence
  * (neutral at 0) while zero-resistance tiles hold;
  * (2) with what's left, regenerate strongest-first: each +1 Coherence costs
  * REGEN_COST, up to maxRegen(allied neighbors) per tile per turn, capped at
- * COHERENCE_MAX; (3) mint density×coherence of each aligned tile's mineral.
+ * COHERENCE_MAX; (3) mint floor(density × coherence / 10) of each aligned tile's mineral.
  * Pure.
  */
-export function upkeep(
-  state: GameState,
-  // Stochastic-mint RNG. Defaults to a per-turn stream seeded purely from
-  // (seed, turn) so a game stays fully reproducible (replay == live); tests
-  // inject a fixed rng for deterministic mint assertions.
-  rng: () => number = makeRng((state.seed >>> 0) ^ Math.imul(state.turn, 0x9e3779b1)),
-): { state: GameState; events: UpkeepEvent[] } {
+export function upkeep(state: GameState): { state: GameState; events: UpkeepEvent[] } {
   const events: UpkeepEvent[] = [];
   const tiles: Record<HexKey, Tile> = { ...state.tiles };
   const cogs: Record<CogId, CogState> = { ...state.cogs };
@@ -122,14 +108,14 @@ export function upkeep(
       if (maxEnergy(treasury) < REGEN_COST) break;
     }
 
-    // 3. mint (post-upkeep coherence) — density×coherence/MINT_DIVISOR per tile
-    //    still aligned, stochastically rounded. Tile-less cogs mint nothing.
+    // 3. mint (post-upkeep coherence) — floor(density × coherence / 10) per
+    //    tile still aligned, deterministic. Tile-less cogs mint nothing.
     const stillMine = owned.filter((k) => tiles[k]!.alignment === cogId);
     if (stillMine.length > 0) {
       const gained: Treasury = { C: 0, O: 0, Ge: 0, S: 0 };
       for (const k of stillMine) {
         const t = tiles[k]!;
-        gained[t.mineral] += stochasticRound((t.density * t.coherence) / MINT_DIVISOR, rng);
+        gained[t.mineral] += mintOf(t.density, t.coherence);
       }
       treasury = addT(treasury, gained);
       events.push({ type: "mint", cog: cogId, gained });

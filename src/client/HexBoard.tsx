@@ -43,7 +43,7 @@ const BASE = import.meta.env.BASE_URL;
 // density — the at-a-glance resource indicator. In mineral mode the fill already
 // encodes the mineral, so the gem is omitted there.
 const mineralIcon = (m: string): string => `${BASE}icons/transparent/mineral-${m.toLowerCase()}.png`;
-const gemSize = (density: number): number => SIZE * (0.34 + (Math.min(3, density) - 1) * 0.33);
+const gemSize = (density: number): number => SIZE * (0.3 + (Math.min(10, density) / 10) * 0.9);
 const corners = (cx: number, cy: number): string => polygonPoints(hexCorners(cx, cy, SIZE));
 /** A hex's corners pulled `f` of the way toward its center — the inner fortress sheen. */
 const innerCorners = (cx: number, cy: number, f: number): string =>
@@ -203,7 +203,7 @@ export function HexBoard({
         const owner = t.alignment;
         const col = colorOf(owner);
         const f = Math.max(0, Math.min(1, t.coherence / cohMax));
-        const dens = Math.min(3, t.density);
+        const dens = Math.min(3, (t.density / 10) * 3); // density 0-10 scaled to the 0-3 visual ramp
 
         let fill: string;
         let fillOp: number;
@@ -345,7 +345,7 @@ export function HexBoard({
       {mode === "coherence" &&
         snapshot.tiles.map((t, i) => {
           const k = tileKey(t.q, t.r);
-          if (t.density <= 0 || expSet.has(k)) return null; // husks have no deposit; don't mask the exploit reveal
+          if (Math.floor(t.density) <= 0 || expSet.has(k)) return null; // sub-1 deposits show no gem; don't mask the exploit reveal
           const c = centers[i]!;
           const gz = gemSize(t.density);
           const dim = highlight && t.alignment !== highlight ? 0.45 : 0.92;

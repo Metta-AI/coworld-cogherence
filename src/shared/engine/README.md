@@ -44,9 +44,9 @@ CLI flags: `--seed <n>` · `--agents greedy,peaceful,random,...` (overrides `--c
 ## Core rules
 
 - **Coherence = margin of dominance.** Coherence moves with the upkeep bill: a tile whose bill goes unpaid while under resistance (any enemy neighbor) loses 1 (neutral at 0) — zero-resistance ground holds; paying 3e regen on top of the bill gains 1 per step. The bill is a base of floor(sqrt(tiles owned)) — empire scale taxes every tile — + resistance = 10e per enemy neighbor; allies never cheapen defense (neutral counts for nothing) but buy healing speed: a paid tile regenerates up to maxRegen(allies) = 1 + allies/2 coherence per turn at 3e per point. An Align is a tug-of-war where the winner's new coherence = its force minus the runner-up's. Aligns commit FORCE (1-10); the engine bills force² + distance² from the aligner's closest tile (out of reach above 100e), full price charged win or lose — reach is quadratically expensive. Any in-board tile is a legal target. The k-th Align in one turn bills (k−1)×10e extra — overhead that buys no force.
-- **Economy.** Aligned tiles mint `density × coherence / 5` minerals each Upkeep (stochastically rounded); a full **C + O + Ge + S** set converts to 10 energy vs 1 for a single, so balanced trade is efficient. Affordability is monotonic (`maxEnergy ≥ need`).
+- **Economy.** Aligned tiles mint `floor(density × coherence / 10)` minerals each Upkeep (deterministic; density is a 0-10 power-law float, displayed floored); a full **C + O + Ge + S** set converts to 10 energy vs 1 for a single, so balanced trade is efficient. Affordability is monotonic (`maxEnergy ≥ need`).
 - **Hearts.** One heart is auctioned each turn (sealed second-price, paid in energy, 1-energy reserve; only cogs holding ground may bid; ties go to the first bidder by commit order). Most hearts at turn 100 wins.
-- **Exploit.** Strip-mine an owned tile for a `10 × coherence × density` mineral windfall — but it goes neutral and its density permanently halves.
+- **Exploit.** Strip-mine an owned tile for a `floor(10 × coherence × density)` mineral windfall — but it goes neutral and its density permanently drops by coherence/10.
 - **Abandon.** Return an owned tile to neutral and recover its coherence as energy (next-turn money, no scarring).
 
 ## Invariants

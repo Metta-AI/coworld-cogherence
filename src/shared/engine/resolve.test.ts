@@ -135,13 +135,15 @@ describe("resolve", () => {
     expect(tre(state, "A")).toEqual(T(1, 2, 2, 2)); // A: -3 S sent, -1 energy (one C) for the transfer fee
   });
 
-  it("exploit mints 10*coherence*density of the MINERAL, neutralizes the tile, halves density (windfall is next-turn money)", () => {
+  it("exploit mints floor(10·coherence·density) of the MINERAL; density drops by coherence/10", () => {
     const s = makeState({
       tiles: [tile(0, 0, "A", 4, "O", 3)], cogOrder: ["A"], treasuries: { A: T() },
     });
     const { state } = resolve(s, { A: [{ type: "exploit", tile: "0,0" }] });
-    expect(at(state, 0, 0)).toMatchObject({ alignment: null, coherence: 0, density: 1 }); // floor(3*0.5)=1
-    expect(tre(state, "A").O).toBe(120); // 10*4*3
+    // scarring scales with the order cashed: 3 − 4/10 = 2.6 (a float)
+    expect(at(state, 0, 0)).toMatchObject({ alignment: null, coherence: 0 });
+    expect(at(state, 0, 0).density).toBeCloseTo(2.6, 5);
+    expect(tre(state, "A").O).toBe(120); // floor(10·4·3)
   });
 
   it("exploit resolves BEFORE align: an exploited tile is neutral/0 when a rival's align lands, so the rival takes the husk", () => {

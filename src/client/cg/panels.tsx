@@ -8,7 +8,7 @@ import type { Message } from "../../shared/messages";
 import type { TurnEvent } from "../../shared/engine/log";
 import type { StampedEvent } from "../net/feed";
 import { cogColor, cogName } from "../colors";
-import { MINT_DIVISOR, TRANSFER_FEE, upkeepBase, maxRegen, REGEN_COST, RESISTANCE_COST } from "../../shared/engine/constants";
+import { TRANSFER_FEE, upkeepBase, maxRegen, mintOf, REGEN_COST, RESISTANCE_COST } from "../../shared/engine/constants";
 import { HexBoard, type LatticeMode } from "../HexBoard";
 import { CGIcon, CogText, EnergyChip, Mineral, TilePill } from "./atoms";
 import { subscribeTileHighlight } from "./tile-highlight";
@@ -368,7 +368,7 @@ export function TurnLog({ snapshot, events }: { snapshot: GameSnapshot; events: 
             {upkeepList.length > 0 && (
               <div
                 style={{ display: "grid", gridTemplateColumns: "minmax(52px, auto) repeat(6, minmax(30px, auto)) 1fr", columnGap: 9, rowGap: 3, alignItems: "center", padding: "4px 0" }}
-                data-tip="minerals minted this upkeep (density × coherence / 5 per tile), their energy value, and net tiles gained/lost"
+                data-tip="minerals minted this upkeep (floor(density × coherence / 10) per tile), their energy value, and net tiles gained/lost"
               >
                 <span />
                 {MINERALS.map((m) => (
@@ -518,8 +518,8 @@ export function TileInspector({ tileKey: key, snapshot }: { tileKey: string; sna
   const bill = t.alignment ? tileCost(t, map, ownedCount) : 0;
   const resistance = bill - base;
   const resistanceTip = `${enemies} enemy neighbor${enemies === 1 ? "" : "s"} × ${RESISTANCE_COST}e — allies do not reduce resistance (they speed regen instead); neutral counts for nothing`;
-  const scarred = t.density < t.density0; // an exploit halved the deposit
-  const mint = (t.density * t.coherence) / MINT_DIVISOR; // expected mineral/turn
+  const scarred = t.density < t.density0; // an exploit ground the deposit down
+  const mint = mintOf(t.density, t.coherence); // mineral/turn (deterministic)
   const row = (label: string, value: React.ReactNode): React.ReactElement => (
     <tr key={label}>
       <td className="cg-label" style={{ fontSize: 9, padding: "3px 0" }}>{label}</td>
@@ -551,15 +551,15 @@ export function TileInspector({ tileKey: key, snapshot }: { tileKey: string; sna
             {row(
               "mining",
               <span style={{ display: "inline-flex", alignItems: "center", gap: 5, justifyContent: "flex-end" }}>
-                {mint > 0 && <b style={{ color: "var(--text-dim)" }}>+{mint.toFixed(1)}</b>}
+                {mint > 0 && <b style={{ color: "var(--text-dim)" }}>+{mint}</b>}
                 <Mineral m={t.mineral} />
                 {scarred ? (
-                  <span data-tip={`exploited — deposit halved from ${t.density0}`}>
-                    <s style={{ color: "var(--muted-2)" }}>{t.density0}</s>
-                    <span style={{ color: "var(--exploit)" }}> {t.density}</span>
+                  <span data-tip={`exploited — deposit ground down from ${Math.floor(t.density0)}`}>
+                    <s style={{ color: "var(--muted-2)" }}>{Math.floor(t.density0)}</s>
+                    <span style={{ color: "var(--exploit)" }}> {Math.floor(t.density)}</span>
                   </span>
                 ) : (
-                  <span data-tip={`deposit density — mints density × coherence / ${MINT_DIVISOR} per turn`}>{t.density}</span>
+                  <span data-tip="deposit density (0-10) — mints floor(density × coherence / 10) per turn">{Math.floor(t.density)}</span>
                 )}
               </span>,
             )}
