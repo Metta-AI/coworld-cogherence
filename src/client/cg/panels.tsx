@@ -161,23 +161,39 @@ function orderOutcome(
   if (rejection) return { outcome: `rejected, ${rejection}`, failed: true };
   switch (order.type) {
     case "align": {
+      // rival aligns that exerted force on the same tile this turn (a rejected
+      // set exerts none) — equal top forces repel EVERYONE, so a quiet "failed"
+      // usually means a simultaneous clash the cog never saw coming.
+      const rejectedCogs = new Set(evs.filter((e) => e.type === "rejected").map((e) => e.cog));
+      const rivalForce = new Map<string, number>();
+      for (const e of evs)
+        if (e.type === "order" && e.cog !== cog && !rejectedCogs.has(e.cog) && e.order.type === "align" && e.order.tile === order.tile)
+          rivalForce.set(e.cog, (rivalForce.get(e.cog) ?? 0) + e.order.force);
+      const rivals = [...rivalForce.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .map(([c, f]) => `${cogName(cogIdx(c))} force ${f}`)
+        .join(", ");
       const cap = evs.find((e) => e.type === "capture" && e.tile === order.tile);
       if (cap && cap.type === "capture") {
         if (cap.to === cog)
           return {
-            outcome: cap.from ? `flipped ${cogName(cogIdx(cap.from))}, coh=${cap.coherence}` : `coh=${cap.coherence}`,
+            outcome:
+              (cap.from ? `flipped ${cogName(cogIdx(cap.from))}, coh=${cap.coherence}` : `coh=${cap.coherence}`) +
+              (rivals ? ` (beat ${rivals})` : ""),
             failed: false,
           };
-        if (cap.to === null) return { outcome: "tie, tile annihilated", failed: true };
-        return { outcome: `failed, ${cogName(cogIdx(cap.to))} took it`, failed: true };
+        if (cap.to === null) return { outcome: `tie vs ${rivals || "the incumbent"} — all forces annihilated, ground neutral`, failed: true };
+        return { outcome: `failed, ${cogName(cogIdx(cap.to))} took it${rivalForce.has(cap.to) ? ` with force ${rivalForce.get(cap.to)}` : ""}`, failed: true };
       }
       // no capture: the tile's alignment didn't change — reinforce or repelled
       const after = map.get(order.tile);
-      if (after?.alignment === cog) return { outcome: `coh=${after.coherence}`, failed: false };
+      if (after?.alignment === cog) return { outcome: `coh=${after.coherence}${rivals ? ` (vs ${rivals})` : ""}`, failed: false };
       return {
         outcome: after?.alignment
           ? `failed, ${cogName(cogIdx(after.alignment))} held at coh=${after.coherence}`
-          : "failed, tile still neutral",
+          : rivals
+            ? `clashed with ${rivals} — tie, everyone repelled, tile stays neutral`
+            : "failed, tile still neutral",
         failed: true,
       };
     }
