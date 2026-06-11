@@ -22,9 +22,11 @@ async function main(): Promise<void> {
   const minTurnMs = Number(arg("pace", "800"));
   const maxTurns = Number(arg("turns", "0")) || undefined;
   const agentsArg = arg("agents", "");
+  // --cogs 0 launches an EMPTY board: the loop idles until players claim in
+  // via /cog/<name> (each claim seats a manual cog at a free corner).
   const specs = agentsArg
     ? agentsArg.split(",").map((s) => s.trim())
-    : Array.from({ length: Math.max(1, cogs) }, (_, i) => ROTATION[i % ROTATION.length]!);
+    : Array.from({ length: Math.max(0, cogs) }, (_, i) => ROTATION[i % ROTATION.length]!);
   // --names Alex,Dave seats the cogs under those names; --manual starts every
   // seat with autopilot OFF (operators drive via the Control panel / Ready).
   const names = arg("names", "") ? arg("names", "").split(",").map((s) => s.trim()) : undefined;

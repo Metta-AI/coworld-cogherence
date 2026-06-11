@@ -102,6 +102,24 @@ describe("GameRunner", () => {
     expect(runner.state.turn).toBe(2);
   });
 
+  it("an empty board idles at turn 1; the first addCog wakes it and the game runs", async () => {
+    const runner = new GameRunner({ seed: 7, agents: [], maxTurns: 2, deadlineMs: 30 });
+    const done = runner.run();
+    await new Promise((r) => setTimeout(r, 80));
+    expect(runner.state.turn).toBe(1); // idling — zero cogs, nothing simulated
+    runner.addCog((id) => greedyAgent(id));
+    const result = await done; // greedy plays both turns to completion
+    expect(runner.state.turn).toBe(3);
+    expect(result.standings).toHaveLength(1);
+  });
+
+  it("reset keeps claimed names — the roster survives a clean-board restart", () => {
+    const runner = new GameRunner({ seed: 7, agents: [], maxTurns: 2, deadlineMs: 30 });
+    runner.addCog((id) => greedyAgent(id), "zoe");
+    runner.reset();
+    expect(runner.state.cogs.cog0!.name).toBe("zoe");
+  });
+
   it("a hung negotiate can't stall the turn — it's raced against the deadline", async () => {
     const bus = new MessageBus();
     const hung: Agent = { id: "cog0", commit: () => [], negotiate: () => new Promise<never>(() => {}) }; // never resolves

@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "serve", "--", "--port", "5173", "--pace", "800", "--default-live", "--cogs", "2", "--names", "Alex,Dave", "--manual", "--wait-ready"],
       "port": 5173
+    },
+    {
+      "name": "playable",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "serve", "--", "--port", "5173", "--pace", "800", "--default-live", "--cogs", "0", "--wait-ready"],
+      "port": 5173
     }
   ]
 }

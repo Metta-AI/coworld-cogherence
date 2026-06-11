@@ -154,9 +154,12 @@ export class GameRunner {
   addCog(makeAgent: (id: CogId) => Agent, name?: string): CogId {
     const id: CogId = `cog${this.state.cogOrder.length}`;
     this.state = addCog(this.state, name);
+    // remember claimed names so a reset rebuilds the same roster
+    if (name) (this.names ??= [])[this.state.cogs[id]!.index] = name;
     this.agents.push(makeAgent(id));
     this.emit({ type: "snapshot", snapshot: toSnapshot(this.state) });
     this.emit({ type: "serverStatus", status: this.status() });
+    this.releaseWaiters(); // an empty board idles until its first seat — wake it
     return id;
   }
 
@@ -212,6 +215,13 @@ export class GameRunner {
       await this.waitWhilePaused(gen);
       if (gen !== this.generation) return scoreGame(this.state);
       if (this.state.turn > this.turnLimit) continue; // resumed without extending -> re-park
+      // An EMPTY board idles — no cogs, nothing to simulate. The first claim
+      // (addCog) wakes the loop; without this, turns would burn through the
+      // limit before anyone joined a no-players launch.
+      if (this.agents.length === 0) {
+        await new Promise<void>((resolve) => this.resumeWaiters.push(resolve));
+        continue;
+      }
 
       const startedAt = Date.now();
       const snapshot = this.state;
