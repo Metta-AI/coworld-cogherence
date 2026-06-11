@@ -28,7 +28,13 @@ describe("App", () => {
     expect(log.textContent).toContain("nothing has resolved yet");
     expect(log.querySelectorAll(".cg-verb")).toHaveLength(0);
     // Advancing the board reveals the events that resolved on the way here.
-    for (let i = 0; i < 5; i++) fireEvent.click(getByLabelText("Forward"));
-    expect(log.querySelectorAll(".cg-verb").length).toBeGreaterThan(0);
+    // The log shows ONE turn's actions, and quiet turns are common on a
+    // half-barren board — step until an action line appears.
+    let found = 0;
+    for (let i = 0; i < 30 && found === 0; i++) {
+      fireEvent.click(getByLabelText("Forward"));
+      found = log.querySelectorAll(".cg-verb").length;
+    }
+    expect(found).toBeGreaterThan(0);
   });
 });

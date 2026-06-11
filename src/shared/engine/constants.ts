@@ -32,6 +32,8 @@ export const maxRegen = (friendly: number): number => 1 + Math.floor(friendly / 
  *  floor(density). */
 export const DENSITY_MAX = 10;
 export const DENSITY_POWER = 2;
+/** Fraction of tiles seeded truly BARREN (density exactly 0). */
+export const BARREN_FRACTION = 0.5;
 
 /** Mining: floor(density × coherence / 10) units of the tile's mineral per
  *  Upkeep — deterministic; a full-coherence tile yields floor(density). */

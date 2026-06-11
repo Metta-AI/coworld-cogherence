@@ -28,28 +28,28 @@ describe("generateBoard", () => {
     for (const hex of LANDMARKS) expect(g.tiles[key(hex)]!.density).toBe(DENSITY_MAX);
   });
 
-  it("distributes density 0..10 by a power law: most tiles thin, rich ones rare", () => {
+  it("seeds half the board barren; the rest follows the 0..10 power law", () => {
     const landmarkKeys = new Set(LANDMARKS.map(key));
     let n = 0;
+    let zeros = 0;
     let sum = 0;
-    let under1 = 0;
     let over8 = 0;
     for (let seed = 0; seed < 60; seed++) {
       for (const [k, t] of Object.entries(generateBoard(seed, 4).tiles)) {
         if (landmarkKeys.has(k)) continue; // landmarks are forced to max
         expect(t.density).toBeGreaterThanOrEqual(0);
         expect(t.density).toBeLessThanOrEqual(DENSITY_MAX);
-        expect(Number.isInteger(t.density)).toBe(false); // a float field
+        if (t.density > 0) expect(Number.isInteger(t.density)).toBe(false); // non-barren is a float
         n++;
+        if (t.density === 0) zeros++;
         sum += t.density;
-        if (t.density < 1) under1++;
         if (t.density > 8) over8++;
       }
     }
-    // density = 10·u² over u~U(0,1): mean 10/3, P(d<1)=√0.1≈0.316, P(d>8)=1−√0.8≈0.106
-    expect(sum / n).toBeCloseTo(10 / 3, 0);
-    expect(under1 / n).toBeCloseTo(0.316, 1);
-    expect(over8 / n).toBeCloseTo(0.106, 1);
+    // 50% exact zeros; the other half is 10·u² (mean 10/3, P(d>8)=1−√0.8≈0.106)
+    expect(zeros / n).toBeCloseTo(0.5, 1);
+    expect(sum / n).toBeCloseTo(0.5 * (10 / 3), 0);
+    expect(over8 / n).toBeCloseTo(0.5 * 0.106, 1);
   });
 
   it("addCog seats the next cog at a free corner; throws when out of seats", () => {

@@ -43,7 +43,7 @@ const BASE = import.meta.env.BASE_URL;
 // density — the at-a-glance resource indicator. In mineral mode the fill already
 // encodes the mineral, so the gem is omitted there.
 const mineralIcon = (m: string): string => `${BASE}icons/transparent/mineral-${m.toLowerCase()}.png`;
-const gemSize = (density: number): number => SIZE * (0.3 + (Math.min(10, density) / 10) * 0.9);
+const gemSize = (density: number): number => SIZE * 1.25 * (Math.min(10, density) / 10); // proportional to the deposit
 const corners = (cx: number, cy: number): string => polygonPoints(hexCorners(cx, cy, SIZE));
 /** A hex's corners pulled `f` of the way toward its center — the inner fortress sheen. */
 const innerCorners = (cx: number, cy: number, f: number): string =>

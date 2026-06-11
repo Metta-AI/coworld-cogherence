@@ -41,7 +41,7 @@ A **hex lattice** (~127 tiles for up to 6 Cogs; sized to player count). Each til
 | **Alignment** | `neutral` or a specific Cog |
 | **Coherence** | integer `0…6` — *margin of dominance* (see §4) |
 | **Mineral** | one of `C`, `O`, `Ge`, `S` |
-| **Density** | how rich the deposit is — 0–10 as a float (power-law seeded: most tiles thin, a few rich; degradable by Exploit; displayed as ⌊density⌋) |
+| **Density** | how rich the deposit is — 0–10 as a float (half the board is barren; the rest power-law seeded: most deposits thin, a few rich; degradable by Exploit; displayed as ⌊density⌋) |
 
 **Setup:** each Cog starts with a small **home cluster**. Minerals are seeded so that **no Cog naturally holds all four types** — forcing trade from turn one. Interiors are safe; frontiers are contested (a consequence of §4, not a special rule).
 

@@ -7,7 +7,7 @@ import { makeRng, randInt } from "./rng";
 import { hexesInRadius, key } from "./hex";
 import { MINERALS } from "./types";
 import type { GameState, Tile, CogState, CogId, Treasury } from "./types";
-import { BOARD_RADIUS, COHERENCE_MAX, DENSITY_MAX, DENSITY_POWER, SET_ENERGY, STARTING_ENERGY } from "./constants";
+import { BARREN_FRACTION, BOARD_RADIUS, COHERENCE_MAX, DENSITY_MAX, DENSITY_POWER, SET_ENERGY, STARTING_ENERGY } from "./constants";
 
 /** A balanced starting wallet worth exactly STARTING_ENERGY (maxEnergy of N full sets). */
 const startingTreasury = (): Treasury => {
@@ -40,10 +40,10 @@ export function generateBoard(seed: number, numCogs: number): GameState {
   const tiles: Record<string, Tile> = {};
   for (const hex of hexes) {
     const mineral = MINERALS[randInt(rng, MINERALS.length)]!;
-    // Power-law density over 0..DENSITY_MAX: density = MAX × u^POWER — most
-    // tiles are thin (floor 0-2), rich deposits are rare. Stored as a float;
-    // every display floors it.
-    const density = DENSITY_MAX * rng() ** DENSITY_POWER;
+    // Half the board is truly BARREN (density 0); the rest follows a power law
+    // over 0..DENSITY_MAX (density = MAX × u^POWER — most deposits thin, rich
+    // ones rare). Stored as a float; every display floors it.
+    const density = rng() < BARREN_FRACTION ? 0 : DENSITY_MAX * rng() ** DENSITY_POWER;
     tiles[key(hex)] = { hex, alignment: null, coherence: 0, mineral, density, density0: density };
   }
 
