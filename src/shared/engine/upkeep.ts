@@ -1,19 +1,17 @@
-// The Upkeep phase: after Resolve, every Cog pays for its ground — and Coherence
-// is purely economic. Each tile's bill: a base of floor(sqrt(tiles owned)) —
-// empire scale taxes itself — plus RESISTANCE per enemy neighbor; allies do NOT
-// cheapen defense, and neutral neighbors count for nothing (tileUpkeepCost).
-// Heartland is funded first (descending coherence). An unpaid tile UNDER
-// resistance loses 1 Coherence (and goes neutral at 0) — zero-resistance ground
-// holds even when the wallet runs dry, so collapse stays localized to
-// frontiers. Allies are FREE healing instead: a paid tile regenerates +1
-// Coherence per allied neighbor every Upkeep, capped at COHERENCE_MAX.
-// Aligned tiles then mint their mineral at density×coherence.
-// Pure: the input state is never mutated.
+// The Upkeep phase: after Resolve, every Cog pays for its ground — and the
+// NEIGHBORS move Coherence. Each tile's bill is just the empire-scaled base
+// (floor(sqrt(tiles owned)) — sprawl taxes itself), funded heartland-first.
+// Resistance costs no energy: every Upkeep a tile's coherence shifts by
+// (+1 per allied neighbor) − (1 per enemy neighbor), clamped 0..COHERENCE_MAX —
+// neutral neighbors count for nothing. The ally bonus rides on a PAID bill;
+// an unpaid tile still suffers the enemy drain but gets no healing. At 0 the
+// tile goes neutral. Aligned tiles then mint their mineral at
+// density×coherence. Pure: the input state is never mutated.
 
 import type { GameState, CogId, HexKey, Tile, Treasury, CogState } from "./types";
 import { neighbors, key } from "./hex";
 import { chargeEnergy, maxEnergy } from "./energy";
-import { COHERENCE_MAX, mintOf, tileUpkeepCost } from "./constants";
+import { COHERENCE_MAX, mintOf, upkeepBase } from "./constants";
 
 /** Events emitted by an Upkeep phase (for the turn log / replay). */
 export type UpkeepEvent =
@@ -29,12 +27,11 @@ export type UpkeepEvent =
 const addT = (a: Treasury, b: Treasury): Treasury => ({ C: a.C + b.C, O: a.O + b.O, Ge: a.Ge + b.Ge, S: a.S + b.S });
 
 /**
- * The Upkeep phase: (1) bill every owned tile via tileUpkeepCost and pay base
- * upkeep heartland-first — unpaid tiles UNDER resistance lose 1 Coherence
- * (neutral at 0) while zero-resistance tiles hold;
- * (2) every PAID tile regenerates +1 Coherence per allied neighbor, FREE,
- * capped at COHERENCE_MAX; (3) mint floor(density × coherence / 10) of each
- * aligned tile's mineral. Pure.
+ * The Upkeep phase: (1) bill every owned tile its empire-scaled base and pay
+ * heartland-first; (2) NEIGHBOR PRESSURE: each tile's coherence shifts by
+ * (paid ? allies : 0) − enemies, clamped 0..COHERENCE_MAX (at 0 the tile goes
+ * neutral); (3) mint floor(density × coherence / 10) of each aligned tile's
+ * mineral. Pure.
  */
 export function upkeep(state: GameState): { state: GameState; events: UpkeepEvent[] } {
   const events: UpkeepEvent[] = [];
@@ -54,10 +51,9 @@ export function upkeep(state: GameState): { state: GameState; events: UpkeepEven
     let treasury = cog.treasury;
     const owned = ownedBy.get(cogId)!;
 
-    // bill each tile from the pre-upkeep snapshot (simultaneous across cogs)
-    const costs = new Map<HexKey, number>();
-    const friendlyOf = new Map<HexKey, number>(); // allies set the regen ceiling
-    const sheltered = new Set<HexKey>(); // zero resistance: no enemy neighbors
+    // count neighbors from the pre-upkeep snapshot (simultaneous across cogs)
+    const friendlyOf = new Map<HexKey, number>();
+    const enemiesOf = new Map<HexKey, number>();
     for (const k of owned) {
       const t = state.tiles[k]!;
       let friendly = 0;
@@ -68,35 +64,31 @@ export function upkeep(state: GameState): { state: GameState; events: UpkeepEven
         if (nt.alignment === t.alignment) friendly++;
         else enemies++;
       }
-      costs.set(k, tileUpkeepCost(enemies, owned.length));
       friendlyOf.set(k, friendly);
-      if (enemies === 0) sheltered.add(k);
+      enemiesOf.set(k, enemies);
     }
     const desc = [...owned].sort((a, b) => state.tiles[b]!.coherence - state.tiles[a]!.coherence);
 
-    // 1. base upkeep, heartland first — an unpaid tile rots −1 (neutral at 0)
+    // 1. the empire-scaled base bill, heartland first (resistance bills nothing)
+    const base = upkeepBase(owned.length);
     const paid = new Set<HexKey>();
     for (const k of desc) {
-      const cost = costs.get(k)!;
-      if (maxEnergy(treasury) >= cost) {
-        treasury = chargeEnergy(treasury, cost)!;
+      if (maxEnergy(treasury) >= base) {
+        treasury = chargeEnergy(treasury, base)!;
         paid.add(k);
-      } else if (!sheltered.has(k)) {
-        // only ground under resistance rots when unpaid — sheltered tiles hold
-        const t = tiles[k]!;
-        const coherence = Math.max(0, t.coherence - 1);
-        tiles[k] = coherence === 0 ? { ...t, coherence, alignment: null } : { ...t, coherence };
-        events.push({ type: "starved", cog: cogId, tile: k, coherence });
-        if (coherence === 0) events.push({ type: "lost", cog: cogId, tile: k });
       }
     }
 
-    // 2. regen: a paid tile heals +1 Coherence per allied neighbor, free.
+    // 2. neighbor pressure: +1 per ally (paid bills only) − 1 per enemy, net,
+    //    clamped 0..COHERENCE_MAX — a tile ground to 0 goes neutral.
     for (const k of desc) {
-      if (!paid.has(k)) continue;
       const t = tiles[k]!;
-      const grown = Math.min(friendlyOf.get(k)!, COHERENCE_MAX - t.coherence);
-      if (grown > 0) tiles[k] = { ...t, coherence: t.coherence + grown };
+      const delta = (paid.has(k) ? friendlyOf.get(k)! : 0) - enemiesOf.get(k)!;
+      const coherence = Math.max(0, Math.min(COHERENCE_MAX, t.coherence + delta));
+      if (coherence === t.coherence) continue;
+      tiles[k] = coherence === 0 ? { ...t, coherence, alignment: null } : { ...t, coherence };
+      if (delta < 0) events.push({ type: "starved", cog: cogId, tile: k, coherence });
+      if (coherence === 0) events.push({ type: "lost", cog: cogId, tile: k });
     }
 
     // 3. mint (post-upkeep coherence) — floor(density × coherence / 10) per

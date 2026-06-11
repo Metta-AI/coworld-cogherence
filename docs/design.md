@@ -53,7 +53,7 @@ Coherence is **not a stat you set**; it emerges from the spatial configuration.
 
 **Passive rule (every Upkeep):** every **aligned** tile is priced by its enemies and healed by its allies.
 - Its bill is a base of **⌊√(tiles owned)⌋** — empire scale taxes *every* tile, so total base spend grows ~N^1.5 and sprawl caps itself — **+ RESISTANCE** = **10e per enemy-aligned neighbor** (§6). Allies do **not** cheapen defense, and neutral neighbors count for nothing — contested ground is a serious money sink.
-- Allies are **free healing** instead: a paid tile regenerates **+1 Coherence per allied neighbor** every Upkeep (cap 10), at no cost. Unpaid **under resistance** (any enemy neighbor) → **−1**, floored at 0; unpaid ground with **zero resistance holds** — collapse stays on the frontier.
+- Resistance costs **no energy** — neighbors move Coherence directly: every Upkeep a tile shifts **+1 per allied neighbor − 1 per enemy neighbor** (net, cap 10, floored at 0 → neutral). The ally bonus rides on a **paid** bill; an unpaid tile still suffers the enemy drain but gets no healing.
 
 **Neutral tiles stay at Coherence 0** — they neither grow nor decay until a Cog claims them.
 
@@ -137,7 +137,7 @@ On a tile you hold: return it to **neutral** and recover its standing **Coherenc
 
 That 10-vs-1 gap is the political economy in one line: a balanced portfolio is **2.5× more efficient per mineral**. Since almost no Cog's land yields all four, **trade is survival, not flavor** — the mineral map *is* the diplomatic map.
 
-**Upkeep:** each aligned tile bills a base of **⌊√(tiles owned)⌋ energy/turn** (a 4-tile empire pays 2 per tile, a 25-tile one pays 5 — sprawl taxes itself) **+ resistance** = **10 energy per enemy-aligned neighbor** — allies never cheapen defense (neutral counts for nothing), so contested ground is a serious money sink. Allies are **free healing**: a paid tile regenerates **+1 Coherence per allied neighbor** per turn, at no cost (cap 10). A tile whose bill goes unpaid while **under resistance** **loses 1 Coherence** (neutral at 0); zero-resistance ground holds even unpaid. Bills and regen are funded heartland-first. Sheltered interiors are cheap engines; outnumbered frontiers are money pits.
+**Upkeep:** each aligned tile bills just a base of **⌊√(tiles owned)⌋ energy/turn** (a 4-tile empire pays 2 per tile, a 25-tile one pays 5 — sprawl taxes itself), funded heartland-first. **Resistance costs no energy** — neighbors move Coherence instead: every Upkeep a tile shifts **+1 per allied neighbor − 1 per enemy neighbor** (net, cap 10; neutral counts for nothing; at 0 the tile goes neutral). The ally bonus rides on a **paid** bill — unpaid ground takes the enemy drain with no healing. Outnumbered frontiers bleed; backed lines hold themselves.
 
 **Timing (one-turn lag):** minerals minted in Upkeep land in the treasury for *next* turn — you always Commit against last turn's production. Energy itself is never banked: it's recomputed from the treasury the moment it's needed, and any unconverted potential simply stays as minerals. The full execution order (Exploit → Align → Transfer → auction → Upkeep) is fixed in **§14**.
 
@@ -150,7 +150,7 @@ Four phases — the first three are the Diplomacy heartbeat; the fourth is the w
 1. **Negotiate** *(timed, social)* — agents talk freely. **Public** channel (declarations, alliances, accusations; whole board sees) and **private** DMs (secret deals, lies, side payments). Nothing is binding.
 2. **Commit** *(secret, timed)* — each Cog privately locks its orders: Align(s), Exploit(s), Transfer(s), and a **sealed heart bid** (energy). No one sees others' orders. The phase runs on a **deadline** (a hung Cog defaults to no orders), and the **first Cog to lock its Commit earns a tempo bonus** — exactly `FIRST_COMMIT_REWARD` energy, paid as units of its most abundant mineral so the marginal value is precisely that — rewarding decisiveness without warping the mineral economy. (A live mechanic: scripted replays opt out, so a deterministic instant-first doesn't dominate.)
 3. **Resolve** *(simultaneous)* — all orders reveal and execute at once, in a fixed order (Exploit → Align → Transfer → auction; **§14**). Contested Aligns clash via tug-of-war (§5); the **heart auction** settles (§8). *This* is where betrayal lands — you reinforced the board on faith while they Exploited behind your back, and everyone sees it together.
-4. **Upkeep** *(the world breathes)* — every tile bills upkeep (§6): unpaid ground under resistance rots −1, paid ground heals +1 per allied neighbor for free; tiles then mint minerals.
+4. **Upkeep** *(the world breathes)* — every tile bills upkeep (§6): every tile shifts by allies − foes (ally bonus needs a paid bill); tiles then mint minerals.
 
 ---
 
@@ -273,7 +273,7 @@ Steps 1–4 are **Resolve** (phase 3); step 5 is **Upkeep** (phase 4):
 2. **Align** — tug-of-war on every contested tile, all simultaneously (§5).
 3. **Transfer** — move minerals between treasuries.
 4. **Heart auction** — Vickrey settle (§8); winner pays the second price, floored at the **1-energy reserve**; only Cogs holding ground may bid. **Tied bids go to the first Cog to lock its Commit** (scripted games fall back to seat order).
-5. **Upkeep** — bill every tile (§6): pay-or-rot (rot only under resistance), paid tiles heal +1/ally free, heartland funded first; then mint minerals.
+5. **Upkeep** — bill every tile (§6): base bills heartland-first, then neighbor pressure (allies − foes, ally bonus on paid bills); then mint minerals.
 
 ### 14.5 Time & token budget (LLM-specific)
 Negotiate is **timed**: a fixed wall-clock or token budget per Cog per round, plus a bounded number of message exchanges (default: a few public + DM rounds). Exceeding the budget ends that Cog's Negotiate turn; it can still Commit. This keeps a 100-turn game tractable and stops one slow agent from stalling the match.

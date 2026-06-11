@@ -12,16 +12,12 @@ export const MAX_TURNS = 100;
 
 /** Per-tile upkeep, per turn: a base that SCALES WITH EMPIRE SIZE —
  *  floor(sqrt(tiles owned)) per tile, so total base spend grows ~N^1.5 and
- *  sprawl taxes itself — plus RESISTANCE: RESISTANCE_COST energy per
- *  enemy-aligned neighbor. Allies do NOT cheapen defense (neutral neighbors
- *  count for nothing) — their value is FREE healing instead: a paid tile
- *  regenerates +1 Coherence per allied neighbor every Upkeep (cap
- *  COHERENCE_MAX). An unpaid tile UNDER resistance loses 1 (neutral at 0)
- *  while zero-resistance ground holds even unpaid. */
-export const RESISTANCE_COST = 10;
+ *  sprawl taxes itself. RESISTANCE costs no energy — neighbors move COHERENCE
+ *  instead: every Upkeep a tile shifts +1 per allied neighbor, −1 per enemy
+ *  neighbor (net, clamped 0..COHERENCE_MAX; neutral counts for nothing). The
+ *  ally bonus rides on a PAID bill — an unpaid tile still suffers the enemy
+ *  drain but gets no healing. At 0 the tile goes neutral. */
 export const upkeepBase = (ownedTiles: number): number => Math.floor(Math.sqrt(Math.max(0, ownedTiles)));
-export const tileUpkeepCost = (enemies: number, ownedTiles: number): number =>
-  upkeepBase(ownedTiles) + RESISTANCE_COST * enemies;
 
 /** Density: a tile's deposit richness, 0..DENSITY_MAX as a FLOAT — distributed
  *  by a power law at board generation (density = MAX × u^DENSITY_POWER: most

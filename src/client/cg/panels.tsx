@@ -8,7 +8,7 @@ import type { Message } from "../../shared/messages";
 import type { TurnEvent } from "../../shared/engine/log";
 import type { StampedEvent } from "../net/feed";
 import { cogColor, cogName } from "../colors";
-import { TRANSFER_FEE, upkeepBase, mintOf, exploitYield, RESISTANCE_COST } from "../../shared/engine/constants";
+import { TRANSFER_FEE, upkeepBase, mintOf, exploitYield } from "../../shared/engine/constants";
 import { HexBoard, type LatticeMode } from "../HexBoard";
 import { CGIcon, CogText, EnergyChip, Mineral, TilePill } from "./atoms";
 import { subscribeTileHighlight } from "./tile-highlight";
@@ -25,7 +25,6 @@ import {
   tileMap,
   neighbors,
   tileStatus,
-  tileCost,
   tileDrain,
   mintEnergyBy,
 } from "./derive";
@@ -530,16 +529,11 @@ export function TileInspector({ tileKey: key, snapshot }: { tileKey: string; sna
   const nc = nb.length;
   const status = tileStatus(t, map, snapshot.coherenceMax, ownerColor);
   const drain = tileDrain(t, snapshot);
-  // The bill, decomposed (mirrors tileUpkeepCost): upkeep = the empire-scaled
-  // base every aligned tile pays; resistance = RESISTANCE_COST per enemy
-  // neighbor (allies do not discount it; neutral counts for nothing).
-  // Regeneration is FREE: a paid tile heals +1 coherence per allied neighbor.
+  // The bill is just the empire-scaled base — resistance costs no energy.
+  // Neighbors move COHERENCE instead: +1 per ally (paid bills only) − 1 per foe.
   const enemies = t.alignment ? nb.filter((n) => n.alignment !== null && n.alignment !== t.alignment).length : 0;
   const ownedCount = t.alignment ? snapshot.tiles.filter((x) => x.alignment === t.alignment).length : 0;
   const base = upkeepBase(ownedCount);
-  const bill = t.alignment ? tileCost(t, map, ownedCount) : 0;
-  const resistance = bill - base;
-  const resistanceTip = `${enemies} enemy neighbor${enemies === 1 ? "" : "s"} × ${RESISTANCE_COST}e — allies do not reduce resistance (they speed regen instead); neutral counts for nothing`;
   const scarred = t.density < t.density0; // an exploit ground the deposit down
   const mint = mintOf(t.density, t.coherence); // mineral/turn (deterministic)
   const row = (label: string, value: React.ReactNode): React.ReactElement => (
@@ -606,22 +600,15 @@ export function TileInspector({ tileKey: key, snapshot }: { tileKey: string; sna
               ),
             )}
             {row(
-              "energy",
+              "upkeep",
               drain ? (
-                drain.verdict === "rots" ? (
-                  <span data-tip="the owner's wallet doesn't reach this tile — its bill goes unpaid and it loses 1 coherence" style={{ color: "var(--exploit)" }}>
-                    unpaid · −1 coh
+                drain.paid ? (
+                  <span data-tip={`base bill = floor(√${ownedCount} tiles) — empire scale taxes every tile; resistance costs no energy`} style={{ color: "var(--exploit)" }}>
+                    −{drain.drain}e/turn
                   </span>
                 ) : (
-                  <span
-                    data-tip={
-                      drain.verdict === "grows"
-                        ? `bill paid — heals +${drain.steps ?? 1} coherence/turn for free (+1 per allied neighbor)`
-                        : "bill paid — the tile holds (allied neighbors would heal it for free, +1 each per turn)"
-                    }
-                    style={{ color: "var(--exploit)" }}
-                  >
-                    −{drain.drain}e/turn
+                  <span data-tip="the owner's wallet doesn't reach this tile — an unpaid tile gets NO ally healing (enemy drain still applies)" style={{ color: "var(--exploit)" }}>
+                    unpaid
                   </span>
                 )
               ) : (
@@ -629,27 +616,21 @@ export function TileInspector({ tileKey: key, snapshot }: { tileKey: string; sna
               ),
             )}
             {drain &&
+              (drain.steps ?? 0) > 0 &&
               row(
-                "· upkeep",
-                <span data-tip={`base bill = floor(√${ownedCount} tiles) — empire scale taxes every tile`} style={{ color: "var(--muted)" }}>
-                  −{base}e
-                </span>,
-              )}
-            {drain &&
-              resistance > 0 &&
-              row(
-                "· resistance",
-                <span data-tip={resistanceTip} style={{ color: "var(--muted)" }}>
-                  −{resistance}e
-                </span>,
-              )}
-            {drain &&
-              drain.verdict === "grows" &&
-              row(
-                "regeneration",
-                <span data-tip="free — a paid tile heals +1 coherence per allied neighbor every upkeep" style={{ color: "var(--coherence)" }}>
-                  +{drain.steps} coh/turn
-                </span>,
+                "pressure",
+                drain.verdict === "grows" ? (
+                  <span data-tip={`+1 coherence per allied neighbor − 1 per foe (${friendly} allies, ${enemies} foes) — free, every upkeep`} style={{ color: "var(--coherence)" }}>
+                    +{drain.steps} coh/turn
+                  </span>
+                ) : (
+                  <span
+                    data-tip={`−1 coherence per enemy neighbor + 1 per ally (${friendly} allies, ${enemies} foes)${drain.paid ? "" : " — ally healing needs a paid bill"} — at 0 the tile goes neutral`}
+                    style={{ color: "var(--exploit)" }}
+                  >
+                    −{drain.steps} coh/turn
+                  </span>
+                ),
               )}
             {row(
               "neighbors",

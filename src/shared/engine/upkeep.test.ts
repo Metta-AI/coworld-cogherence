@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { upkeep } from "./upkeep";
 import type { GameState, Tile, CogId, Mineral, Treasury, CogState } from "./types";
 import { key } from "./hex";
-import { COHERENCE_MAX, tileUpkeepCost, upkeepBase } from "./constants";
+import { COHERENCE_MAX, upkeepBase } from "./constants";
 
 const tile = (q: number, r: number, alignment: CogId | null, coherence: number, mineral: Mineral = "C", density = 1): Tile =>
   ({ hex: { q, r }, alignment, coherence, mineral, density, density0: density });
@@ -20,21 +20,13 @@ const makeState = (opts: { tiles: Tile[]; cogOrder: CogId[]; treasuries?: Record
 const tre = (g: GameState, id: CogId) => g.cogs[id]!.treasury;
 const at = (g: GameState, q: number, r: number) => g.tiles[key({ q, r })]!;
 
-// Bills under the base + resistance model (see tileUpkeepCost):
-//   any tile:        floor(sqrt(tiles owned)) base
-//   + 10e x enemies  allies do NOT cheapen defense; neutral counts for nothing
-// Cogs holding 1-3 tiles pay base 1, so the small scenarios below stay simple.
-// Allies ARE the healing instead: a paid tile regenerates +1 coherence per
-// allied neighbor every turn, free (cap COHERENCE_MAX).
+// Bills are just the empire-scaled base — floor(sqrt(tiles owned)) per tile;
+// cogs holding 1-3 tiles pay base 1, so the small scenarios below stay simple.
+// Resistance costs NO energy: every upkeep a tile's coherence shifts by
+// (+1 per allied neighbor, paid bills only) − (1 per enemy neighbor), net,
+// clamped 0..COHERENCE_MAX — at 0 the tile goes neutral.
 
 describe("upkeep", () => {
-  it("tileUpkeepCost: empire-scaled base + 10e per enemy (allies never cheapen defense)", () => {
-    expect(tileUpkeepCost(0, 1)).toBe(1); // quiet lone tile — just the base
-    expect(tileUpkeepCost(0, 4)).toBe(2); // quiet tile in a 4-tile empire
-    expect(tileUpkeepCost(1, 1)).toBe(11); // one enemy neighbor: base + 10e
-    expect(tileUpkeepCost(3, 9)).toBe(33); // 3 enemies in a 9-tile empire: 3 + 30
-  });
-
   it("upkeepBase scales as floor(sqrt(tiles)): sprawl taxes itself", () => {
     expect(upkeepBase(1)).toBe(1);
     expect(upkeepBase(3)).toBe(1);
@@ -72,9 +64,9 @@ describe("upkeep", () => {
     expect(tre(upkeep(s2).state, "A")).toEqual(T(2, 0, 0, 0));
   });
 
-  it("unpaid tiles under resistance rot -1, heartland funded first (lowest coherence starves)", () => {
-    // three A tiles, each pressed by one B neighbor -> 11e bills; A's T(11)
-    // funds exactly the strongest. B can pay all of its own 11e bills.
+  it("enemy pressure drains −1 per foe — money can't stop it; at 0 the tile goes neutral", () => {
+    // three A tiles, each pressed by one B neighbor and backed by no allies.
+    // A pays every 1e bill — the drain lands anyway: resistance isn't money.
     const s = makeState({
       tiles: [
         tile(0, 0, "A", 5), tile(10, 0, "A", 3), tile(20, 0, "A", 1),
@@ -83,12 +75,12 @@ describe("upkeep", () => {
       cogOrder: ["A", "B"], treasuries: { A: T(11, 0, 0, 0), B: T(33, 0, 0, 0) },
     });
     const { state, events } = upkeep(s);
-    expect(at(state, 0, 0).coherence).toBe(5); // funded -> holds
-    expect(at(state, 10, 0).coherence).toBe(2); // unpaid + pressed -> -1
+    expect(at(state, 0, 0).coherence).toBe(4); // paid, 1 foe, 0 allies -> −1
+    expect(at(state, 10, 0).coherence).toBe(2);
     expect(at(state, 20, 0)).toMatchObject({ coherence: 0, alignment: null }); // 1 -> 0 -> neutral
     expect(events.some((e) => e.type === "starved" && e.tile === "10,0")).toBe(true);
     expect(events).toContainEqual({ type: "lost", cog: "A", tile: "20,0" });
-    expect(tre(state, "A")).toEqual(T(0, 0, 0, 0)); // 11e spent; mints floor(5/10) + floor(2/10) = 0
+    expect(tre(state, "A")).toEqual(T(8, 0, 0, 0)); // 3 × 1e bills; mints floor(4/10)+floor(2/10) = 0
   });
 
   it("a paid friendly pair heals +1 each, free — allies are the regen", () => {
@@ -127,16 +119,27 @@ describe("upkeep", () => {
     expect(events.some((e) => e.type === "starved" || e.type === "lost")).toBe(false);
   });
 
-  it("an enemy pair bills 11e each; the broke side rots", () => {
+  it("an unbacked enemy pair grinds each other down −1/turn — both paid, both pressed", () => {
     const s = makeState({
       tiles: [tile(0, 0, "A", 5), tile(1, 0, "B", 5)],
-      cogOrder: ["A", "B"], treasuries: { A: T(11, 0, 0, 0), B: T(10, 0, 0, 0) },
+      cogOrder: ["A", "B"], treasuries: { A: T(1, 0, 0, 0), B: T(1, 0, 0, 0) },
     });
     const { state } = upkeep(s);
-    expect(at(state, 0, 0).coherence).toBe(5); // A affords the 11e bill -> holds
-    expect(at(state, 1, 0).coherence).toBe(4); // B cannot -> under resistance, rots
-    expect(tre(state, "A")).toEqual(T(0, 0, 0, 0)); // charged 11; mint floor(5/10) = 0
-    expect(tre(state, "B")).toEqual(T(10, 0, 0, 0)); // unpaid bills charge nothing; mint 0
+    expect(at(state, 0, 0).coherence).toBe(4); // 0 allies − 1 foe
+    expect(at(state, 1, 0).coherence).toBe(4);
+    expect(tre(state, "A")).toEqual(T(0, 0, 0, 0)); // just the 1e base bill
+  });
+
+  it("allies offset enemy pressure: net = allies − foes on a paid tile", () => {
+    // A(0,0) touches two A allies and one B foe -> paid net +1; the B tile
+    // (1 ally of its own, 1 foe) nets 0 and holds.
+    const s = makeState({
+      tiles: [tile(-1, 0, "A", 9), tile(-1, 1, "A", 9), tile(0, 0, "A", 5), tile(1, 0, "B", 5), tile(2, 0, "B", 5)],
+      cogOrder: ["A", "B"], treasuries: { A: T(3, 0, 0, 0), B: T(2, 0, 0, 0) },
+    });
+    const { state } = upkeep(s);
+    expect(at(state, 0, 0).coherence).toBe(6); // 2 allies − 1 foe = +1
+    expect(at(state, 1, 0).coherence).toBe(5); // 1 ally − 1 foe = 0 -> holds
   });
 
   it("two allied neighbors heal a paid tile +2 in one turn, free", () => {
@@ -163,14 +166,15 @@ describe("upkeep", () => {
     expect(at(state, 1, 0).coherence).toBe(2);
   });
 
-  it("any enemy neighbor makes ground rot when unpaid — allies don't shelter it", () => {
-    // A's (0,0) touches one ally and one enemy -> bill 1 + 10 = 11e, A is broke -> rots.
+  it("an UNPAID tile gets no ally healing — the enemy drain lands in full", () => {
+    // A's (0,0) touches one ally and one enemy; A is broke, so the ally bonus
+    // is off: delta = 0 − 1 = −1 (paid, it would have netted 0 and held).
     const s = makeState({
       tiles: [tile(-1, 0, "A", 4), tile(0, 0, "A", 4), tile(1, 0, "B", 4)],
       cogOrder: ["A", "B"], treasuries: { A: T(), B: T(11, 0, 0, 0) },
     });
     const { state, events } = upkeep(s);
-    expect(at(state, 0, 0).coherence).toBe(3); // under resistance -> rots
+    expect(at(state, 0, 0).coherence).toBe(3); // pressed, unhealed
     expect(events.some((e) => e.type === "starved" && e.tile === "0,0")).toBe(true);
   });
 
