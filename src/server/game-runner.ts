@@ -28,6 +28,7 @@ export class GameRunner {
   private bus?: MessageBus;
   private steering?: SteeringStore;
   private names?: string[];
+  private waitForReady = false;
   private negotiateRounds: number;
   private listeners: Listener[] = [];
   private clientCount = 0;
@@ -62,6 +63,9 @@ export class GameRunner {
     steering?: SteeringStore;
     /** Launch-time seat names (index-ordered); roster defaults fill the gaps. */
     names?: string[];
+    /** Wait-ready mode: the Commit window has NO deadline — the turn advances
+     *  only when every cog submits (manual cogs: the operator's Ready). */
+    waitForReady?: boolean;
     negotiateRounds?: number;
   }) {
     this.agents = opts.agents;
@@ -74,6 +78,7 @@ export class GameRunner {
     this.steering = opts.steering;
     this.negotiateRounds = opts.negotiateRounds ?? 1;
     this.names = opts.names;
+    this.waitForReady = opts.waitForReady ?? false;
     this.state = newGame(opts.seed, opts.agents.length, opts.names);
   }
 
@@ -211,13 +216,15 @@ export class GameRunner {
         this.phaseDeadlineAt = undefined;
       }
 
-      // Commit phase: open a deadline window; broadcast it + each cog's ready flip.
+      // Commit phase: open a deadline window; broadcast it + each cog's ready
+      // flip. Wait-ready mode drops the deadline entirely: the turn advances
+      // only when EVERY cog submits (no countdown in the header either).
       const coord = new PhaseCoordinator<Order[]>(this.agents.map((a) => a.id));
       this.coord = coord;
       this.livePhase = "commit";
-      this.phaseDeadlineAt = Date.now() + this.deadlineMs;
+      this.phaseDeadlineAt = this.waitForReady ? undefined : Date.now() + this.deadlineMs;
       this.emit({ type: "serverStatus", status: this.status() });
-      const collected = coord.collect(this.deadlineMs, () => [], () =>
+      const collected = coord.collect(this.waitForReady ? Infinity : this.deadlineMs, () => [], () =>
         this.emit({ type: "serverStatus", status: this.status() }),
       );
       // Kick every agent; submissions feed the coordinator. NOT awaited: a

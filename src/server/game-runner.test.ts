@@ -3,6 +3,7 @@ import { GameRunner } from "./game-runner";
 import { greedyAgent, peacefulAgent } from "../agents/stub";
 import { MessageBus } from "./message-bus";
 import type { ServerMessage } from "../shared/protocol";
+import type { Order } from "../shared/engine/orders";
 import type { Agent } from "../agents/types";
 
 describe("GameRunner", () => {
@@ -74,6 +75,19 @@ describe("GameRunner", () => {
     const runner = new GameRunner({ seed: 7, agents: [hung, quiet], maxTurns: 2, deadlineMs: 30 });
     await runner.run();
     expect(runner.state.turn).toBe(3); // 2 turns played despite the parked commit
+  });
+
+  it("waitForReady: the commit window has no deadline — the turn waits for every cog", async () => {
+    let release!: (o: Order[]) => void;
+    const slow: Agent = { id: "cog0", commit: () => new Promise<Order[]>((r) => (release = r)) };
+    const quick: Agent = { id: "cog1", commit: () => [] };
+    const runner = new GameRunner({ seed: 7, agents: [slow, quick], maxTurns: 1, deadlineMs: 30, waitForReady: true });
+    const done = runner.run();
+    await new Promise((r) => setTimeout(r, 120)); // far past the 30ms deadline
+    expect(runner.state.turn).toBe(1); // still parked on cog0's commit
+    release([]);
+    await done;
+    expect(runner.state.turn).toBe(2); // advanced only once everyone submitted
   });
 
   it("a hung negotiate can't stall the turn — it's raced against the deadline", async () => {

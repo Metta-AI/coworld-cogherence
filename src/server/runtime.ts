@@ -33,6 +33,8 @@ export async function startServer(opts: {
   agentSpecs?: string[];
   /** Launch-time seat names (index-ordered). */
   names?: string[];
+  /** Commit waits for every cog's Ready — no deadline, no countdown. */
+  waitForReady?: boolean;
   defaultLive?: boolean;
   autorun?: boolean;
   /** Serve the client through Vite middleware (source + HMR) instead of nothing. */
@@ -48,6 +50,7 @@ export async function startServer(opts: {
     bus: opts.bus,
     steering: opts.steering,
     names: opts.names,
+    waitForReady: opts.waitForReady,
   });
   // Record the live frame stream so the dashboard can replay this exact game.
   const recorder = new ReplayRecorder(
