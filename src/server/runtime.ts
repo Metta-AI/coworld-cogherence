@@ -59,7 +59,9 @@ export async function startServer(opts: {
   // http server on /vite-hmr (whitelisted in websocket.ts).
   const vite = opts.dev
     ? await (await import("vite")).createServer({
-        server: { middlewareMode: true, hmr: { server: http, path: "/vite-hmr" } },
+        // .ts.net lets the dev server be shared over Tailscale (vite's
+        // host-allowlist otherwise 403s any non-localhost hostname).
+        server: { middlewareMode: true, hmr: { server: http, path: "/vite-hmr" }, allowedHosts: [".ts.net"] },
         // Each process mints a fresh ws token; after a tsx-watch restart an open
         // page can revalidate /@vite/client from cache and present the DEAD
         // process's token — vite 400s the handshake and the page silently stops
