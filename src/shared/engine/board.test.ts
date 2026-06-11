@@ -55,6 +55,8 @@ describe("generateBoard", () => {
   it("cogs wear names: roster defaults at generation, a custom name via addCog", () => {
     const g = generateBoard(7, 4);
     expect(g.cogOrder.map((id) => g.cogs[id]!.name)).toEqual(["Alice", "Bob", "Carol", "David"]);
+    const named = generateBoard(7, 3, ["Alex", "Dave"]); // launch names; defaults fill the rest
+    expect(named.cogOrder.map((id) => named.cogs[id]!.name)).toEqual(["Alex", "Dave", "Carol"]);
     const g2 = addCog(g, "daveey");
     expect(g2.cogs.cog4!.name).toBe("daveey");
     expect(addCog(g).cogs.cog4!.name).toBe("Erin"); // no name -> next roster default

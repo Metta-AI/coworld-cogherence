@@ -27,6 +27,7 @@ export class GameRunner {
   private minTurnMs: number;
   private bus?: MessageBus;
   private steering?: SteeringStore;
+  private names?: string[];
   private negotiateRounds: number;
   private listeners: Listener[] = [];
   private clientCount = 0;
@@ -59,6 +60,8 @@ export class GameRunner {
     minTurnMs?: number;
     bus?: MessageBus;
     steering?: SteeringStore;
+    /** Launch-time seat names (index-ordered); roster defaults fill the gaps. */
+    names?: string[];
     negotiateRounds?: number;
   }) {
     this.agents = opts.agents;
@@ -70,7 +73,8 @@ export class GameRunner {
     this.bus = opts.bus;
     this.steering = opts.steering;
     this.negotiateRounds = opts.negotiateRounds ?? 1;
-    this.state = newGame(opts.seed, opts.agents.length);
+    this.names = opts.names;
+    this.state = newGame(opts.seed, opts.agents.length, opts.names);
   }
 
   /** Operator reset: abandon the current game and start a fresh one from turn 1.
@@ -78,7 +82,7 @@ export class GameRunner {
    *  we clear history (events + chat) and kick a new loop that re-broadcasts. */
   reset(): void {
     this.generation += 1;
-    this.state = newGame(this.seed, this.agents.length);
+    this.state = newGame(this.seed, this.agents.length, this.names);
     this.recent = [];
     this.coord = null;
     this.livePhase = null;

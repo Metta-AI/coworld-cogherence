@@ -25,6 +25,10 @@ async function main(): Promise<void> {
   const specs = agentsArg
     ? agentsArg.split(",").map((s) => s.trim())
     : Array.from({ length: Math.max(1, cogs) }, (_, i) => ROTATION[i % ROTATION.length]!);
+  // --names Alex,Dave seats the cogs under those names; --manual starts every
+  // seat with autopilot OFF (operators drive via the Control panel / Ready).
+  const names = arg("names", "") ? arg("names", "").split(",").map((s) => s.trim()) : undefined;
+  const manual = flag("manual");
 
   const hub = new ActPromptHub();
   const bus = new MessageBus();
@@ -33,9 +37,10 @@ async function main(): Promise<void> {
     onActPrompt: (e) => hub.record(e),
     persona: (id) => steering.persona(id),
   }).map((a) => steerableAgent(a, steering));
+  if (manual) for (let i = 0; i < specs.length; i++) steering.update(`cog${i}`, { paused: true });
   const defaultLive = flag("default-live");
   const h = await startServer({
-    seed, agents, port, deadlineMs, minTurnMs, maxTurns, turnLimit: 10, hub, bus, steering, agentSpecs: specs, defaultLive, autorun: true, dev: true,
+    seed, agents, port, deadlineMs, minTurnMs, maxTurns, turnLimit: 10, hub, bus, steering, agentSpecs: specs, names, defaultLive, autorun: true, dev: true,
   });
   console.log(`Cogherence live — seed ${seed}, agents [${specs.join(", ")}]`);
   console.log(`  server:   ${h.url}`);

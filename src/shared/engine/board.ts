@@ -33,7 +33,7 @@ const boardCorners = (): Array<{ q: number; r: number }> => {
  * mineral + density per tile (seeded), and one home tile per Cog placed at the
  * board's six corners (spread apart) at full coherence. Deterministic for a seed.
  */
-export function generateBoard(seed: number, numCogs: number): GameState {
+export function generateBoard(seed: number, numCogs: number, names?: string[]): GameState {
   const rng = makeRng(seed);
   const hexes = hexesInRadius(BOARD_RADIUS);
 
@@ -61,7 +61,7 @@ export function generateBoard(seed: number, numCogs: number): GameState {
   for (let i = 0; i < numCogs; i++) {
     const id: CogId = `cog${i}`;
     cogOrder.push(id);
-    cogs[id] = { id, index: i, name: defaultCogName(i), treasury: startingTreasury(), hearts: 0 };
+    cogs[id] = { id, index: i, name: names?.[i]?.trim() || defaultCogName(i), treasury: startingTreasury(), hearts: 0 };
     const home = corners[Math.floor((i * corners.length) / numCogs)]!;
     const tile = tiles[key(home)]!;
     tile.alignment = id;

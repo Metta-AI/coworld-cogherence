@@ -16,8 +16,8 @@ import { MAX_TURNS, FIRST_COMMIT_REWARD, ALIGN_REPEAT_SURCHARGE, alignEnergyCost
 import { alignDistance } from "./orders";
 
 /** A fresh game at turn 1. */
-export function newGame(seed: number, numCogs: number): GameState {
-  return generateBoard(seed, numCogs);
+export function newGame(seed: number, numCogs: number, names?: string[]): GameState {
+  return generateBoard(seed, numCogs, names);
 }
 
 /** Award the first-mover its tempo bonus: exactly FIRST_COMMIT_REWARD energy

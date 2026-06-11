@@ -31,6 +31,8 @@ export async function startServer(opts: {
   bus?: MessageBus;
   steering?: SteeringStore;
   agentSpecs?: string[];
+  /** Launch-time seat names (index-ordered). */
+  names?: string[];
   defaultLive?: boolean;
   autorun?: boolean;
   /** Serve the client through Vite middleware (source + HMR) instead of nothing. */
@@ -45,6 +47,7 @@ export async function startServer(opts: {
     minTurnMs: opts.minTurnMs,
     bus: opts.bus,
     steering: opts.steering,
+    names: opts.names,
   });
   // Record the live frame stream so the dashboard can replay this exact game.
   const recorder = new ReplayRecorder(
