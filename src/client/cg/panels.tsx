@@ -8,7 +8,7 @@ import type { Message } from "../../shared/messages";
 import type { TurnEvent } from "../../shared/engine/log";
 import type { StampedEvent } from "../net/feed";
 import { cogColor, cogName } from "../colors";
-import { TRANSFER_FEE, upkeepBase, maxRegen, mintOf, REGEN_COST, RESISTANCE_COST } from "../../shared/engine/constants";
+import { TRANSFER_FEE, upkeepBase, maxRegen, mintOf, exploitYield, REGEN_COST, RESISTANCE_COST } from "../../shared/engine/constants";
 import { HexBoard, type LatticeMode } from "../HexBoard";
 import { CGIcon, CogText, EnergyChip, Mineral, TilePill } from "./atoms";
 import { subscribeTileHighlight } from "./tile-highlight";
@@ -143,7 +143,7 @@ interface LogLine {
   cog: string;
   verb: string;
   tone: string; // cg-verb class: align / exploit / transfer / bid
-  action: string;
+  action: React.ReactNode; // tile addresses render as TilePills (hover highlights the tile)
   outcome: string;
   failed?: boolean;
 }
@@ -198,14 +198,14 @@ function orderOutcome(
   }
 }
 
-function orderLine(order: PlayedOrder, cost?: number): { verb: string; tone: string; action: string } {
+function orderLine(order: PlayedOrder, cost?: number): { verb: string; tone: string; action: React.ReactNode } {
   switch (order.type) {
     case "align":
-      return { verb: "ALIGN", tone: "align", action: `Align([${order.tile}], force=${order.force})${cost != null ? ` · ${cost}e` : ""}` };
+      return { verb: "ALIGN", tone: "align", action: <>Align(<TilePill k={order.tile} />, force={order.force}){cost != null ? ` · ${cost}e` : ""}</> };
     case "exploit":
-      return { verb: "EXPLOIT", tone: "exploit", action: `Exploit([${order.tile}])` };
+      return { verb: "EXPLOIT", tone: "exploit", action: <>Exploit(<TilePill k={order.tile} />)</> };
     case "abandon":
-      return { verb: "ABANDON", tone: "transfer", action: `Abandon([${order.tile}])` };
+      return { verb: "ABANDON", tone: "transfer", action: <>Abandon(<TilePill k={order.tile} />)</> };
     case "transfer":
       return { verb: "TRANSFER", tone: "transfer", action: `Transfer(${order.amount} ${order.mineral} → ${cogName(cogIdx(order.to))})` };
     case "bid":
@@ -532,6 +532,7 @@ export function TileInspector({ tileKey: key, snapshot }: { tileKey: string; sna
         <span className="cg-panel-title" style={{ fontSize: 11 }}>
           Tile {key}
         </span>
+        <Mineral m={t.mineral} />
       </div>
       <div className="cg-panel-body" style={{ padding: 11, display: "flex", flexDirection: "column", gap: 9 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
@@ -549,19 +550,38 @@ export function TileInspector({ tileKey: key, snapshot }: { tileKey: string; sna
           <tbody>
             {row("coherence", <span style={{ color: "var(--coherence)" }}>{t.coherence}/{snapshot.coherenceMax}</span>)}
             {row(
+              "density",
+              scarred ? (
+                <span data-tip={`exploited — deposit ground down from ${Math.floor(t.density0)}`}>
+                  <s style={{ color: "var(--muted-2)" }}>{Math.floor(t.density0)}</s>
+                  <span style={{ color: "var(--exploit)" }}> {Math.floor(t.density)}</span>
+                  <span style={{ color: "var(--muted)" }}>/10</span>
+                </span>
+              ) : (
+                <span data-tip="deposit richness (0-10) — mints floor(density × coherence / 10) per turn">
+                  {Math.floor(t.density)}<span style={{ color: "var(--muted)" }}>/10</span>
+                </span>
+              ),
+            )}
+            {row(
               "mining",
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 5, justifyContent: "flex-end" }}>
-                {mint > 0 && <b style={{ color: "var(--text-dim)" }}>+{mint}</b>}
-                <Mineral m={t.mineral} />
-                {scarred ? (
-                  <span data-tip={`exploited — deposit ground down from ${Math.floor(t.density0)}`}>
-                    <s style={{ color: "var(--muted-2)" }}>{Math.floor(t.density0)}</s>
-                    <span style={{ color: "var(--exploit)" }}> {Math.floor(t.density)}</span>
-                  </span>
-                ) : (
-                  <span data-tip="deposit density (0-10) — mints floor(density × coherence / 10) per turn">{Math.floor(t.density)}</span>
-                )}
-              </span>,
+              mint > 0 ? (
+                <span data-tip={`floor(density × coherence / 10) ${t.mineral} minted every upkeep`}>
+                  <b style={{ color: "var(--text-dim)" }}>+{mint}</b> {t.mineral}/turn
+                </span>
+              ) : (
+                <span data-tip="mints floor(density × coherence / 10) per turn — needs both density and coherence" style={{ color: "var(--muted)" }}>—</span>
+              ),
+            )}
+            {row(
+              "exploit",
+              exploitYield(t.coherence, t.density) > 0 ? (
+                <span data-tip={`one-time Exploit windfall: floor(10 × coherence × density) ${t.mineral} — wipes coherence and scars the deposit`} style={{ color: "var(--exploit)" }}>
+                  +{exploitYield(t.coherence, t.density)} {t.mineral}
+                </span>
+              ) : (
+                <span data-tip="Exploit yields floor(10 × coherence × density) — worthless without both" style={{ color: "var(--muted)" }}>—</span>
+              ),
             )}
             {row(
               "energy",
@@ -609,7 +629,12 @@ export function TileInspector({ tileKey: key, snapshot }: { tileKey: string; sna
                   −{REGEN_COST * (drain.steps ?? 1)}e{(drain.steps ?? 1) > 1 ? ` (+${drain.steps})` : ""}
                 </span>,
               )}
-            {row("neighbors", `${friendly}/${nc} friendly`)}
+            {row(
+              "neighbors",
+              t.alignment
+                ? `${friendly} ally · ${enemies} foe · ${nc - friendly - enemies} open`
+                : `${nb.filter((n) => n.alignment != null).length} claimed · ${nb.filter((n) => n.alignment == null).length} open`,
+            )}
           </tbody>
         </table>
       </div>

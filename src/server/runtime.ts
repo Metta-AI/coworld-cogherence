@@ -59,6 +59,11 @@ export async function startServer(opts: {
   const vite = opts.dev
     ? await (await import("vite")).createServer({
         server: { middlewareMode: true, hmr: { server: http, path: "/vite-hmr" } },
+        // Each process mints a fresh ws token; after a tsx-watch restart an open
+        // page can revalidate /@vite/client from cache and present the DEAD
+        // process's token — vite 400s the handshake and the page silently stops
+        // hot-updating. Local-only dev server: skip the token, keep the host check.
+        legacy: { skipWebSocketTokenCheck: true },
       })
     : undefined;
   http.on("request", createApp(runner, opts.hub, opts.steering, recorder, { defaultLive: opts.defaultLive, vite }));
