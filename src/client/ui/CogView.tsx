@@ -14,9 +14,7 @@ import { EnergyChip, CGIcon, Mineral } from "../cg/atoms";
 import { LatticePanel, ChannelMessage, TurnLog } from "../cg/panels";
 import { ResizableColumns } from "../cg/ResizableColumns";
 import { MINERALS, MINERAL_NAME, setsOf, territory, rankedByHearts } from "../cg/derive";
-import { PromptsPanel } from "../PromptsPanel";
 import { AutopilotPanel } from "./AutopilotPanel";
-import type { ActPromptFrame } from "../net/feed";
 
 const cogIdx = (id: string): number => Number(id.replace(/\D/g, "")) || 0;
 
@@ -263,7 +261,6 @@ function CogChannels({ snapshot, cogId, messages, onSeekTurn }: { snapshot: Game
 export function CogView({
   snapshot,
   cogId,
-  actPrompts,
   messages,
   events,
   live = false,
@@ -272,7 +269,6 @@ export function CogView({
 }: {
   snapshot: GameSnapshot;
   cogId: string;
-  actPrompts: Record<string, ActPromptFrame[]>;
   messages: Message[];
   events: StampedEvent[];
   live?: boolean;
@@ -289,7 +285,6 @@ export function CogView({
   useEffect(() => {
     if (committed && snapshot.turn > committed.turn) setCommitted(null);
   }, [snapshot.turn, committed]);
-  const mine: Record<string, ActPromptFrame[]> = actPrompts[cogId] ? { [cogId]: actPrompts[cogId]! } : {};
 
   // The operator's queued orders live server-side (they submit at the next
   // Commit even if this page closes); refresh per turn — a commit consumes them.
@@ -365,9 +360,10 @@ export function CogView({
                 committed={committed}
               />
             )}
-            <TurnLog snapshot={snapshot} events={events} />
-            <div className="cg-panel">
-              <PromptsPanel actPrompts={mine} />
+            {/* a block wrapper lets the Turn Log take its natural height, so the
+                column itself scrolls instead of squeezing the log */}
+            <div style={{ flex: "0 0 auto" }}>
+              <TurnLog snapshot={snapshot} events={events} />
             </div>
           </div>
         }

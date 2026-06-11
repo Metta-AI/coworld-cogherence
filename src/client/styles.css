@@ -864,49 +864,6 @@ button:focus-visible {
 }
 
 /* ===== prompts panel (kept) ============================ */
-.prompts {
-  padding: 12px 14px;
-}
-.prompts h2 {
-  margin: 0 0 10px;
-  font-family: var(--f-ui);
-  font-weight: 700;
-  font-size: 12px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--text);
-}
-.prompts-empty {
-  margin: 0;
-  font-family: var(--f-mono);
-  font-size: 11px;
-  color: var(--muted);
-}
-.prompt-entry {
-  border-top: 1px solid var(--border);
-  padding: 6px 0;
-}
-.prompt-entry summary {
-  cursor: pointer;
-  font-family: var(--f-mono);
-  font-size: 11px;
-  color: var(--text-dim);
-}
-.prompt-entry pre {
-  margin: 8px 0 0;
-  max-height: 200px;
-  overflow: auto;
-  padding: 9px;
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  font-family: var(--f-mono);
-  font-size: 10.5px;
-  line-height: 1.5;
-  color: var(--text-dim);
-  white-space: pre-wrap;
-}
-
 /* ===== steering panel (kept) =========================== */
 .steering {
   background: var(--panel);

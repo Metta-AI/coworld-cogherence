@@ -141,7 +141,6 @@ export function App({ replay: injected, live: liveProp }: { replay?: Replay; liv
             <CogView
               snapshot={snapshot}
               cogId={loc.cogId}
-              actPrompts={store.actPrompts}
               messages={visibleMessages}
               events={visibleEvents}
               live={liveMode}

@@ -16,7 +16,6 @@ describe("CogView", () => {
       <CogView
         snapshot={snap}
         cogId="cog0"
-        actPrompts={{}}
         messages={[{ seq: 1, turn: 1, from: "cog1", to: "cog0", text: "hi cog0" }]}
         events={[]}
       />,
@@ -28,14 +27,14 @@ describe("CogView", () => {
   });
 
   it("hides the autopilot panel in replay mode, shows it when live", () => {
-    const replay = render(<CogView snapshot={snap} cogId="cog0" actPrompts={{}} messages={[]} events={[]} />);
+    const replay = render(<CogView snapshot={snap} cogId="cog0" messages={[]} events={[]} />);
     expect(replay.queryByTestId("autopilot")).toBeNull();
 
     vi.stubGlobal(
       "fetch",
       vi.fn(() => Promise.resolve({ json: () => Promise.resolve({ persona: "", paused: false }) } as Response)),
     );
-    const live = render(<CogView snapshot={snap} cogId="cog0" actPrompts={{}} messages={[]} events={[]} live />);
+    const live = render(<CogView snapshot={snap} cogId="cog0" messages={[]} events={[]} live />);
     expect(live.getByTestId("autopilot")).toBeTruthy();
   });
 });
