@@ -216,12 +216,9 @@ export function Scrubber({
               data-tip={`jump to turn ${m.turn}`}
               style={{ boxShadow: isNow ? `0 0 14px ${ACCENT}44` : "none" }}
             >
-              <div style={{ height: 3, borderRadius: 2, background: m.key ? "#ff5a2c" : "transparent" }} />
-              <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
-                <span className="cg-num" style={{ fontSize: 18, color: isNow ? "var(--text)" : "var(--text-dim)", lineHeight: 0.8 }}>{String(m.turn).padStart(2, "0")}</span>
-                {m.key && <span data-tip={`key turn — ${m.exploits} exploit${m.exploits === 1 ? "" : "s"}`} style={{ fontSize: 8, color: "#ff5a2c" }}>◆</span>}
-              </div>
               <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <span className="cg-num" style={{ fontSize: 11, color: isNow ? "var(--text)" : "var(--text-dim)", lineHeight: 1 }}>{String(m.turn).padStart(2, "0")}</span>
+                {m.key && <span data-tip={`key turn — ${m.exploits} exploit${m.exploits === 1 ? "" : "s"}`} style={{ fontSize: 8, color: "#ff5a2c" }}>◆</span>}
                 <span data-tip={`hearts leader: ${cogName(m.leader)}`} style={{ display: "inline-flex" }}>
                   <Heart color={cogColor(m.leader)} />
                 </span>

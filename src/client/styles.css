@@ -560,8 +560,7 @@ button:focus-visible {
   text-align: left;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 6px 7px 7px;
+  padding: 3px 7px;
   background: var(--panel-2);
   border: 1px solid var(--border);
   border-radius: 7px;
