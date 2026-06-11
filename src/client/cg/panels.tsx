@@ -349,7 +349,13 @@ export function TurnLog({ snapshot, events }: { snapshot: GameSnapshot; events: 
               }
             >
             {bidders.length === 0 ? (
-              <Quiet text="no bids — the heart goes unsold." />
+              <Quiet
+                text={
+                  auction?.type === "auction" && auction.winner
+                    ? "rival bids are sealed — only the winner and the clearing price are public."
+                    : "no bids — the heart goes unsold."
+                }
+              />
             ) : (
               <div style={{ display: "flex", flexWrap: "wrap", gap: 4, padding: "3px 0" }}>
                 {bidders.map((b) => (
