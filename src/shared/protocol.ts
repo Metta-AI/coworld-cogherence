@@ -95,6 +95,7 @@ export const serverStatusSchema = z
     pausedAccumMs: z.number().optional(), // total ms paused so far (excluded from the GAME clock)
     phaseDeadlineAt: z.number().optional(),
     turnLimit: z.number().int().optional(), // soft auto-stop (live); extendable
+    waitReady: z.boolean().optional(), // commit waits for every Ready (no deadline)
     startedAt: z.number().optional(), // epoch ms the live game began — drives the header GAME clock
   })
   .strict();

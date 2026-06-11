@@ -180,6 +180,7 @@ export function App({ replay: injected, live: liveProp }: { replay?: Replay; liv
               setIndex(i);
             }}
             turnLimit={liveMode ? store.status?.turnLimit : undefined}
+            waitReady={liveMode ? store.status?.waitReady : undefined}
             playing={liveMode ? !paused : playing}
             onTogglePlay={() => {
               // live: the transport's play/pause IS the game's pause/resume

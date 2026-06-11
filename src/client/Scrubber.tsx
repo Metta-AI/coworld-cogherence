@@ -45,6 +45,7 @@ export function Scrubber({
   playing,
   onTogglePlay,
   turnLimit,
+  waitReady,
   live = false,
 }: {
   snapshots: GameSnapshot[];
@@ -55,6 +56,8 @@ export function Scrubber({
   onTogglePlay: () => void;
   /** Live soft auto-stop (from server status) — clicking the /N adds 10 turns. */
   turnLimit?: number;
+  /** Wait-ready mode state (live only): commit waits for every cog's Ready. */
+  waitReady?: boolean;
   /** Following the live head (teal) vs replaying a past turn (rose). */
   live?: boolean;
 }): React.ReactElement {
@@ -267,6 +270,34 @@ export function Scrubber({
           </button>
         )}
         <div style={{ flex: 1 }} />
+        {live && waitReady != null && (
+          <button
+            type="button"
+            data-testid="wait-ready-toggle"
+            data-tip={
+              waitReady
+                ? "turns wait for EVERY cog's Ready — click for timed turns (deadline auto-advances)"
+                : "turns auto-advance at the deadline — click to wait for every cog's Ready"
+            }
+            onClick={() =>
+              void fetch("/wait-ready", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ on: !waitReady }) })
+            }
+            className="cg-mono"
+            style={{
+              background: "none",
+              border: `1px solid ${waitReady ? "var(--coherence)" : "var(--border)"}`,
+              borderRadius: 5,
+              padding: "2px 7px",
+              cursor: "pointer",
+              fontSize: 9,
+              letterSpacing: "0.1em",
+              color: waitReady ? "var(--coherence)" : "var(--muted)",
+              marginRight: 8,
+            }}
+          >
+            WAIT-READY {waitReady ? "✓" : "·"}
+          </button>
+        )}
         <span className={`cg-scrub-dot ${live ? "is-live" : "is-replay"}`} data-tip={live ? "live" : "replay"} />
         {cur && (
           <div style={{ display: "flex", alignItems: "baseline", gap: 3, marginLeft: 6 }}>

@@ -21,6 +21,12 @@ export class CogStateStore<T = unknown> {
     this.finish(value);
   }
 
+  /** Force the deadline NOW (no-op if already settled) — used when wait-ready
+   *  mode is switched off mid-window so a parked turn defaults and moves on. */
+  expire(): void {
+    this.finish(null);
+  }
+
   private finish(value: T | null): void {
     if (this.timer) clearTimeout(this.timer);
     const r = this.resolve;

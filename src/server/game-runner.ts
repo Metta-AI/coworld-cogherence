@@ -124,6 +124,15 @@ export class GameRunner {
     this.emit({ type: "serverStatus", status: this.status() });
   }
 
+  /** Flip wait-ready mode live. Turning it OFF releases a currently-parked
+   *  commit window (un-submitted cogs default to [] — exactly as if the
+   *  deadline had just fired); turning it ON applies from the next window. */
+  setWaitForReady(on: boolean): void {
+    this.waitForReady = on;
+    if (!on) this.coord?.expireAll();
+    this.emit({ type: "serverStatus", status: this.status() });
+  }
+
   /** Wake every parked run loop (resume or reset). */
   private releaseWaiters(): void {
     const waiters = this.resumeWaiters;
@@ -181,6 +190,7 @@ export class GameRunner {
       done: this.coord?.done() ?? [],
       paused: this.paused,
       pausedAccumMs: this.pausedAccumMs,
+      waitReady: this.waitForReady,
       ...(Number.isFinite(this.turnLimit) ? { turnLimit: this.turnLimit } : {}),
       ...(this.pausedAt !== undefined ? { pausedAt: this.pausedAt } : {}),
       ...(this.phaseDeadlineAt !== undefined ? { phaseDeadlineAt: this.phaseDeadlineAt } : {}),

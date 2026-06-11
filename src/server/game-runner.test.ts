@@ -90,6 +90,18 @@ describe("GameRunner", () => {
     expect(runner.state.turn).toBe(2); // advanced only once everyone submitted
   });
 
+  it("setWaitForReady(false) releases a parked commit window — the turn defaults and moves on", async () => {
+    const hung: Agent = { id: "cog0", commit: () => new Promise<never>(() => {}) };
+    const quick: Agent = { id: "cog1", commit: () => [] };
+    const runner = new GameRunner({ seed: 7, agents: [hung, quick], maxTurns: 1, deadlineMs: 30, waitForReady: true });
+    const done = runner.run();
+    await new Promise((r) => setTimeout(r, 80));
+    expect(runner.state.turn).toBe(1); // parked on cog0, far past the would-be deadline
+    runner.setWaitForReady(false); // flips the mode AND expires the stuck window
+    await done;
+    expect(runner.state.turn).toBe(2);
+  });
+
   it("a hung negotiate can't stall the turn — it's raced against the deadline", async () => {
     const bus = new MessageBus();
     const hung: Agent = { id: "cog0", commit: () => [], negotiate: () => new Promise<never>(() => {}) }; // never resolves

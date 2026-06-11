@@ -69,6 +69,14 @@ export function createApp(
     runner.setPaused(false);
     res.json({ ok: true });
   });
+  // Operator: flip wait-ready mode (commit waits for every Ready vs timed).
+  // Turning it off also releases a currently-parked window.
+  app.post("/wait-ready", (req, res) => {
+    const parsed = z.object({ on: z.boolean() }).strict().safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "expected { on: boolean }" });
+    runner.setWaitForReady(parsed.data.on);
+    return res.json({ ok: true, waitReady: parsed.data.on });
+  });
   // Operator: raise the soft auto-stop by 10 turns and resume.
   app.post("/extend", (_req, res) => {
     res.json({ ok: true, turnLimit: runner.extendTurnLimit(10) });

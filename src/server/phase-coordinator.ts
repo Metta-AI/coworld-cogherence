@@ -43,6 +43,11 @@ export class PhaseCoordinator<T = unknown> {
   submissionOrder(): CogId[] {
     return [...this.answered];
   }
+  /** Fire every armed deadline now: un-submitted cogs default immediately. */
+  expireAll(): void {
+    for (const s of this.stores.values()) s.expire();
+  }
+
   pending(): CogId[] {
     return this.cogIds.filter((id) => !this.answered.has(id));
   }
