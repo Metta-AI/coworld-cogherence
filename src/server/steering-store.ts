@@ -93,6 +93,17 @@ export class SteeringStore {
       this.readyArmed.add(cog); // commit window not open yet — fire when it is
     }
   }
+
+  /** The commit window closed (every cog submitted or defaulted): any cog still
+   *  parked here missed it, and its resolver is DEAD — a late Ready fed to it
+   *  would consume the queue into a submission nobody reads (silently losing
+   *  the operator's orders). Drop the corpses but KEEP the queues: the late
+   *  Ready arms instead, and the orders go through next window. The runner
+   *  calls this synchronously when its collect settles, so no Ready can race
+   *  into the gap. */
+  expireWaiting(): void {
+    this.waiting.clear();
+  }
 }
 
 /** Wrap an agent under operator steering: MANUAL cogs wait for the operator's

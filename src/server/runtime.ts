@@ -44,6 +44,7 @@ export async function startServer(opts: {
     deadlineMs: opts.deadlineMs,
     minTurnMs: opts.minTurnMs,
     bus: opts.bus,
+    steering: opts.steering,
   });
   // Record the live frame stream so the dashboard can replay this exact game.
   const recorder = new ReplayRecorder(

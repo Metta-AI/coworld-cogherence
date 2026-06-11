@@ -37,6 +37,32 @@ describe("SteeringStore", () => {
   });
 });
 
+describe("missed commit window (expireWaiting)", () => {
+  const view = { state: {} as never, me: "cog0" as const };
+
+  it("a LATE Ready arms instead of feeding the dead resolver — the queue survives to the next window", async () => {
+    const store = new SteeringStore();
+    store.update("cog0", { paused: true, pending: [{ type: "abandon", tile: "1,0" }] });
+    const a = steerableAgent({ id: "cog0", commit: () => [] }, store);
+    void a.commit(view); // window 1 opens; the operator never hits Ready
+    store.expireWaiting(); // window 1 closes (the runner defaulted the cog to [])
+    store.markReady("cog0"); // the operator's Ready lands late
+    expect(store.get("cog0").pending).toEqual([{ type: "abandon", tile: "1,0" }]); // NOT consumed
+    expect(await a.commit(view)).toEqual([{ type: "abandon", tile: "1,0" }]); // window 2: armed -> queue delivers
+  });
+
+  it("without a late Ready the queue just carries over and the cog parks again", async () => {
+    const store = new SteeringStore();
+    store.update("cog0", { paused: true, pending: [{ type: "exploit", tile: "0,0" }] });
+    const a = steerableAgent({ id: "cog0", commit: () => [] }, store);
+    void a.commit(view);
+    store.expireWaiting();
+    const second = a.commit(view) as Promise<unknown>; // window 2: parked again, queue intact
+    store.markReady("cog0");
+    expect(await second).toEqual([{ type: "exploit", tile: "0,0" }]);
+  });
+});
+
 describe("standing bid", () => {
   const view = { state: {} as never, me: "cog0" as const };
 

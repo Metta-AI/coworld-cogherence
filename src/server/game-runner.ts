@@ -10,6 +10,7 @@ import { addCog } from "../shared/engine/board";
 import { toSnapshot } from "../shared/snapshot";
 import { PhaseCoordinator } from "./phase-coordinator";
 import type { MessageBus } from "./message-bus";
+import type { SteeringStore } from "./steering-store";
 import type { TurnEvent } from "../shared/engine/log";
 
 type Listener = (m: ServerMessage) => void;
@@ -25,6 +26,7 @@ export class GameRunner {
   private deadlineMs: number;
   private minTurnMs: number;
   private bus?: MessageBus;
+  private steering?: SteeringStore;
   private negotiateRounds: number;
   private listeners: Listener[] = [];
   private clientCount = 0;
@@ -56,6 +58,7 @@ export class GameRunner {
     deadlineMs?: number;
     minTurnMs?: number;
     bus?: MessageBus;
+    steering?: SteeringStore;
     negotiateRounds?: number;
   }) {
     this.agents = opts.agents;
@@ -65,6 +68,7 @@ export class GameRunner {
     this.deadlineMs = opts.deadlineMs ?? 20_000;
     this.minTurnMs = opts.minTurnMs ?? 0;
     this.bus = opts.bus;
+    this.steering = opts.steering;
     this.negotiateRounds = opts.negotiateRounds ?? 1;
     this.state = newGame(opts.seed, opts.agents.length);
   }
@@ -212,13 +216,18 @@ export class GameRunner {
       const collected = coord.collect(this.deadlineMs, () => [], () =>
         this.emit({ type: "serverStatus", status: this.status() }),
       );
-      // The deadline guards a hung agent: its submit never fires -> default [].
-      await Promise.all(
-        this.agents.map(async (a) =>
-          coord.submit(a.id, await a.commit({ state: snapshot, me: a.id, messages: this.bus?.visibleTo(a.id) })),
-        ),
-      );
+      // Kick every agent; submissions feed the coordinator. NOT awaited: a
+      // manual cog that never hits Ready parks its commit promise forever, and
+      // awaiting it here would hang the turn past the deadline — `collect`
+      // owns the clock and defaults missing cogs to [].
+      for (const a of this.agents)
+        void (async () =>
+          coord.submit(a.id, await a.commit({ state: snapshot, me: a.id, messages: this.bus?.visibleTo(a.id) })))();
       const ordersByCog = await collected;
+      // The window is closed: expire still-parked manual commits (keeping their
+      // queues) so a LATE Ready arms for the next window instead of resolving a
+      // dead promise — that path silently swallowed the operator's orders.
+      this.steering?.expireWaiting();
       const commitOrder = coord.submissionOrder(); // tempo winner + auction tie-breaks
       this.coord = null;
       this.livePhase = null;

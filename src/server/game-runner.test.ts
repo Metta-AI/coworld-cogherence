@@ -66,6 +66,16 @@ describe("GameRunner", () => {
     expect(runner.recentEvents().every((e) => e.turn <= 2)).toBe(true); // only the new game's events
   });
 
+  it("a hung commit can't stall the turn — the deadline defaults it to []", async () => {
+    // a manual cog that never hits Ready parks its commit promise forever; the
+    // turn must still advance at the deadline (the loop must not await it).
+    const hung: Agent = { id: "cog0", commit: () => new Promise<never>(() => {}) };
+    const quiet: Agent = { id: "cog1", commit: () => [] };
+    const runner = new GameRunner({ seed: 7, agents: [hung, quiet], maxTurns: 2, deadlineMs: 30 });
+    await runner.run();
+    expect(runner.state.turn).toBe(3); // 2 turns played despite the parked commit
+  });
+
   it("a hung negotiate can't stall the turn — it's raced against the deadline", async () => {
     const bus = new MessageBus();
     const hung: Agent = { id: "cog0", commit: () => [], negotiate: () => new Promise<never>(() => {}) }; // never resolves
