@@ -33,8 +33,12 @@ export const BARREN_FRACTION = 0.5;
 export const mintOf = (density: number, coherence: number): number => Math.floor((density * coherence) / 10);
 
 /** Energy yielded by CONVERTING a full COGS set (1×C + 1×O + 1×Ge + 1×S).
- *  Conversion is the ONLY mineral→energy bridge; singles have no direct value. */
+ *  Conversion is the ONLY mineral→energy bridge. */
 export const SET_ENERGY = 10;
+
+/** Energy yielded by converting a single mineral (right-click an element) —
+ *  a quarter of the set rate per mineral, so balanced sets stay king. */
+export const SINGLE_ENERGY = 1;
 
 /** STORED energy each Cog starts with (the treasury starts empty — mints
  *  bring minerals in, which convert or trade). */

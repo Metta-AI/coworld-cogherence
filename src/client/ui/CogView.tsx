@@ -8,7 +8,7 @@ import type { StampedEvent } from "../net/feed";
 import type { LatticeMode } from "../HexBoard";
 import type { Order } from "../../shared/engine/orders";
 import { distance } from "../../shared/engine/hex";
-import { ALIGN_MAX_ENERGY, ALIGN_REPEAT_SURCHARGE, COHERENCE_MAX, SET_ENERGY, alignEnergyCost, exploitYield } from "../../shared/engine/constants";
+import { ALIGN_MAX_ENERGY, ALIGN_REPEAT_SURCHARGE, COHERENCE_MAX, SINGLE_ENERGY, alignEnergyCost, exploitYield } from "../../shared/engine/constants";
 import { cogColor, cogName } from "../colors";
 import { EnergyChip, CGIcon, Mineral } from "../cg/atoms";
 import { LatticePanel, ChannelMessage, TurnLog } from "../cg/panels";
@@ -18,19 +18,21 @@ import { AutopilotPanel } from "./AutopilotPanel";
 
 const cogIdx = (id: string): number => Number(id.replace(/\D/g, "")) || 0;
 
-/** Right-click menu on the treasury elements: convert 1/5/10 full COGS sets,
- *  plus a checkable per-cog AUTO-convert (every turn, server-side). */
-function ConvertMenu({ cogId, sets, at, onClose }: { cogId: string; sets: number; at: { x: number; y: number }; onClose: () => void }): React.ReactElement {
-  const [auto, setAuto] = useState<boolean | null>(null);
+/** Right-click menu on ONE treasury element: convert 1/5/10 of it (singles,
+ *  +1⚡ each — sets stay the better rate), plus a checkable per-element
+ *  AUTO-convert (burned every turn, server-side). */
+function ConvertMenu({ cogId, mineral, have, at, onClose }: { cogId: string; mineral: string; have: number; at: { x: number; y: number }; onClose: () => void }): React.ReactElement {
+  const [auto, setAuto] = useState<string[] | null>(null);
   useEffect(() => {
-    void fetch(`/cog/${cogId}/steering`).then((r) => r.json()).then((j) => setAuto(!!j.autoConvert));
+    void fetch(`/cog/${cogId}/steering`).then((r) => r.json()).then((j) => setAuto((j.autoConvert as string[]) ?? []));
   }, [cogId]);
-  const W = 230;
+  const isAuto = auto?.includes(mineral) ?? false;
+  const W = 240;
   const x = Math.min(at.x, window.innerWidth - W - 12);
   const y = Math.min(at.y, window.innerHeight - 220);
   const row = { display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" } as const;
   const convert = (n: number): void => {
-    void fetch(`/cog/${cogId}/convert`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sets: n }) });
+    void fetch(`/cog/${cogId}/convert`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mineral, count: n }) });
     onClose();
   };
   return (
@@ -40,7 +42,7 @@ function ConvertMenu({ cogId, sets, at, onClose }: { cogId: string; sets: number
       style={{ position: "fixed", left: x, top: y, width: W, zIndex: 120, background: "rgba(14,14,24,0.97)", backdropFilter: "blur(8px)" }}
     >
       <div className="cg-panel-head" style={{ padding: "7px 11px" }}>
-        <span className="cg-panel-title" style={{ fontSize: 10 }}>convert COGS sets</span>
+        <span className="cg-panel-title" style={{ fontSize: 10 }}>convert {MINERAL_NAME[mineral]} · hold {have}</span>
         <button type="button" onClick={onClose} className="cg-mono" style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: 11 }}>
           ✕
         </button>
@@ -51,14 +53,14 @@ function ConvertMenu({ cogId, sets, at, onClose }: { cogId: string; sets: number
             key={n}
             type="button"
             className="cg-menu-row"
-            disabled={sets < n}
-            data-tip={sets < n ? `you hold ${sets} full set${sets === 1 ? "" : "s"}` : `burn ${n}× (1 of each mineral)`}
+            disabled={have < n}
+            data-tip={have < n ? `you hold ${have}` : `burn ${n} ${MINERAL_NAME[mineral]} as singles — full sets convert at 2.5× the rate`}
             onClick={() => convert(n)}
-            style={sets < n ? { opacity: 0.35, cursor: "default" } : undefined}
+            style={have < n ? { opacity: 0.35, cursor: "default" } : undefined}
           >
             <span style={row}>
-              <span>Convert {n} set{n > 1 ? "s" : ""}</span>
-              <span className="cg-mono" style={{ fontSize: 10, color: "var(--energy)" }}>+{n * SET_ENERGY}⚡</span>
+              <span>Convert {n}</span>
+              <span className="cg-mono" style={{ fontSize: 10, color: "var(--energy)" }}>+{n * SINGLE_ENERGY}⚡</span>
             </span>
           </button>
         ))}
@@ -66,16 +68,17 @@ function ConvertMenu({ cogId, sets, at, onClose }: { cogId: string; sets: number
           type="button"
           className="cg-menu-row"
           disabled={auto == null}
-          data-tip="convert every full set automatically at the start of each turn"
+          data-tip={`burn ALL ${MINERAL_NAME[mineral]} automatically at the start of each turn`}
           onClick={() => {
-            const next = !auto;
+            if (auto == null) return;
+            const next = isAuto ? auto.filter((m) => m !== mineral) : [...auto, mineral];
             setAuto(next);
             void fetch(`/cog/${cogId}/steering`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ autoConvert: next }) });
           }}
         >
           <span style={row}>
-            <span>{auto ? "☑" : "☐"} Auto-convert each turn</span>
-            <span className="cg-mono" style={{ fontSize: 9, color: auto ? "var(--coherence)" : "var(--muted)" }}>{auto ? "on" : "off"}</span>
+            <span>{isAuto ? "☑" : "☐"} Auto-convert each turn</span>
+            <span className="cg-mono" style={{ fontSize: 9, color: isAuto ? "var(--coherence)" : "var(--muted)" }}>{isAuto ? "on" : "off"}</span>
           </span>
         </button>
       </div>
@@ -90,7 +93,7 @@ function Identity({ snapshot, cogId, live }: { snapshot: GameSnapshot; cogId: st
   const terr = territory(snapshot).get(cogId) ?? { tiles: 0, fortresses: 0, salients: 0 };
   const rank = rankedByHearts(snapshot.cogs).findIndex((c) => c.id === cogId) + 1;
   const sets = setsOf(me.treasury);
-  const [convertAt, setConvertAt] = useState<{ x: number; y: number } | null>(null);
+  const [convertMenu, setConvertMenu] = useState<{ mineral: string; x: number; y: number } | null>(null);
   return (
     <div className="cg-panel" style={{ borderTop: `3px solid ${color}` }} data-testid="identity">
       <div className="cg-panel-body" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -111,15 +114,13 @@ function Identity({ snapshot, cogId, live }: { snapshot: GameSnapshot; cogId: st
         </div>
         <div>
           <div className="cg-label" style={{ fontSize: 9, marginBottom: 6 }}>treasury · sets convert to energy</div>
-          <div
-            style={{ padding: "10px 11px", background: "var(--panel-2)", borderRadius: 8, border: "1px solid var(--border)" }}
-            onContextMenu={live ? (e) => { e.preventDefault(); setConvertAt({ x: e.clientX, y: e.clientY }); } : undefined}
-            data-tip={live ? "right-click to convert sets" : undefined}
-          >
+          <div style={{ padding: "10px 11px", background: "var(--panel-2)", borderRadius: 8, border: "1px solid var(--border)" }}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
               {MINERALS.map((m) => (
                 <div
                   key={m}
+                  onContextMenu={live ? (e) => { e.preventDefault(); setConvertMenu({ mineral: m, x: e.clientX, y: e.clientY }); } : undefined}
+                  data-tip={live ? `right-click to convert ${MINERAL_NAME[m]}` : undefined}
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -174,7 +175,15 @@ function Identity({ snapshot, cogId, live }: { snapshot: GameSnapshot; cogId: st
             </div>
           </div>
         </div>
-        {convertAt && <ConvertMenu cogId={cogId} sets={sets} at={convertAt} onClose={() => setConvertAt(null)} />}
+        {convertMenu && (
+          <ConvertMenu
+            cogId={cogId}
+            mineral={convertMenu.mineral}
+            have={me.treasury[convertMenu.mineral as keyof typeof me.treasury]}
+            at={convertMenu}
+            onClose={() => setConvertMenu(null)}
+          />
+        )}
         <div style={{ display: "flex", gap: 8 }}>
           {([["tiles", terr.tiles, "var(--text)"], ["fortresses", terr.fortresses, color], ["salients", terr.salients, "var(--exploit)"]] as const).map(([l, v, col]) => (
             <div key={l} style={{ flex: 1, padding: "8px 10px", background: "var(--panel-2)", borderRadius: 8, border: "1px solid var(--border)" }}>

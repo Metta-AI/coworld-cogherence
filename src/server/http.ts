@@ -28,7 +28,7 @@ const steeringPatchSchema = z
     paused: z.boolean().optional(),
     pending: z.array(OrderSchema).optional(),
     standingBid: z.number().int().min(0).optional(),
-    autoConvert: z.boolean().optional(),
+    autoConvert: z.array(z.enum(["C", "O", "Ge", "S"])).optional(),
   })
   .strict();
 
@@ -115,20 +115,30 @@ export function createApp(
     }
   });
 
-  // Convert Sets: burn full COGS sets (1 of each mineral per set) for stored
-  // energy. Body: { sets } (default 1).
+  // Convert minerals into stored energy. Body: { sets } burns full COGS sets
+  // (1 of each, SET_ENERGY per set — the Convert Set button), or
+  // { mineral, count } burns one element as singles (the right-click menu).
   app.post("/cog/:id/convert", (req, res) => {
-    const parsed = z.object({ sets: z.number().int().min(1).max(100).optional() }).strict().safeParse(req.body ?? {});
-    if (!parsed.success) return res.status(400).json({ error: "expected { sets?: number }" });
-    if (runner.convert(req.params.id, parsed.data.sets ?? 1)) {
+    const parsed = z
+      .union([
+        z.object({ sets: z.number().int().min(1).max(100).optional() }).strict(),
+        z.object({ mineral: z.enum(["C", "O", "Ge", "S"]), count: z.number().int().min(1).max(1000) }).strict(),
+      ])
+      .safeParse(req.body ?? {});
+    if (!parsed.success) return res.status(400).json({ error: "expected { sets? } or { mineral, count }" });
+    const ok =
+      "mineral" in parsed.data
+        ? runner.convertMineral(req.params.id, parsed.data.mineral, parsed.data.count)
+        : runner.convert(req.params.id, parsed.data.sets ?? 1);
+    if (ok) {
       const c = runner.state.cogs[req.params.id]!;
       return res.json({ ok: true, energy: c.energy, treasury: c.treasury });
     }
-    return res.status(409).json({ ok: false, error: "not enough full sets" });
+    return res.status(409).json({ ok: false, error: "treasury can't cover that conversion" });
   });
 
   // Operator steering (Phase D): read + edit a cog's persona / paused flag live.
-  app.get("/cog/:id/steering", (req, res) => res.json(steering?.get(req.params.id) ?? { persona: "", paused: false, pending: [], standingBid: 0, autoConvert: false }));
+  app.get("/cog/:id/steering", (req, res) => res.json(steering?.get(req.params.id) ?? { persona: "", paused: false, pending: [], standingBid: 0, autoConvert: [] }));
   // Operator READY (manual mode): submit the queued orders for this Commit now.
   app.post("/cog/:id/ready", (req, res) => {
     if (!steering) return res.status(404).json({ error: "steering unavailable" });

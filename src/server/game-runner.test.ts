@@ -121,21 +121,23 @@ describe("GameRunner", () => {
     expect(runner.state.cogs.cog0!.name).toBe("zoe");
   });
 
-  it("auto-convert: a paused cog with the flag converts its sets at turn start; without it, sets sit", async () => {
-    const run = async (autoConvert: boolean) => {
+  it("auto-convert elements: a paused cog's flagged minerals burn as singles each turn; bots liquidate", async () => {
+    const run = async (autoConvert: Array<"C" | "O" | "Ge" | "S">, paused: boolean) => {
       const steering = new SteeringStore();
-      steering.update("cog0", { paused: true, autoConvert });
+      steering.update("cog0", { paused, autoConvert });
       const runner = new GameRunner({ seed: 7, agents: [steerableAgent(greedyAgent("cog0"), steering)], maxTurns: 1, deadlineMs: 30, steering });
       runner.state = { ...runner.state, cogs: { ...runner.state.cogs, cog0: { ...runner.state.cogs.cog0!, treasury: { C: 2, O: 1, Ge: 1, S: 1 } } } };
       await runner.run();
       return runner.state.cogs.cog0!;
     };
-    const withAuto = await run(true);
-    expect(withAuto.energy).toBe(109); // 100 + 10 converted − 1 upkeep
-    expect(withAuto.treasury.O).toBe(0); // the set burned
-    const without = await run(false);
-    expect(without.energy).toBe(99); // 100 − 1 upkeep; manual cogs keep their sets
-    expect(without.treasury.O).toBe(1);
+    const flagged = await run(["C"], true); // manual: burns ALL its C (2 × 1⚡) at turn start
+    expect(flagged.energy).toBe(101); // 100 + 2 − 1 upkeep
+    expect(flagged.treasury.C).toBe(10); // burned to 0, then upkeep minted 10 fresh C
+    expect(flagged.treasury.O).toBe(1); // unflagged elements sit
+    const manual = await run([], true);
+    expect(manual.energy).toBe(99); // 100 − 1 upkeep; nothing converted
+    expect(manual.treasury.C).toBe(12); // the 2 held + the 10 minted
+    expect(manual.treasury.O).toBe(1);
   });
 
   it("a hung negotiate can't stall the turn — it's raced against the deadline", async () => {

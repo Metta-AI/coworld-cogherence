@@ -1,11 +1,11 @@
 // The live turn loop: per turn, open a Commit phase (deadline-bounded), collect
 // each cog's orders (default [] on timeout), resolve + upkeep, emit frames.
 // Engine-pure underneath; this layer only adds timing, the coordinator, and IO.
-import type { GameState, CogId } from "../shared/engine/types";
+import type { GameState, CogId, Mineral } from "../shared/engine/types";
 import type { Order } from "../shared/engine/orders";
 import type { Agent } from "../agents/types";
 import type { ServerMessage, ServerStatus } from "../shared/protocol";
-import { newGame, stepTurn, scoreGame, convertCogSets } from "../shared/engine/game";
+import { newGame, stepTurn, scoreGame, convertCogSets, convertCogMineral } from "../shared/engine/game";
 import { fullSets } from "../shared/engine/energy";
 import { addCog } from "../shared/engine/board";
 import { toSnapshot } from "../shared/snapshot";
@@ -136,6 +136,15 @@ export class GameRunner {
     return true;
   }
 
+  /** Convert `count` of one element into stored energy (right-click menu). */
+  convertMineral(cogId: CogId, mineral: Mineral, count: number): boolean {
+    const next = convertCogMineral(this.state, cogId, mineral, count);
+    if (next === this.state) return false;
+    this.state = next;
+    this.emit({ type: "snapshot", snapshot: toSnapshot(this.state) });
+    return true;
+  }
+
   /** Flip wait-ready mode live. Turning it OFF releases a currently-parked
    *  commit window (un-submitted cogs default to [] — exactly as if the
    *  deadline had just fired); turning it ON applies from the next window. */
@@ -236,15 +245,28 @@ export class GameRunner {
       }
 
       const startedAt = Date.now();
-      // Autopilot cogs can't click the Convert Set button — convert their full
-      // sets for them each turn so the strict stored-energy economy never
-      // starves a bot. Manual (paused) cogs convert by hand, unless they
-      // opted into auto-convert (the right-click convert menu).
+      // Turn-start conversions. Autopilot cogs can't click — they LIQUIDATE:
+      // every full set (best rate), then every leftover single, so the strict
+      // stored-energy economy never starves a bot. Manual (paused) cogs
+      // convert by hand, plus whatever elements they flagged auto-convert
+      // (right-click menu) — burned as singles each turn.
       for (const a of this.agents) {
         const st = this.steering?.get(a.id);
-        if (st?.paused && !st.autoConvert) continue;
-        const sets = fullSets(this.state.cogs[a.id]?.treasury ?? { C: 0, O: 0, Ge: 0, S: 0 });
-        if (sets > 0) this.state = convertCogSets(this.state, a.id, sets);
+        const cog = () => this.state.cogs[a.id];
+        if (!cog()) continue;
+        if (st?.paused) {
+          for (const m of st.autoConvert) {
+            const have = cog()!.treasury[m];
+            if (have > 0) this.state = convertCogMineral(this.state, a.id, m, have);
+          }
+        } else {
+          const sets = fullSets(cog()!.treasury);
+          if (sets > 0) this.state = convertCogSets(this.state, a.id, sets);
+          for (const m of ["C", "O", "Ge", "S"] as const) {
+            const have = cog()!.treasury[m];
+            if (have > 0) this.state = convertCogMineral(this.state, a.id, m, have);
+          }
+        }
       }
       const snapshot = this.state;
 

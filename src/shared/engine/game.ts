@@ -11,7 +11,7 @@ import type { Agent } from "../../agents/types";
 import { generateBoard } from "./board";
 import { resolve } from "./resolve";
 import { upkeep } from "./upkeep";
-import { convertSets, fullSets } from "./energy";
+import { convertSets, convertMineral, convertibleEnergy, fullSets } from "./energy";
 import { MAX_TURNS, FIRST_COMMIT_REWARD, SET_ENERGY, ALIGN_REPEAT_SURCHARGE, alignEnergyCost } from "./constants";
 import { alignDistance } from "./orders";
 
@@ -53,6 +53,19 @@ export function convertCogSets(state: GameState, cogId: CogId, sets: number): Ga
   };
 }
 
+/** Convert `count` of one MINERAL into stored energy (right-click an element;
+ *  SINGLE_ENERGY each). Same no-op-on-shortfall semantics as convertCogSets. */
+export function convertCogMineral(state: GameState, cogId: CogId, mineral: Mineral, count: number): GameState {
+  const cog = state.cogs[cogId];
+  if (!cog) return state;
+  const conv = convertMineral(cog.treasury, mineral, count);
+  if (!conv) return state;
+  return {
+    ...state,
+    cogs: { ...state.cogs, [cogId]: { ...cog, treasury: conv.treasury, energy: cog.energy + conv.gained } },
+  };
+}
+
 /** Run one full turn: Resolve -> Upkeep -> first-mover bonus -> advance the turn,
  *  appending a TurnRecord. `commitOrder` (cogs in the order they locked their
  *  Commits, from the live runner; omitted for scripted replays) breaks auction
@@ -87,7 +100,7 @@ export function stepTurn(
 
 /** Final standings: most hearts wins; tiebreak by total wealth (stored energy
  *  + convertible sets), then lower index. */
-const wealth = (c: CogState): number => c.energy + fullSets(c.treasury) * SET_ENERGY;
+const wealth = (c: CogState): number => c.energy + convertibleEnergy(c.treasury);
 
 export function scoreGame(state: GameState): {
   winner: CogId | null;

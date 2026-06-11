@@ -8,7 +8,7 @@
 //    READY (markReady), which submits the queue (possibly empty = hold) and
 //    flips the cog to done. No Ready by the deadline -> the coordinator
 //    defaults to [] and the queue carries over to the next turn.
-import type { CogId } from "../shared/engine/types";
+import type { CogId, Mineral } from "../shared/engine/types";
 import type { Order } from "../shared/engine/orders";
 import type { Agent } from "../agents/types";
 
@@ -19,12 +19,12 @@ export interface CogSteering {
   /** Standing heart bid: while > 0, every commit this cog submits carries a
    *  bid of this amount (replacing any bid the autopilot chose itself). */
   standingBid: number;
-  /** Convert every full COGS set automatically at the start of each turn —
-   *  always on for autopilot cogs; manual cogs opt in (right-click convert menu). */
-  autoConvert: boolean;
+  /** Elements to auto-convert (as singles) at the start of each turn — set by
+   *  the right-click element menu. Autopilot cogs liquidate everything anyway. */
+  autoConvert: Mineral[];
 }
 
-const empty = (): CogSteering => ({ persona: "", paused: false, pending: [], standingBid: 0, autoConvert: false });
+const empty = (): CogSteering => ({ persona: "", paused: false, pending: [], standingBid: 0, autoConvert: [] });
 
 /** A manual cog's parked commit: its resolver plus the autopilot thunk to run
  *  if the operator flips the cog back to autopilot mid-window. */
