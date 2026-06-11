@@ -56,13 +56,14 @@ export const FIRST_COMMIT_REWARD = 2;
 /** Energy yielded by a single leftover mineral. */
 export const SINGLE_ENERGY = 1;
 
-/** Exploit windfall: floor(EXPLOIT_MULT × coherence × density) units of the
+/** Exploit windfall: EXPLOIT_MULT × coherence × floor(density) units of the
  *  tile's MINERAL (coherence pre-drop) — a huge one-time mineral burst. The
- *  helper is the ONLY way to compute it, so float densities never leak
- *  fractional amounts into the UI or treasuries. */
+ *  DISPLAYED density is the one that pays: a deposit that reads 0 yields
+ *  nothing, and float densities never leak hidden fractional value into the
+ *  UI or treasuries. The helper is the ONLY way to compute it. */
 export const EXPLOIT_MULT = 10;
 export const exploitYield = (coherence: number, density: number): number =>
-  Math.floor(EXPLOIT_MULT * coherence * density);
+  EXPLOIT_MULT * coherence * Math.floor(density);
 
 /** Exploit scars the land: density loses coherence/10 (cashing a high-order
  *  tile grinds the deposit down harder); a deposit ground below 1 collapses

@@ -153,7 +153,7 @@ describe("resolve", () => {
     });
     const { state } = resolve(s, { A: [{ type: "exploit", tile: "0,0" }] });
     expect(at(state, 0, 0).density).toBe(0);
-    expect(tre(state, "A").S).toBe(135); // floor(10·9·1.5) — always a whole number
+    expect(tre(state, "A").S).toBe(90); // 10·9·⌊1.5⌋ — the DISPLAYED density pays, never hidden fractions
   });
 
   it("exploit resolves BEFORE align: an exploited tile is neutral/0 when a rival's align lands, so the rival takes the husk", () => {
