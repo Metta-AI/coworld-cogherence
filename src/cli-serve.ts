@@ -1,5 +1,6 @@
 // `serve` entry: start the live server with scripted (or llm) agents and print
 // the URLs. Run via `npm run serve -- --seed 7 --cogs 4 --agents greedy,...`.
+import { execFile } from "node:child_process";
 import { buildAgents } from "./cli";
 import { startServer } from "./server/runtime";
 import { ActPromptHub } from "./server/act-prompt-hub";
@@ -43,8 +44,19 @@ async function main(): Promise<void> {
   }).map((a) => steerableAgent(a, steering));
   if (manual) for (let i = 0; i < specs.length; i++) steering.update(`cog${i}`, { paused: true });
   const defaultLive = flag("default-live");
+  // The SHARE link must be reachable by other machines: prefer the Tailscale
+  // MagicDNS name (the host usually browses via localhost, which is useless to
+  // copy). No tailscale -> null -> the client falls back to its own origin.
+  const tailnetName = await new Promise<string | null>((res) => {
+    execFile("tailscale", ["status", "--json"], (err, out) => {
+      if (err) return res(null);
+      const name = (JSON.parse(out) as { Self?: { DNSName?: string } }).Self?.DNSName;
+      res(name ? name.replace(/\.$/, "") : null);
+    });
+  });
   const h = await startServer({
     seed, agents, port, deadlineMs, minTurnMs, maxTurns, turnLimit: 10, hub, bus, steering, agentSpecs: specs, names, waitForReady, defaultLive, autorun: true, dev: true,
+    shareOrigin: tailnetName ? `http://${tailnetName}:${port}` : null,
   });
   console.log(`Cogherence live — seed ${seed}, agents [${specs.join(", ")}]`);
   console.log(`  server:   ${h.url}`);

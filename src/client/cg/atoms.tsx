@@ -1,7 +1,7 @@
 // Cogherence neon-glass atoms: each Cog is a luminous hexagonal *sigil* (a mind,
 // not a body), mineral *chips* spell COGS, a *wallet* derives energy from a COGS
 // set, *verb tags* color the board verbs, plus the brand and the four-phase strip.
-import React from "react";
+import React, { useState } from "react";
 import { publishTileHighlight } from "./tile-highlight";
 import type { Treasury, Phase } from "../../shared/engine/types";
 import { Icon, type IconName } from "../Icon";
@@ -122,21 +122,63 @@ export function VerbTag({ kind, children }: { kind: string; children: React.Reac
   return <span className={`cg-verb ${kind}`}>{children}</span>;
 }
 
-/** The wordmark: the logo glyph + COGHERENCE, with an optional tagline. */
+/** Copy text in any context: the async clipboard API needs HTTPS/localhost,
+ *  and tailnet visitors arrive over plain HTTP — they get the textarea path. */
+function copyText(text: string): void {
+  if (navigator.clipboard?.writeText) {
+    void navigator.clipboard.writeText(text);
+    return;
+  }
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.position = "fixed";
+  ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.select();
+  document.execCommand("copy");
+  ta.remove();
+}
+
+/** The wordmark: the logo glyph + COGHERENCE, with an optional tagline.
+ *  CLICK copies the current view's PLAY LINK on the externally-reachable
+ *  origin (/share-info — the Tailscale name when the server knows one), so
+ *  the host doesn't hand out localhost. */
 export function Brand({ small = false }: { small?: boolean }): React.ReactElement {
+  const [copied, setCopied] = useState<string | null>(null);
+  const copyPlayLink = (): void => {
+    void fetch("/share-info")
+      .then((r) => r.json())
+      .then((j: { origin: string | null }) => {
+        const link = `${j.origin ?? window.location.origin}${window.location.pathname}`;
+        copyText(link);
+        setCopied(link);
+        window.setTimeout(() => setCopied(null), 2200);
+      });
+  };
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+    <div
+      role="button"
+      tabIndex={0}
+      data-testid="brand"
+      data-tip="click to copy this view's shareable play link"
+      onClick={copyPlayLink}
+      onKeyDown={(e) => e.key === "Enter" && copyPlayLink()}
+      style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}
+    >
       <CGIcon name="logo" size={small ? 26 : 32} />
       <div>
         <div style={{ fontFamily: "var(--f-ui)", fontWeight: 700, fontSize: small ? 17 : 20, letterSpacing: "0.04em", color: "var(--text)" }}>
           COGHERENCE
         </div>
         {!small && (
-          <div className="cg-mono" style={{ fontSize: 9, color: "var(--muted)", letterSpacing: "0.16em", marginTop: 1 }}>
-            A POLIS OF MINDS
+          <div className="cg-mono" style={{ fontSize: 9, color: copied ? "var(--coherence)" : "var(--muted)", letterSpacing: copied ? "0.04em" : "0.16em", marginTop: 1, whiteSpace: "nowrap" }}>
+            {copied ? `✓ copied ${copied.replace(/^https?:\/\//, "")}` : "A POLIS OF MINDS"}
           </div>
         )}
       </div>
+      {small && copied && (
+        <span className="cg-mono" style={{ fontSize: 9, color: "var(--coherence)", whiteSpace: "nowrap" }}>✓ copied</span>
+      )}
     </div>
   );
 }

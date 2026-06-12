@@ -37,12 +37,17 @@ export function createApp(
   hub?: ActPromptHub,
   steering?: SteeringStore,
   recorder?: ReplayRecorder,
-  opts: { defaultLive?: boolean; vite?: ViteDevServer } = {},
+  opts: { defaultLive?: boolean; vite?: ViteDevServer; shareOrigin?: string | null } = {},
 ): express.Express {
   const app = express();
   app.use(express.json());
 
   app.get("/health", (_req, res) => res.type("text/plain").send("ok"));
+
+  // The externally-reachable origin for share links (Tailscale name when the
+  // server found one) — the wordmark's copy-play-link uses this so the host
+  // doesn't hand out a useless localhost URL.
+  app.get("/share-info", (_req, res) => res.json({ origin: opts.shareOrigin ?? null }));
 
   // The live server replays ITS OWN recorded game: open the dashboard without
   // ?live to re-watch the game just played. Falls through to the bundled file

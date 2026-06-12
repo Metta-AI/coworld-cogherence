@@ -35,6 +35,8 @@ export async function startServer(opts: {
   names?: string[];
   /** Commit waits for every cog's Ready — no deadline, no countdown. */
   waitForReady?: boolean;
+  /** Externally-reachable origin for share links (e.g. the Tailscale name). */
+  shareOrigin?: string | null;
   defaultLive?: boolean;
   autorun?: boolean;
   /** Serve the client through Vite middleware (source + HMR) instead of nothing. */
@@ -75,7 +77,7 @@ export async function startServer(opts: {
         legacy: { skipWebSocketTokenCheck: true },
       })
     : undefined;
-  http.on("request", createApp(runner, opts.hub, opts.steering, recorder, { defaultLive: opts.defaultLive, vite }));
+  http.on("request", createApp(runner, opts.hub, opts.steering, recorder, { defaultLive: opts.defaultLive, vite, shareOrigin: opts.shareOrigin }));
   await new Promise<void>((r) => http.listen(opts.port ?? 0, r));
   const port = (http.address() as { port: number }).port;
   if (opts.autorun !== false) void runner.run();
