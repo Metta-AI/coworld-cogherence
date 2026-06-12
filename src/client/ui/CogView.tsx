@@ -11,7 +11,7 @@ import { distance } from "../../shared/engine/hex";
 import { ALIGN_MAX_ENERGY, ALIGN_REPEAT_SURCHARGE, COHERENCE_MAX, SINGLE_ENERGY, alignEnergyCost, exploitYield } from "../../shared/engine/constants";
 import { cogColor, cogName } from "../colors";
 import { EnergyChip, CGIcon, Mineral } from "../cg/atoms";
-import { LatticePanel, ChannelMessage, TurnLog } from "../cg/panels";
+import { AuctionPanel, LatticePanel, ChannelMessage, TurnLog } from "../cg/panels";
 import { ResizableColumns } from "../cg/ResizableColumns";
 import { MINERALS, MINERAL_NAME, expectedMintBy, upkeepBy, setsOf, territory, rankedByHearts } from "../cg/derive";
 import { AutopilotPanel } from "./AutopilotPanel";
@@ -354,7 +354,7 @@ function TileMenu({
   );
 }
 
-function CogChannels({ snapshot, cogId, messages, onSeekTurn }: { snapshot: GameSnapshot; cogId: string; messages: Message[]; onSeekTurn?: (turn: number) => void }): React.ReactElement {
+function CogChannels({ snapshot, cogId, messages, onSeekTurn, onCollapse }: { snapshot: GameSnapshot; cogId: string; messages: Message[]; onSeekTurn?: (turn: number) => void; onCollapse?: () => void }): React.ReactElement {
   const visible = messages
     .filter((m) => m.to === "public" || m.from === cogId || m.to === cogId)
     .slice(-30)
@@ -363,7 +363,21 @@ function CogChannels({ snapshot, cogId, messages, onSeekTurn }: { snapshot: Game
     <div className="cg-panel" style={{ display: "flex", flexDirection: "column", minHeight: 0 }} data-testid="cog-channels">
       <div className="cg-panel-head">
         <span className="cg-panel-title">{cogName(snapshot.cogs.find((c) => c.id === cogId)?.index ?? 0)}’s Channels</span>
-        <span className="cg-mono" style={{ fontSize: 9, color: "var(--muted)" }}>what it can read</span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+          <span className="cg-mono" style={{ fontSize: 9, color: "var(--muted)" }}>what it can read</span>
+          {onCollapse && (
+            <button
+              type="button"
+              data-testid="collapse-channels"
+              data-tip="collapse this side panel"
+              onClick={onCollapse}
+              className="cg-mono"
+              style={{ background: "none", border: "1px solid var(--border)", borderRadius: 5, color: "var(--muted)", cursor: "pointer", fontSize: 10, padding: "1px 6px" }}
+            >
+              »
+            </button>
+          )}
+        </span>
       </div>
       <div className="cg-panel-body cg-scroll" style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 7, padding: "10px 12px" }}>
         {visible.length === 0 && <div className="cg-mono" style={{ fontSize: 10, color: "var(--muted)" }}>no traffic yet.</div>}
@@ -440,6 +454,24 @@ export function CogView({
     if (o.type === "exploit") return t ? `+${exploitYield(t.coherence, t.density)} ${t.mineral}` : undefined;
     return undefined;
   });
+  // The right side panel (Auction + Channels) collapses to a slim strip; the
+  // choice sticks across reloads via localStorage.
+  const [sideCollapsed, setSideCollapsed] = useState<boolean>(() => {
+    try {
+      return window.localStorage.getItem("cg.channels.collapsed") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const toggleSide = (): void =>
+    setSideCollapsed((c) => {
+      try {
+        window.localStorage.setItem("cg.channels.collapsed", c ? "0" : "1");
+      } catch {
+        // no persistence (SSR/jsdom/privacy mode) — the toggle still works
+      }
+      return !c;
+    });
   // Planned aligns drawn on the board: queued + committed, each outlined with
   // the EXPECTED post-resolve coherence — own tile reinforces (cap), neutral
   // ground takes the force, enemy ground shows the capture margin (or what's
@@ -518,7 +550,39 @@ export function CogView({
             planned={plannedAligns}
           />
         }
-        right={<CogChannels snapshot={snapshot} cogId={cogId} messages={messages} onSeekTurn={onSeekTurn} />}
+        right={
+          sideCollapsed ? (
+            <button
+              type="button"
+              data-testid="expand-channels"
+              data-tip="expand the auction + channels panel"
+              onClick={toggleSide}
+              className="cg-mono"
+              style={{
+                background: "var(--panel)",
+                border: "1px solid var(--border)",
+                borderRadius: 8,
+                color: "var(--muted)",
+                cursor: "pointer",
+                fontSize: 10,
+                letterSpacing: "0.14em",
+                writingMode: "vertical-rl",
+                padding: "14px 4px",
+                height: "100%",
+              }}
+            >
+              « CHANNELS · AUCTION
+            </button>
+          ) : (
+            <div className="cg-col cg-scroll" style={{ overflowY: "auto", display: "flex", flexDirection: "column", gap: 12, minHeight: 0 }}>
+              <div style={{ flex: "0 0 auto" }}>
+                <AuctionPanel snapshot={snapshot} events={events} />
+              </div>
+              <CogChannels snapshot={snapshot} cogId={cogId} messages={messages} onSeekTurn={onSeekTurn} onCollapse={toggleSide} />
+            </div>
+          )
+        }
+        rightCollapsed={sideCollapsed}
       />
       {menu && (
         <TileMenu

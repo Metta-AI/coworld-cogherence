@@ -35,6 +35,7 @@ export function ResizableColumns({
   right,
   min = 240,
   max = 560,
+  rightCollapsed = false,
 }: {
   storageKey: string;
   defaultLeft: number;
@@ -44,6 +45,9 @@ export function ResizableColumns({
   right: React.ReactNode;
   min?: number;
   max?: number;
+  /** Collapse the right column to a slim strip (the caller renders the strip
+   *  content); its gutter stops resizing while collapsed. */
+  rightCollapsed?: boolean;
 }): React.ReactElement {
   const [w, setW] = useState<Widths>(() => loadWidths(storageKey, { left: defaultLeft, right: defaultRight }));
   // Latest widths in a ref so the drag move handler (bound once per drag) reads fresh values.
@@ -80,7 +84,7 @@ export function ResizableColumns({
   return (
     <div
       className="cg-grid"
-      style={{ gap: 0, gridTemplateColumns: `${w.left}px ${GUTTER}px minmax(0, 1fr) ${GUTTER}px ${w.right}px` }}
+      style={{ gap: 0, gridTemplateColumns: `${w.left}px ${GUTTER}px minmax(0, 1fr) ${rightCollapsed ? "4px 34px" : `${GUTTER}px ${w.right}px`}` }}
     >
       {left}
       <div
@@ -95,12 +99,13 @@ export function ResizableColumns({
       {center}
       <div
         className="cg-gutter"
-        onPointerDown={(e) => startDrag("right", e)}
-        onDoubleClick={() => setW((c) => ({ ...c, right: defaultRight }))}
+        onPointerDown={rightCollapsed ? undefined : (e) => startDrag("right", e)}
+        onDoubleClick={rightCollapsed ? undefined : () => setW((c) => ({ ...c, right: defaultRight }))}
         role="separator"
         aria-orientation="vertical"
         aria-label="Resize right panel"
-        data-tip="Drag to resize · double-click to reset"
+        data-tip={rightCollapsed ? undefined : "Drag to resize · double-click to reset"}
+        style={rightCollapsed ? { cursor: "default" } : undefined}
       />
       {right}
     </div>
