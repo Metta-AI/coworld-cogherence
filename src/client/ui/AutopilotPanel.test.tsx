@@ -73,13 +73,6 @@ describe("AutopilotPanel", () => {
     expect(getByTestId("pending-actions").textContent).toContain("Exploit(0,0)");
     fireEvent.click(getAllByText("✕")[1]!);
     expect(onCancel).toHaveBeenCalledWith(1);
-    // the bid field edits the PERSISTENT standing bid (steering POST), not the queue
-    fireEvent.change(getByTestId("bid-input"), { target: { value: "7" } });
-    await waitFor(() => {
-      const post = calls.find((c) => c.init?.method === "POST");
-      expect(post).toBeTruthy();
-      expect(JSON.parse(post!.init!.body as string)).toEqual({ standingBid: 7 });
-    });
     fireEvent.click(getByTestId("ready-btn"));
     expect(onReady).toHaveBeenCalled();
   });

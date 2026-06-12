@@ -576,7 +576,7 @@ export function CogView({
           ) : (
             <div className="cg-col cg-scroll" style={{ overflowY: "auto", display: "flex", flexDirection: "column", gap: 12, minHeight: 0 }}>
               <div style={{ flex: "0 0 auto" }}>
-                <AuctionPanel snapshot={snapshot} events={events} />
+                <AuctionPanel snapshot={snapshot} events={events} bidder={live ? cogId : undefined} />
               </div>
               <CogChannels snapshot={snapshot} cogId={cogId} messages={messages} onSeekTurn={onSeekTurn} onCollapse={toggleSide} />
             </div>

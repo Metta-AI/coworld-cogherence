@@ -141,25 +141,23 @@ export function AutopilotPanel({
 }): React.ReactElement {
   const [persona, setPersona] = useState("");
   const [paused, setPaused] = useState(false);
-  const [standingBid, setStandingBid] = useState(0);
   const [saved, setSaved] = useState<Saved>("idle");
 
   useEffect(() => {
     let live = true;
     void fetch(`/cog/${cogId}/steering`)
       .then((r) => r.json())
-      .then((s: { persona: string; paused: boolean; standingBid?: number }) => {
+      .then((s: { persona: string; paused: boolean }) => {
         if (!live) return;
         setPersona(s.persona);
         setPaused(s.paused);
-        setStandingBid(s.standingBid ?? 0);
       });
     return () => {
       live = false;
     };
   }, [cogId]);
 
-  const post = (patch: { persona?: string; paused?: boolean; standingBid?: number }): void => {
+  const post = (patch: { persona?: string; paused?: boolean }): void => {
     setSaved("saving");
     void fetch(`/cog/${cogId}/steering`, {
       method: "POST",
@@ -167,10 +165,9 @@ export function AutopilotPanel({
       body: JSON.stringify(patch),
     })
       .then((r) => r.json())
-      .then((s: { persona: string; paused: boolean; standingBid?: number }) => {
+      .then((s: { persona: string; paused: boolean }) => {
         setPersona(s.persona);
         setPaused(s.paused);
-        setStandingBid(s.standingBid ?? 0);
         setSaved("saved");
       });
   };
@@ -205,21 +202,7 @@ export function AutopilotPanel({
           </span>
         </label>
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}>
-        <span className="cg-mono" data-tip="standing heart bid — auto-bid this amount at every auction while > 0 (replaces the autopilot's own bid; 0 = let it decide)" style={{ fontSize: 10, color: "var(--muted)" }}>
-          Heart bid
-        </span>
-        <input
-          type="number"
-          min={0}
-          data-testid="bid-input"
-          value={standingBid}
-          onChange={(e) => post({ standingBid: Math.max(0, Number(e.target.value) || 0) })}
-          className="cg-mono"
-          style={{ width: 64, background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 6, color: "var(--text)", padding: "3px 6px", fontSize: 11 }}
-        />
-        <span className="cg-mono" style={{ fontSize: 10, color: "var(--muted)" }}>e</span>
-      </div>
+
       {!paused ? (
         <>
           <textarea
