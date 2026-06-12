@@ -1,33 +1,53 @@
 // The express app: a small operator API (health + public/redacted state JSON) and
-// static serving of the built client (dist/) with SPA fallbacks. The live feed
-// itself goes over websockets (see websocket.ts); these routes are for probes,
-// tooling, and serving the bundle.
+// client serving with SPA fallbacks — through Vite in middleware mode when a dev
+// server is passed (source modules + HMR, no build step), or raw index.html
+// otherwise (tests exercise the API only). The live feed itself goes over
+// websockets (see websocket.ts); these routes are for probes, tooling, and
+// serving the client.
 import express from "express";
 import { z } from "zod";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+import { readFile } from "node:fs/promises";
+import type { ViteDevServer } from "vite";
 import { toSnapshot } from "../shared/snapshot";
 import { greedyAgent } from "../agents/stub";
+import { OrderSchema } from "../shared/engine/orders";
+import { steerableAgent } from "./steering-store";
 import { buildCogSnapshot } from "./redact";
 import type { GameRunner } from "./game-runner";
 import type { ActPromptHub } from "./act-prompt-hub";
 import type { SteeringStore } from "./steering-store";
 import type { ReplayRecorder } from "./replay-recorder";
 
-/** Inbound operator steering patch (validated at the boundary; invalid → 400). */
-const steeringPatchSchema = z.object({ persona: z.string().optional(), paused: z.boolean().optional() }).strict();
+/** Inbound operator steering patch (validated at the boundary; invalid → 400).
+ *  `pending` REPLACES the cog's queued operator orders wholesale. */
+const steeringPatchSchema = z
+  .object({
+    persona: z.string().optional(),
+    paused: z.boolean().optional(),
+    pending: z.array(OrderSchema).optional(),
+    standingBid: z.number().int().min(0).optional(),
+    autoConvert: z.array(z.enum(["C", "O", "Ge", "S"])).optional(),
+  })
+  .strict();
 
 export function createApp(
   runner: GameRunner,
   hub?: ActPromptHub,
   steering?: SteeringStore,
   recorder?: ReplayRecorder,
-  opts: { defaultLive?: boolean } = {},
+  opts: { defaultLive?: boolean; vite?: ViteDevServer; shareOrigin?: string | null } = {},
 ): express.Express {
   const app = express();
   app.use(express.json());
 
   app.get("/health", (_req, res) => res.type("text/plain").send("ok"));
+
+  // The externally-reachable origin for share links (Tailscale name when the
+  // server found one) — the wordmark's copy-play-link uses this so the host
+  // doesn't hand out a useless localhost URL.
+  app.get("/share-info", (_req, res) => res.json({ origin: opts.shareOrigin ?? null }));
 
   // The live server replays ITS OWN recorded game: open the dashboard without
   // ?live to re-watch the game just played. Falls through to the bundled file
@@ -55,19 +75,88 @@ export function createApp(
     runner.setPaused(false);
     res.json({ ok: true });
   });
+  // Operator: flip wait-ready mode (commit waits for every Ready vs timed).
+  // Turning it off also releases a currently-parked window.
+  app.post("/wait-ready", (req, res) => {
+    const parsed = z.object({ on: z.boolean() }).strict().safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "expected { on: boolean }" });
+    runner.setWaitForReady(parsed.data.on);
+    return res.json({ ok: true, waitReady: parsed.data.on });
+  });
+  // Operator: raise the soft auto-stop by 10 turns and resume.
+  app.post("/extend", (_req, res) => {
+    res.json({ ok: true, turnLimit: runner.extendTurnLimit(10) });
+  });
 
   // Operator: seat a new Cog mid-game (greedy stub) at a free corner. A full
   // board (6 seats / no free corner) is a 409 with the engine's reason.
   app.post("/cogs/add", (_req, res) => {
     try {
-      res.json({ ok: true, id: runner.addCog((id) => greedyAgent(id)) });
+      res.json({ ok: true, id: runner.addCog((id) => (steering ? steerableAgent(greedyAgent(id), steering) : greedyAgent(id))) });
     } catch (e) {
       res.status(409).json({ ok: false, error: e instanceof Error ? e.message : String(e) });
     }
   });
 
+  // Claim an agent by NAME — the shareable /cog/<name> entry point. Finds the
+  // cog wearing the name (case-insensitive) or seats a new one wearing it;
+  // either way AUTOPILOT GOES OFF: the claimer owns it now. 409 when the
+  // board is out of seats.
+  app.post("/cogs/claim", (req, res) => {
+    const parsed = z.object({ name: z.string().trim().min(1).max(24) }).strict().safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "invalid name" });
+    const name = parsed.data.name;
+    const existing = runner.state.cogOrder.find((id) => runner.state.cogs[id]!.name.toLowerCase() === name.toLowerCase());
+    if (existing) {
+      steering?.update(existing, { paused: true });
+      return res.json({ ok: true, id: existing, created: false });
+    }
+    try {
+      const id = runner.addCog((cid) => (steering ? steerableAgent(greedyAgent(cid), steering) : greedyAgent(cid)), name);
+      steering?.update(id, { paused: true });
+      return res.json({ ok: true, id, created: true });
+    } catch (e) {
+      return res.status(409).json({ ok: false, error: e instanceof Error ? e.message : String(e) });
+    }
+  });
+
+  // Convert minerals into stored energy. Body: { sets } burns full COGS sets
+  // (1 of each, SET_ENERGY per set — the Convert Set button), or
+  // { mineral, count } burns one element as singles (the right-click menu).
+  app.post("/cog/:id/convert", (req, res) => {
+    const parsed = z
+      .union([
+        z.object({ sets: z.number().int().min(1).max(100).optional() }).strict(),
+        z.object({ mineral: z.enum(["C", "O", "Ge", "S"]), count: z.number().int().min(1).max(1000) }).strict(),
+      ])
+      .safeParse(req.body ?? {});
+    if (!parsed.success) return res.status(400).json({ error: "expected { sets? } or { mineral, count }" });
+    const ok =
+      "mineral" in parsed.data
+        ? runner.convertMineral(req.params.id, parsed.data.mineral, parsed.data.count)
+        : runner.convert(req.params.id, parsed.data.sets ?? 1);
+    if (ok) {
+      const c = runner.state.cogs[req.params.id]!;
+      return res.json({ ok: true, energy: c.energy, treasury: c.treasury });
+    }
+    return res.status(409).json({ ok: false, error: "treasury can't cover that conversion" });
+  });
+
+  // Kick a cog out of the game (roster right-click): ground goes neutral,
+  // the seat frees up.
+  app.post("/cog/:id/kick", (req, res) => {
+    if (runner.removeCog(req.params.id)) return res.json({ ok: true });
+    return res.status(404).json({ ok: false, error: "no such cog" });
+  });
+
   // Operator steering (Phase D): read + edit a cog's persona / paused flag live.
-  app.get("/cog/:id/steering", (req, res) => res.json(steering?.get(req.params.id) ?? { persona: "", paused: false }));
+  app.get("/cog/:id/steering", (req, res) => res.json(steering?.get(req.params.id) ?? { persona: "", paused: false, pending: [], standingBid: 0, autoConvert: [] }));
+  // Operator READY (manual mode): submit the queued orders for this Commit now.
+  app.post("/cog/:id/ready", (req, res) => {
+    if (!steering) return res.status(404).json({ error: "steering unavailable" });
+    steering.markReady(req.params.id);
+    return res.json({ ok: true });
+  });
   app.post("/cog/:id/steering", (req, res) => {
     if (!steering) return res.status(404).json({ error: "steering unavailable" });
     const parsed = steeringPatchSchema.safeParse(req.body);
@@ -75,17 +164,20 @@ export function createApp(
     return res.json(steering.update(req.params.id, parsed.data));
   });
 
-  const dist = resolve(dirname(fileURLToPath(import.meta.url)), "../../dist");
-  // index:false so "/" falls through to the SPA handler below (which may redirect
-  // to ?live) instead of express.static serving index.html and shadowing it.
-  app.use(express.static(dist, { index: false }));
-  // SPA fallback for client routes (the built index.html drives view selection).
-  // On a live server, default the bare routes to the LIVE view (add ?live) so
+  // Client serving: Vite middleware transforms source modules on demand and
+  // hot-swaps client edits into the open page — no build step, no server
+  // restart, and the live game survives UI iteration. (Restarts are what left
+  // the preview pane stranded on its non-retrying "Awaiting server…" screen.)
+  const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+  if (opts.vite) app.use(opts.vite.middlewares);
+  // SPA fallback for client routes (index.html drives view selection). On a
+  // live server, default the bare routes to the LIVE view (add ?live) so
   // opening the URL watches the running game instead of the static recording —
   // live mode also lets you scrub buffered history, so nothing is lost.
-  app.get(["/", "/cog/:id", "/feed"], (req, res) => {
+  app.get(["/", "/cog/:id", "/feed"], async (req, res) => {
     if (opts.defaultLive && req.query.live === undefined) return res.redirect(`${req.path}?live`);
-    res.sendFile(resolve(dist, "index.html"));
+    const raw = await readFile(resolve(root, "index.html"), "utf-8");
+    res.type("html").send(opts.vite ? await opts.vite.transformIndexHtml(req.originalUrl, raw) : raw);
   });
 
   return app;

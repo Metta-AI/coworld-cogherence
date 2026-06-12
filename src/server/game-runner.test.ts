@@ -2,7 +2,9 @@ import { describe, it, expect } from "vitest";
 import { GameRunner } from "./game-runner";
 import { greedyAgent, peacefulAgent } from "../agents/stub";
 import { MessageBus } from "./message-bus";
+import { SteeringStore, steerableAgent } from "./steering-store";
 import type { ServerMessage } from "../shared/protocol";
+import type { Order } from "../shared/engine/orders";
 import type { Agent } from "../agents/types";
 
 describe("GameRunner", () => {
@@ -66,6 +68,80 @@ describe("GameRunner", () => {
     expect(runner.recentEvents().every((e) => e.turn <= 2)).toBe(true); // only the new game's events
   });
 
+  it("a hung commit can't stall the turn — the deadline defaults it to []", async () => {
+    // a manual cog that never hits Ready parks its commit promise forever; the
+    // turn must still advance at the deadline (the loop must not await it).
+    const hung: Agent = { id: "cog0", commit: () => new Promise<never>(() => {}) };
+    const quiet: Agent = { id: "cog1", commit: () => [] };
+    const runner = new GameRunner({ seed: 7, agents: [hung, quiet], maxTurns: 2, deadlineMs: 30 });
+    await runner.run();
+    expect(runner.state.turn).toBe(3); // 2 turns played despite the parked commit
+  });
+
+  it("waitForReady: the commit window has no deadline — the turn waits for every cog", async () => {
+    let release!: (o: Order[]) => void;
+    const slow: Agent = { id: "cog0", commit: () => new Promise<Order[]>((r) => (release = r)) };
+    const quick: Agent = { id: "cog1", commit: () => [] };
+    const runner = new GameRunner({ seed: 7, agents: [slow, quick], maxTurns: 1, deadlineMs: 30, waitForReady: true });
+    const done = runner.run();
+    await new Promise((r) => setTimeout(r, 120)); // far past the 30ms deadline
+    expect(runner.state.turn).toBe(1); // still parked on cog0's commit
+    release([]);
+    await done;
+    expect(runner.state.turn).toBe(2); // advanced only once everyone submitted
+  });
+
+  it("setWaitForReady(false) releases a parked commit window — the turn defaults and moves on", async () => {
+    const hung: Agent = { id: "cog0", commit: () => new Promise<never>(() => {}) };
+    const quick: Agent = { id: "cog1", commit: () => [] };
+    const runner = new GameRunner({ seed: 7, agents: [hung, quick], maxTurns: 1, deadlineMs: 30, waitForReady: true });
+    const done = runner.run();
+    await new Promise((r) => setTimeout(r, 80));
+    expect(runner.state.turn).toBe(1); // parked on cog0, far past the would-be deadline
+    runner.setWaitForReady(false); // flips the mode AND expires the stuck window
+    await done;
+    expect(runner.state.turn).toBe(2);
+  });
+
+  it("an empty board idles at turn 1; the first addCog wakes it and the game runs", async () => {
+    const runner = new GameRunner({ seed: 7, agents: [], maxTurns: 2, deadlineMs: 30 });
+    const done = runner.run();
+    await new Promise((r) => setTimeout(r, 80));
+    expect(runner.state.turn).toBe(1); // idling — zero cogs, nothing simulated
+    runner.addCog((id) => greedyAgent(id));
+    const result = await done; // greedy plays both turns to completion
+    expect(runner.state.turn).toBe(3);
+    expect(result.standings).toHaveLength(1);
+  });
+
+  it("reset keeps claimed names — the roster survives a clean-board restart", () => {
+    const runner = new GameRunner({ seed: 7, agents: [], maxTurns: 2, deadlineMs: 30 });
+    runner.addCog((id) => greedyAgent(id), "zoe");
+    runner.reset();
+    expect(runner.state.cogs.cog0!.name).toBe("zoe");
+  });
+
+  it("auto-convert elements: a paused cog's flagged minerals burn as singles each turn; bots liquidate", async () => {
+    const run = async (autoConvert: Array<"C" | "O" | "Ge" | "S">, paused: boolean) => {
+      const steering = new SteeringStore();
+      steering.update("cog0", { paused, autoConvert });
+      const runner = new GameRunner({ seed: 7, agents: [steerableAgent(greedyAgent("cog0"), steering)], maxTurns: 1, deadlineMs: 30, steering });
+      runner.state = { ...runner.state, cogs: { ...runner.state.cogs, cog0: { ...runner.state.cogs.cog0!, treasury: { C: 2, O: 1, Ge: 1, S: 1 } } } };
+      await runner.run();
+      return runner.state.cogs.cog0!;
+    };
+    // FULL SETS auto-convert for everyone (best rate): C2 O1 Ge1 S1 -> one set
+    // burns (+10⚡), leaving C1. Flagged elements then burn as singles.
+    const flagged = await run(["C"], true); // the leftover C also burns (+1⚡)
+    expect(flagged.energy).toBe(110); // 100 + 10 set + 1 single − 1 upkeep
+    expect(flagged.treasury.C).toBe(10); // burned to 0, then upkeep minted 10 fresh C
+    expect(flagged.treasury.O).toBe(0); // consumed by the set
+    const manual = await run([], true);
+    expect(manual.energy).toBe(109); // 100 + 10 set − 1 upkeep; singles sit
+    expect(manual.treasury.C).toBe(11); // the leftover 1 + the 10 minted
+    expect(manual.treasury.O).toBe(0);
+  });
+
   it("a hung negotiate can't stall the turn — it's raced against the deadline", async () => {
     const bus = new MessageBus();
     const hung: Agent = { id: "cog0", commit: () => [], negotiate: () => new Promise<never>(() => {}) }; // never resolves
@@ -95,6 +171,26 @@ describe("GameRunner", () => {
     expect(resumed.pausedAccumMs ?? 0).toBeGreaterThanOrEqual(0); // paused time accumulated
     await new Promise((r) => setTimeout(r, 150)); // let the (short) game play out
     expect(runner.state.turn).toBeGreaterThan(parked); // advanced after resume
+  });
+
+  it("auto-stops (pauses) at the soft turn limit; extendTurnLimit adds turns and resumes", async () => {
+    const runner = new GameRunner({
+      seed: 7, agents: [greedyAgent("cog0"), greedyAgent("cog1")], maxTurns: 20, deadlineMs: 10, minTurnMs: 1, turnLimit: 2,
+    });
+    void runner.run();
+    await new Promise((r) => setTimeout(r, 250));
+    expect(runner.state.turn).toBe(3); // turns 1-2 played, parked before turn 3
+    expect(runner.currentStatus().paused).toBe(true);
+    expect(runner.currentStatus().turnLimit).toBe(2);
+
+    runner.setPaused(false); // resuming WITHOUT extending re-parks at the limit
+    await new Promise((r) => setTimeout(r, 80));
+    expect(runner.state.turn).toBe(3);
+    expect(runner.currentStatus().paused).toBe(true);
+
+    expect(runner.extendTurnLimit(10)).toBe(12); // +10 and resumes
+    await new Promise((r) => setTimeout(r, 400));
+    expect(runner.state.turn).toBeGreaterThan(3);
   });
 
   it("runs a negotiate round: agents post to the bus, others stay silent", async () => {

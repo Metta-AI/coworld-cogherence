@@ -1,6 +1,6 @@
 // Thin browser-WebSocket wrapper yielding raw ServerMessage strings to the feed.
-// (Reconnect/backoff is a later refinement; the feed re-reads head-first on
-// connect, so a fresh socket resyncs cleanly.)
+// Reconnection lives in connectLiveFeed — this just surfaces the close event
+// (a failed connect fires close too, so retry covers a server still booting).
 import type { LiveSocket } from "./feed";
 
 export function makeWorldSocket(url: string): LiveSocket {
@@ -8,6 +8,9 @@ export function makeWorldSocket(url: string): LiveSocket {
   return {
     onMessage(fn) {
       ws.addEventListener("message", (e) => fn(String((e as MessageEvent).data)));
+    },
+    onClose(fn) {
+      ws.addEventListener("close", fn);
     },
     close() {
       ws.close();

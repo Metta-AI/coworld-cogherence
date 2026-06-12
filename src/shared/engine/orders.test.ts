@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { OrderSchema, isOwn, isLegalAlignTarget } from "./orders";
+import { OrderSchema, isOwn, isLegalAlignTarget, alignDistance } from "./orders";
 import type { GameState, Tile, CogId } from "./types";
 import { emptyTreasury } from "./types";
 import { key } from "./hex";
@@ -14,8 +14,8 @@ const stateWith = (tiles: Tile[]): GameState => {
   return {
     turn: 1, phase: "commit", seed: 0, tiles: map,
     cogs: {
-      A: { id: "A", index: 0, treasury: emptyTreasury(), hearts: 0 },
-      B: { id: "B", index: 1, treasury: emptyTreasury(), hearts: 0 },
+      A: { id: "A", index: 0, name: "A", treasury: emptyTreasury(), energy: 0, hearts: 0 },
+      B: { id: "B", index: 1, name: "B", treasury: emptyTreasury(), energy: 0, hearts: 0 },
     },
     cogOrder: ["A", "B"], log: [],
   };
@@ -23,10 +23,11 @@ const stateWith = (tiles: Tile[]): GameState => {
 
 describe("OrderSchema", () => {
   it("parses a valid align order", () =>
-    expect(OrderSchema.parse({ type: "align", tile: "0,0", coherence: 3 }).type).toBe("align"));
-  it("rejects zero or negative align coherence", () => {
-    expect(() => OrderSchema.parse({ type: "align", tile: "0,0", coherence: 0 })).toThrow();
-    expect(() => OrderSchema.parse({ type: "align", tile: "0,0", coherence: -1 })).toThrow();
+    expect(OrderSchema.parse({ type: "align", tile: "0,0", force: 3 }).type).toBe("align"));
+  it("rejects zero, negative, or above-cap align force", () => {
+    expect(() => OrderSchema.parse({ type: "align", tile: "0,0", force: 0 })).toThrow();
+    expect(() => OrderSchema.parse({ type: "align", tile: "0,0", force: -1 })).toThrow();
+    expect(() => OrderSchema.parse({ type: "align", tile: "0,0", force: 11 })).toThrow();
   });
   it("parses exploit", () =>
     expect(OrderSchema.parse({ type: "exploit", tile: "0,0" }).type).toBe("exploit"));
@@ -56,10 +57,19 @@ describe("legality", () => {
     expect(isLegalAlignTarget(g, "A", "0,0")).toBe(true));
   it("a neutral tile adjacent to owned territory is a legal align target", () =>
     expect(isLegalAlignTarget(g, "A", "1,0")).toBe(true));
-  it("a far tile not adjacent to owned territory is illegal", () =>
-    expect(isLegalAlignTarget(g, "A", "3,0")).toBe(false));
+  it("a far tile is legal too — force decays with distance instead (alignDistance)", () => {
+    expect(isLegalAlignTarget(g, "A", "3,0")).toBe(true);
+    expect(alignDistance(g, "A", "3,0")).toBe(3);
+    expect(alignDistance(g, "A", "1,0")).toBe(1);
+    expect(alignDistance(g, "A", "0,0")).toBe(0); // own tile
+  });
   it("an off-board tile is illegal", () =>
     expect(isLegalAlignTarget(g, "A", "9,9")).toBe(false));
+  it("a cog with no tiles has nothing to project from — every align is illegal", () => {
+    const g2 = stateWith([tile(0, 0, null), tile(1, 0, "B")]);
+    expect(isLegalAlignTarget(g2, "A", "0,0")).toBe(false);
+    expect(alignDistance(g2, "A", "0,0")).toBe(Infinity);
+  });
   it("an enemy-owned tile adjacent to own territory is a legal align target (siege)", () => {
     const g2 = stateWith([tile(0, 0, "A"), tile(1, 0, "B")]);
     expect(isLegalAlignTarget(g2, "A", "1,0")).toBe(true);

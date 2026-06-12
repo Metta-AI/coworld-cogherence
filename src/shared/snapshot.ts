@@ -1,7 +1,6 @@
 // A full, serializable view of one turn: every tile + every cog.
 // The unit the client renders and the live server (phase 3) broadcasts.
 import type { GameState, CogId, Mineral, Treasury, Phase } from "./engine/types";
-import { maxEnergy } from "./engine/energy";
 import { COHERENCE_MAX, BOARD_RADIUS } from "./engine/constants";
 import { COGHERENCE_VERSION } from "./version";
 
@@ -17,6 +16,7 @@ export interface TileSnapshot {
 export interface CogSnapshot {
   id: CogId;
   index: number;
+  name: string;
   hearts: number;
   treasury: Treasury;
   energy: number;
@@ -45,7 +45,7 @@ export function toSnapshot(state: GameState): GameSnapshot {
   }));
   const cogs: CogSnapshot[] = state.cogOrder.map((id) => {
     const c = state.cogs[id]!;
-    return { id: c.id, index: c.index, hearts: c.hearts, treasury: { ...c.treasury }, energy: maxEnergy(c.treasury) };
+    return { id: c.id, index: c.index, name: c.name, hearts: c.hearts, treasury: { ...c.treasury }, energy: c.energy };
   });
   return {
     version: COGHERENCE_VERSION,

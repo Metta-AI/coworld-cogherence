@@ -2,11 +2,12 @@
 // a zod validator for its input, and a converter to the engine's Order[].
 // Malformed input -> [] (no orders, bid 0): the agent never throws (design §14.3).
 import { z } from "zod";
+import { COHERENCE_MAX } from "../../shared/engine/constants";
 import { MINERALS } from "../../shared/engine/types";
 import type { Order } from "../../shared/engine/orders";
 import type { ToolDef } from "./tool-client";
 
-const alignSchema = z.object({ tile: z.string(), coherence: z.number().int().positive() });
+const alignSchema = z.object({ tile: z.string(), force: z.number().int().positive().max(COHERENCE_MAX) });
 const transferSchema = z.object({ to: z.string(), mineral: z.enum(MINERALS), amount: z.number().int().positive() });
 
 export const submitOrdersSchema = z.object({
@@ -30,14 +31,14 @@ export const SUBMIT_ORDERS_TOOL: ToolDef = {
       aligns: {
         type: "array",
         description:
-          "Pour COHERENCE into tiles to expand, capture, or reinforce — it is transferred out of your other tiles, largest first (they never drop below 1). The total must fit your spare coherence. Target your own tiles or tiles adjacent to them.",
+          "Commit FORCE (1-10) to a tile's tug-of-war; the ENERGY billed = force² + distance², where distance is from your CLOSEST tile (own tile = 0, adjacent = 1). Costs above 100e are out of reach and rejected; the full cost is charged win or lose. Target ANY tile. Each ADDITIONAL align in the same turn bills +10e overhead (first free, then +10, +20, ...).",
         items: {
           type: "object",
           properties: {
             tile: { type: "string", description: "tile key, e.g. '0,0' (axial q,r)" },
-            coherence: { type: "integer", minimum: 1 },
+            force: { type: "integer", minimum: 1, maximum: 10 },
           },
-          required: ["tile", "coherence"],
+          required: ["tile", "force"],
           additionalProperties: false,
         },
       },
@@ -65,7 +66,7 @@ export const SUBMIT_ORDERS_TOOL: ToolDef = {
           additionalProperties: false,
         },
       },
-      bid: { type: "integer", minimum: 0, description: "Sealed second-price heart bid, in energy. 0 = no bid." },
+      bid: { type: "integer", minimum: 0, description: "Sealed second-price heart bid, in energy (reserve price 1e — hearts are never free, and you must hold at least one tile to buy; tied bids go to whoever committed first). 0 = no bid." },
     },
     additionalProperties: false,
   },
@@ -74,7 +75,7 @@ export const SUBMIT_ORDERS_TOOL: ToolDef = {
 /** Convert a validated payload into engine Order[]. */
 export function toOrders(p: SubmitOrders): Order[] {
   const orders: Order[] = [];
-  for (const a of p.aligns ?? []) orders.push({ type: "align", tile: a.tile, coherence: a.coherence });
+  for (const a of p.aligns ?? []) orders.push({ type: "align", tile: a.tile, force: a.force });
   for (const t of p.abandons ?? []) orders.push({ type: "abandon", tile: t });
   for (const t of p.exploits ?? []) orders.push({ type: "exploit", tile: t });
   for (const tr of p.transfers ?? []) orders.push({ type: "transfer", to: tr.to, mineral: tr.mineral, amount: tr.amount });

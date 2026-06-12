@@ -24,7 +24,7 @@ function Heart({ color, size = 10 }: { color: string; size?: number }): React.Re
 const WIN = 12;
 const ACCENT = "#3ce0c0";
 const W = 1000;
-const H = 56;
+const H = 14;
 const EVENT_W: Record<string, number> = { auction: 1.5, exploit: 4, abandon: 1.5, capture: 1, lost: 1, transfer: 1.5, starved: 1, mint: 0.4, firstCommit: 0.5, rejected: 0.5 };
 const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v));
 
@@ -44,6 +44,8 @@ export function Scrubber({
   onSeek,
   playing,
   onTogglePlay,
+  turnLimit,
+  waitReady,
   live = false,
 }: {
   snapshots: GameSnapshot[];
@@ -52,6 +54,10 @@ export function Scrubber({
   onSeek: (i: number) => void;
   playing: boolean;
   onTogglePlay: () => void;
+  /** Live soft auto-stop (from server status) — clicking the /N adds 10 turns. */
+  turnLimit?: number;
+  /** Wait-ready mode state (live only): commit waits for every cog's Ready. */
+  waitReady?: boolean;
   /** Following the live head (teal) vs replaying a past turn (rose). */
   live?: boolean;
 }): React.ReactElement {
@@ -210,12 +216,9 @@ export function Scrubber({
               data-tip={`jump to turn ${m.turn}`}
               style={{ boxShadow: isNow ? `0 0 14px ${ACCENT}44` : "none" }}
             >
-              <div style={{ height: 3, borderRadius: 2, background: m.key ? "#ff5a2c" : "transparent" }} />
-              <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
-                <span className="cg-num" style={{ fontSize: 18, color: isNow ? "var(--text)" : "var(--text-dim)", lineHeight: 0.8 }}>{String(m.turn).padStart(2, "0")}</span>
-                {m.key && <span data-tip={`key turn — ${m.exploits} exploit${m.exploits === 1 ? "" : "s"}`} style={{ fontSize: 8, color: "#ff5a2c" }}>◆</span>}
-              </div>
               <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <span className="cg-num" style={{ fontSize: 11, color: isNow ? "var(--text)" : "var(--text-dim)", lineHeight: 1 }}>{String(m.turn).padStart(2, "0")}</span>
+                {m.key && <span data-tip={`key turn — ${m.exploits} exploit${m.exploits === 1 ? "" : "s"}`} style={{ fontSize: 8, color: "#ff5a2c" }}>◆</span>}
                 <span data-tip={`hearts leader: ${cogName(m.leader)}`} style={{ display: "inline-flex" }}>
                   <Heart color={cogColor(m.leader)} />
                 </span>
@@ -264,12 +267,53 @@ export function Scrubber({
           </button>
         )}
         <div style={{ flex: 1 }} />
+        {live && waitReady != null && (
+          <button
+            type="button"
+            data-testid="wait-ready-toggle"
+            data-tip={
+              waitReady
+                ? "turns wait for EVERY cog's Ready — click for timed turns (deadline auto-advances)"
+                : "turns auto-advance at the deadline — click to wait for every cog's Ready"
+            }
+            onClick={() =>
+              void fetch("/wait-ready", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ on: !waitReady }) })
+            }
+            className="cg-mono"
+            style={{
+              background: "none",
+              border: `1px solid ${waitReady ? "var(--coherence)" : "var(--border)"}`,
+              borderRadius: 5,
+              padding: "2px 7px",
+              cursor: "pointer",
+              fontSize: 9,
+              letterSpacing: "0.1em",
+              color: waitReady ? "var(--coherence)" : "var(--muted)",
+              marginRight: 8,
+            }}
+          >
+            WAIT-READY {waitReady ? "✓" : "·"}
+          </button>
+        )}
         <span className={`cg-scrub-dot ${live ? "is-live" : "is-replay"}`} data-tip={live ? "live" : "replay"} />
         {cur && (
-          <div data-tip="the turn the board is showing / total game length" style={{ display: "flex", alignItems: "baseline", gap: 3, marginLeft: 6 }}>
-            <span className="cg-mono" style={{ fontSize: 9, color: "var(--muted)", letterSpacing: "0.12em" }}>TURN</span>
-            <span className="cg-num" style={{ fontSize: 26, color: "var(--text)", lineHeight: 0.8, marginLeft: 4 }}>{String(Math.min(cur.turn, MAX_TURNS)).padStart(2, "0")}</span>
-            <span className="cg-mono" style={{ fontSize: 12, color: "var(--muted)" }}>/{MAX_TURNS}</span>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 3, marginLeft: 6 }}>
+            <span className="cg-mono" data-tip="the turn the board is showing" style={{ fontSize: 9, color: "var(--muted)", letterSpacing: "0.12em" }}>TURN</span>
+            <span className="cg-num" style={{ fontSize: 26, color: "var(--text)", lineHeight: 0.8, marginLeft: 4 }}>{String(Math.min(cur.turn, turnLimit ?? MAX_TURNS, MAX_TURNS)).padStart(2, "0")}</span>
+            {turnLimit != null ? (
+              <button
+                type="button"
+                data-testid="extend-limit"
+                data-tip={`auto-stops at turn ${turnLimit} — click to add 10 more`}
+                onClick={() => void fetch("/extend", { method: "POST" })}
+                className="cg-mono"
+                style={{ background: "none", border: "1px solid var(--border)", borderRadius: 5, padding: "1px 5px", cursor: "pointer", fontSize: 12, color: "var(--coherence)" }}
+              >
+                /{turnLimit} +
+              </button>
+            ) : (
+              <span className="cg-mono" data-tip="total game length" style={{ fontSize: 12, color: "var(--muted)" }}>/{MAX_TURNS}</span>
+            )}
           </div>
         )}
       </div>

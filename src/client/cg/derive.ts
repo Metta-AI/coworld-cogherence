@@ -8,7 +8,9 @@
 import type { GameSnapshot, TileSnapshot } from "../../shared/snapshot";
 import type { TurnEvent } from "../../shared/engine/log";
 import type { StampedEvent } from "../net/feed";
-import { tileUpkeepCost } from "../../shared/engine/constants";
+import { mintOf, upkeepBase } from "../../shared/engine/constants";
+import { fullSets } from "../../shared/engine/energy";
+import { SET_ENERGY } from "../../shared/engine/constants";
 
 export const MINERALS = ["C", "O", "Ge", "S"] as const;
 export type Mineral = (typeof MINERALS)[number];
@@ -61,11 +63,12 @@ export interface Territory {
   tiles: number;
   fortresses: number;
   salients: number;
-  /** Total coherence across the cog's tiles — the pool Aligns draw from. */
+  /** Total coherence across the cog's tiles — the standing order of its territory. */
   coherence: number;
 }
 /** Per-cog territory shape: tiles held, fortresses (maxed coherence), and rotting
- *  salients (coherence>0 but minority-friendly neighbours, so they decay at Upkeep). */
+ *  salients (coherence>0 but under resistance — more enemy than allied neighbors —
+ *  so they rot at Upkeep when the bill goes unpaid). */
 export function territory(snap: GameSnapshot): Map<string, Territory> {
   const map = tileMap(snap);
   const out = new Map<string, Territory>();
@@ -80,7 +83,8 @@ export function territory(snap: GameSnapshot): Map<string, Territory> {
     else if (t.coherence > 0) {
       const nb = neighbors(t.q, t.r, map);
       const friendly = nb.filter((n) => n.alignment === t.alignment).length;
-      if (friendly < Math.floor(nb.length / 2) + 1) s.salients++;
+      const enemies = nb.filter((n) => n.alignment !== null && n.alignment !== t.alignment).length;
+      if (2 * enemies > friendly) s.salients++; // under resistance: allies only half-cover
     }
   }
   return out;
@@ -147,57 +151,90 @@ export function exploitTilesAt(events: StampedEvent[], turn: number): string[] {
   return out;
 }
 
-/** A tile's upkeep bill, mirroring the engine: calm vs contested base + a
- *  surcharge per non-neutral neighbor. */
-export function tileCost(t: TileSnapshot, map: TileMap): number {
-  const nb = neighbors(t.q, t.r, map);
-  const aligned = nb.filter((n) => n.alignment !== null).length;
-  const friendly = nb.filter((n) => n.alignment === t.alignment).length;
-  return tileUpkeepCost(friendly, aligned, nb.length);
+
+/** Tiles owned per cog (drives the empire-scaled base bill). */
+export function tilesBy(snap: GameSnapshot): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const c of snap.cogs) out.set(c.id, 0);
+  for (const t of snap.tiles) if (t.alignment) out.set(t.alignment, (out.get(t.alignment) ?? 0) + 1);
+  return out;
+}
+
+/** Mineral income per cog at the NEXT Upkeep: Σ floor(density × coherence /
+ *  10) over its tiles, per mineral — deterministic at current coherence. */
+export function expectedMintBy(snap: GameSnapshot): Map<string, Record<Mineral, number>> {
+  const out = new Map<string, Record<Mineral, number>>();
+  for (const c of snap.cogs) out.set(c.id, { C: 0, O: 0, Ge: 0, S: 0 });
+  for (const t of snap.tiles) {
+    if (!t.alignment) continue;
+    const r = out.get(t.alignment);
+    if (r) r[t.mineral as Mineral] += mintOf(t.density, t.coherence);
+  }
+  return out;
+}
+
+/** Energy value of each cog's mint on the turn that produced `snap`: the full
+ *  COGS sets INSIDE the minted bundle × SET_ENERGY (energy is stored; minerals
+ *  only convert as sets). Treasury-independent on purpose — rival treasuries
+ *  arrive redacted, so a wallet-aware number would differ per viewer. */
+export function mintEnergyBy(events: StampedEvent[], snap: GameSnapshot): Map<string, number> {
+  const turn = lastResolvedTurn(snap);
+  const out = new Map<string, number>();
+  for (const c of snap.cogs) out.set(c.id, 0);
+  for (const e of events) {
+    if (e.turn !== turn || e.event.type !== "mint") continue;
+    out.set(e.event.cog, fullSets(e.event.gained) * SET_ENERGY);
+  }
+  return out;
 }
 
 /** Total upkeep owed per cog this turn (sum of its tiles' bills). */
 export function upkeepBy(snap: GameSnapshot): Map<string, number> {
   const map = tileMap(snap);
+  const counts = tilesBy(snap);
   const out = new Map<string, number>();
   for (const c of snap.cogs) out.set(c.id, 0);
   for (const t of snap.tiles) {
     if (!t.alignment) continue;
-    out.set(t.alignment, (out.get(t.alignment) ?? 0) + tileCost(t, map));
+    out.set(t.alignment, (out.get(t.alignment) ?? 0) + upkeepBase(counts.get(t.alignment) ?? 0));
   }
   return out;
 }
 
-/** Predict a tile's energy drain next Upkeep by simulating its owner's funding
- *  pass (mirrors the engine: base bills heartland-first, then doubles strongest-
- *  first): 2x its bill when it will be double-paid (grows), 1x when merely held,
- *  0 when the wallet runs out (it rots). */
-export function tileDrain(t: TileSnapshot, snap: GameSnapshot): { drain: number; verdict: "grows" | "holds" | "rots" } | null {
+/** Predict a tile's next Upkeep (mirrors the engine): the empire-scaled base
+ *  bill funded heartland-first, then NEIGHBOR PRESSURE — coherence shifts by
+ *  (paid ? allies : 0) − foes, clamped. `steps` is |Δcoherence|; the verdict
+ *  carries its direction. Resistance costs no energy. */
+export function tileDrain(
+  t: TileSnapshot,
+  snap: GameSnapshot,
+): { drain: number; verdict: "grows" | "holds" | "rots"; steps?: number; paid: boolean } | null {
   if (!t.alignment) return null;
   const map = tileMap(snap);
   const mine = snap.tiles.filter((x) => x.alignment === t.alignment);
-  const bill = (x: TileSnapshot): number => tileCost(x, map);
+  const base = upkeepBase(mine.length);
   const desc = [...mine].sort((a, b) => b.coherence - a.coherence);
   let energy = snap.cogs.find((c) => c.id === t.alignment)?.energy ?? 0;
   const paid = new Set<TileSnapshot>();
   for (const x of desc) {
-    const c = bill(x);
-    if (energy >= c) {
-      energy -= c;
+    if (energy >= base) {
+      energy -= base;
       paid.add(x);
     }
   }
-  const grows = new Set<TileSnapshot>();
-  for (const x of desc) {
-    if (!paid.has(x) || x.coherence >= snap.coherenceMax) continue;
-    const c = bill(x);
-    if (energy < c) continue;
-    energy -= c;
-    grows.add(x);
-  }
   const self = mine.find((x) => x.q === t.q && x.r === t.r)!;
-  const b = bill(self);
-  return grows.has(self) ? { drain: 2 * b, verdict: "grows" } : paid.has(self) ? { drain: b, verdict: "holds" } : { drain: 0, verdict: "rots" };
+  const nb = neighbors(self.q, self.r, map);
+  const allies = nb.filter((n) => n.alignment === self.alignment).length;
+  const foes = nb.filter((n) => n.alignment !== null && n.alignment !== self.alignment).length;
+  const isPaid = paid.has(self);
+  const net = (isPaid ? allies : 0) - foes;
+  const delta = net > 0 ? Math.min(net, snap.coherenceMax - self.coherence) : Math.max(net, -self.coherence);
+  return {
+    drain: isPaid ? base : 0,
+    verdict: delta > 0 ? "grows" : delta < 0 ? "rots" : "holds",
+    ...(delta !== 0 ? { steps: Math.abs(delta) } : {}),
+    paid: isPaid,
+  };
 }
 
 export interface TileStatus {
@@ -208,10 +245,10 @@ export interface TileStatus {
 export function tileStatus(t: TileSnapshot, map: TileMap, coherenceMax: number, ownerColor: string): TileStatus {
   const nb = neighbors(t.q, t.r, map);
   const friendly = t.alignment ? nb.filter((n) => n.alignment === t.alignment).length : 0;
-  const threshold = Math.floor(nb.length / 2) + 1;
-  if (!t.alignment) return { label: t.density === 0 ? "BARREN" : "NEUTRAL", tone: "var(--muted)" };
+  const enemies = t.alignment ? nb.filter((n) => n.alignment !== null && n.alignment !== t.alignment).length : 0;
+  if (!t.alignment) return { label: Math.floor(t.density) === 0 ? "BARREN" : "NEUTRAL", tone: "var(--muted)" };
   if (t.coherence >= coherenceMax) return { label: "FORTRESS", tone: ownerColor };
   if (t.coherence === 0) return { label: "HUSK · rotted", tone: "var(--exploit)" };
-  if (friendly < threshold) return { label: "ROTTING SALIENT", tone: "var(--exploit)" };
+  if (2 * enemies > friendly) return { label: "ROTTING SALIENT", tone: "var(--exploit)" };
   return { label: "FRONTIER", tone: "var(--deal)" };
 }

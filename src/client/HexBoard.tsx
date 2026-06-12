@@ -43,7 +43,7 @@ const BASE = import.meta.env.BASE_URL;
 // density — the at-a-glance resource indicator. In mineral mode the fill already
 // encodes the mineral, so the gem is omitted there.
 const mineralIcon = (m: string): string => `${BASE}icons/transparent/mineral-${m.toLowerCase()}.png`;
-const gemSize = (density: number): number => SIZE * (0.34 + (Math.min(3, density) - 1) * 0.33);
+const gemSize = (density: number): number => SIZE * 1.25 * (Math.min(10, density) / 10); // proportional to the deposit
 const corners = (cx: number, cy: number): string => polygonPoints(hexCorners(cx, cy, SIZE));
 /** A hex's corners pulled `f` of the way toward its center — the inner fortress sheen. */
 const innerCorners = (cx: number, cy: number, f: number): string =>
@@ -53,22 +53,29 @@ export function HexBoard({
   snapshot,
   mode = "coherence",
   onHoverTile,
+  onTileContextMenu,
   flips = [],
   exploited = [],
   emphasis = [],
   highlight = null,
+  planned = [],
 }: {
   snapshot: GameSnapshot;
   mode?: LatticeMode;
   /** Reports the tile under the cursor (with its client coordinates) on enter,
    *  and null when the cursor leaves the lattice — drives the hover inspector. */
   onHoverTile?: (key: string | null, at?: { x: number; y: number }) => void;
+  /** Right-click on a tile (the operator's queue-order menu). */
+  onTileContextMenu?: (key: string, at: { x: number; y: number }) => void;
   flips?: string[];
   exploited?: string[];
   /** Tiles to ring brightly (e.g. hovering a turn-pulse stat that mentions them). */
   emphasis?: string[];
   /** Focus one Cog's territory (per-cog HUD): dim everyone else. */
   highlight?: string | null;
+  /** Planned/committed aligns (cog view): outline each target in the planner's
+   *  color with the EXPECTED post-resolve coherence at its center. */
+  planned?: Array<{ tile: string; coh: number; color: string }>;
 }): React.ReactElement {
   const cohMax = snapshot.coherenceMax;
   const indexById = new Map(snapshot.cogs.map((c) => [c.id, c.index]));
@@ -170,6 +177,7 @@ export function HexBoard({
   const flipSet = new Set(flips);
   const expSet = new Set(exploited);
   const emphSet = new Set(emphasis);
+  const plannedBy = new Map(planned.map((p) => [p.tile, p]));
   // Owner by hex key, for per-edge border classification in coherence mode.
   const ownerByKey = new Map(snapshot.tiles.map((t) => [tileKey(t.q, t.r), t.alignment]));
 
@@ -200,7 +208,7 @@ export function HexBoard({
         const owner = t.alignment;
         const col = colorOf(owner);
         const f = Math.max(0, Math.min(1, t.coherence / cohMax));
-        const dens = Math.min(3, t.density);
+        const dens = Math.min(3, (t.density / 10) * 3); // density 0-10 scaled to the 0-3 visual ramp
 
         let fill: string;
         let fillOp: number;
@@ -289,10 +297,15 @@ export function HexBoard({
             key={k}
             className="cg-tile"
             data-tile={k}
-            style={{ filter: filt }}
             onMouseEnter={(e) => {
               if (!draggingRef.current) onHoverTile?.(k, { x: e.clientX, y: e.clientY });
             }}
+            onContextMenu={(e) => {
+              if (!onTileContextMenu) return;
+              e.preventDefault();
+              onTileContextMenu(k, { x: e.clientX, y: e.clientY });
+            }}
+            style={{ filter: filt }}
           >
             <polygon points={cn} fill={fill} fillOpacity={fillOp} stroke={stroke} strokeWidth={strokeW} strokeLinejoin="round" />
             {outerEdges && (
@@ -328,6 +341,22 @@ export function HexBoard({
             {emphSet.has(k) && (
               <polygon points={cn} fill="#fff" fillOpacity="0.1" stroke="#fff" strokeWidth="2.4" style={{ filter: "drop-shadow(0 0 8px #fff)" }} />
             )}
+            {plannedBy.has(k) && (
+              <g pointerEvents="none">
+                <polygon
+                  points={cn}
+                  fill={plannedBy.get(k)!.color}
+                  fillOpacity="0.08"
+                  stroke={plannedBy.get(k)!.color}
+                  strokeWidth="2.2"
+                  strokeDasharray="5 3"
+                  style={{ filter: `drop-shadow(0 0 7px ${plannedBy.get(k)!.color})` }}
+                />
+                <text x={c.x} y={c.y + 4} textAnchor="middle" fontFamily="var(--f-mono)" fontSize="11" fontWeight="700" fill={plannedBy.get(k)!.color}>
+                  {plannedBy.get(k)!.coh}
+                </text>
+              </g>
+            )}
           </g>
         );
       })}
@@ -337,7 +366,7 @@ export function HexBoard({
       {mode === "coherence" &&
         snapshot.tiles.map((t, i) => {
           const k = tileKey(t.q, t.r);
-          if (t.density <= 0 || expSet.has(k)) return null; // husks have no deposit; don't mask the exploit reveal
+          if (Math.floor(t.density) <= 0 || expSet.has(k)) return null; // sub-1 deposits show no gem; don't mask the exploit reveal
           const c = centers[i]!;
           const gz = gemSize(t.density);
           const dim = highlight && t.alignment !== highlight ? 0.45 : 0.92;

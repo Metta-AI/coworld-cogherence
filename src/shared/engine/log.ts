@@ -4,11 +4,23 @@
 // cycle types.ts <-> log.ts <-> resolve/upkeep erases at runtime.
 
 import type { CogId } from "./types";
+import type { Order } from "./orders";
 import type { ResolveEvent } from "./resolve";
 import type { UpkeepEvent } from "./upkeep";
 
-/** A single Resolve- or Upkeep-phase event within a turn. */
-export type TurnEvent = ResolveEvent | UpkeepEvent;
+/** A Commit-phase order exactly as played — recorded so the Turn Log can pair
+ *  every action with its consequences (or its failure). */
+export interface OrderEvent {
+  type: "order";
+  cog: CogId;
+  order: Order;
+  /** Energy billed for an Align (force² + distance² + repeat surcharge) —
+   *  computed at record time so the Turn Log can show the price. */
+  cost?: number;
+}
+
+/** A single order / Resolve- / Upkeep-phase event within a turn. */
+export type TurnEvent = OrderEvent | ResolveEvent | UpkeepEvent;
 
 /** The record of one completed turn, appended to GameState.log (for replay / spectator). */
 export interface TurnRecord {

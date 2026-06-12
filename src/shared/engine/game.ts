@@ -3,7 +3,7 @@
 // MAX_TURNS game with one Agent per Cog. Everything is pure/deterministic, so a
 // game is fully reproducible from (seed, agents): no hidden state, no clocks.
 
-import type { GameState, CogId, Mineral } from "./types";
+import type { GameState, CogId, CogState, Mineral } from "./types";
 import { MINERALS } from "./types";
 import type { Order } from "./orders";
 import type { TurnRecord, TurnEvent } from "./log";
@@ -11,12 +11,13 @@ import type { Agent } from "../../agents/types";
 import { generateBoard } from "./board";
 import { resolve } from "./resolve";
 import { upkeep } from "./upkeep";
-import { maxEnergy } from "./energy";
-import { MAX_TURNS, FIRST_COMMIT_REWARD } from "./constants";
+import { convertSets, convertMineral, convertibleEnergy, fullSets } from "./energy";
+import { MAX_TURNS, FIRST_COMMIT_REWARD, SET_ENERGY, ALIGN_REPEAT_SURCHARGE, alignEnergyCost } from "./constants";
+import { alignDistance } from "./orders";
 
 /** A fresh game at turn 1. */
-export function newGame(seed: number, numCogs: number): GameState {
-  return generateBoard(seed, numCogs);
+export function newGame(seed: number, numCogs: number, names?: string[]): GameState {
+  return generateBoard(seed, numCogs, names);
 }
 
 /** Award the first-mover its tempo bonus: exactly FIRST_COMMIT_REWARD energy
@@ -31,43 +32,83 @@ function awardFirstCommit(
 ): { cogs: GameState["cogs"]; event: TurnEvent | null } {
   const cog = firstCommitter ? cogs[firstCommitter] : undefined;
   if (!cog) return { cogs, event: null };
-  const mineral: Mineral = MINERALS.reduce((a, b) => (cog.treasury[a] >= cog.treasury[b] ? a : b));
-  const treasury = { ...cog.treasury, [mineral]: cog.treasury[mineral] + FIRST_COMMIT_REWARD };
   return {
-    cogs: { ...cogs, [cog.id]: { ...cog, treasury } },
+    cogs: { ...cogs, [cog.id]: { ...cog, energy: cog.energy + FIRST_COMMIT_REWARD } },
     event: { type: "firstCommit", cog: cog.id, reward: FIRST_COMMIT_REWARD },
   };
 }
 
+/** Convert `sets` of the cog's full COGS sets into stored energy (the Convert
+ *  Set button / autopilot auto-convert). Returns the same state when the
+ *  treasury can't cover it — conversion only ever adds energy, so applying it
+ *  mid-commit-window is safe. */
+export function convertCogSets(state: GameState, cogId: CogId, sets: number): GameState {
+  const cog = state.cogs[cogId];
+  if (!cog) return state;
+  const conv = convertSets(cog.treasury, sets);
+  if (!conv) return state;
+  return {
+    ...state,
+    cogs: { ...state.cogs, [cogId]: { ...cog, treasury: conv.treasury, energy: cog.energy + conv.gained } },
+  };
+}
+
+/** Convert `count` of one MINERAL into stored energy (right-click an element;
+ *  SINGLE_ENERGY each). Same no-op-on-shortfall semantics as convertCogSets. */
+export function convertCogMineral(state: GameState, cogId: CogId, mineral: Mineral, count: number): GameState {
+  const cog = state.cogs[cogId];
+  if (!cog) return state;
+  const conv = convertMineral(cog.treasury, mineral, count);
+  if (!conv) return state;
+  return {
+    ...state,
+    cogs: { ...state.cogs, [cogId]: { ...cog, treasury: conv.treasury, energy: cog.energy + conv.gained } },
+  };
+}
+
 /** Run one full turn: Resolve -> Upkeep -> first-mover bonus -> advance the turn,
- *  appending a TurnRecord. `firstCommitter` (the first Cog to lock its Commit, from
- *  the live runner; omitted for scripted replays) earns the tempo bonus. Pure. */
+ *  appending a TurnRecord. `commitOrder` (cogs in the order they locked their
+ *  Commits, from the live runner; omitted for scripted replays) breaks auction
+ *  ties first-bidder-first, and its head earns the tempo bonus. Pure. */
 export function stepTurn(
   state: GameState,
   ordersByCog: Record<CogId, Order[]>,
-  firstCommitter?: CogId,
+  commitOrder?: CogId[],
 ): GameState {
-  const r = resolve(state, ordersByCog);
+  const r = resolve(state, ordersByCog, commitOrder);
   const u = upkeep(r.state);
-  const award = awardFirstCommit(u.state.cogs, firstCommitter);
+  const award = awardFirstCommit(u.state.cogs, commitOrder?.[0]);
   const hearts: Record<CogId, number> = {};
   for (const id of u.state.cogOrder) hearts[id] = award.cogs[id]!.hearts;
+  // every order as played, ahead of its consequences — the Turn Log pairs them
+  // (aligns carry their billed energy: force² + distance² + the repeat surcharge)
+  const played: TurnEvent[] = state.cogOrder.flatMap((id) => {
+    let alignIdx = 0;
+    return (ordersByCog[id] ?? []).map((order): TurnEvent => {
+      if (order.type !== "align") return { type: "order", cog: id, order };
+      const cost = alignEnergyCost(order.force, alignDistance(state, id, order.tile)) + ALIGN_REPEAT_SURCHARGE * alignIdx++;
+      return { type: "order", cog: id, order, cost };
+    });
+  });
   const record: TurnRecord = {
     turn: state.turn,
-    events: [...r.events, ...u.events, ...(award.event ? [award.event] : [])],
+    events: [...played, ...r.events, ...u.events, ...(award.event ? [award.event] : [])],
     hearts,
   };
   return { ...u.state, cogs: award.cogs, turn: state.turn + 1, phase: "negotiate", log: [...u.state.log, record] };
 }
 
-/** Final standings: most hearts wins; tiebreak by higher maxEnergy(treasury), then lower index. */
+/** Final standings: most hearts wins; tiebreak by total wealth (stored energy
+ *  + convertible sets), then lower index. */
+const wealth = (c: CogState): number => c.energy + convertibleEnergy(c.treasury);
+
 export function scoreGame(state: GameState): {
   winner: CogId | null;
   standings: Array<{ cog: CogId; hearts: number }>;
 } {
   const ranked = state.cogOrder
     .map((id) => state.cogs[id]!)
-    .sort((a, b) => b.hearts - a.hearts || maxEnergy(b.treasury) - maxEnergy(a.treasury) || a.index - b.index);
+    .sort((a, b) => b.hearts - a.hearts || wealth(b) - wealth(a) || a.index - b.index);
   return { winner: ranked[0]?.id ?? null, standings: ranked.map((c) => ({ cog: c.id, hearts: c.hearts })) };
 }
 

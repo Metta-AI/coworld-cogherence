@@ -7,17 +7,24 @@ export class CogStateStore<T = unknown> {
   private resolve: ((v: T | null) => void) | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
 
-  /** Open the phase; resolves with the submission or null at the deadline. */
+  /** Open the phase; resolves with the submission or null at the deadline.
+   *  A non-finite deadline (wait-ready mode) waits for the submission alone. */
   arm(deadlineMs: number): Promise<T | null> {
     return new Promise<T | null>((res) => {
       this.resolve = res;
-      this.timer = setTimeout(() => this.finish(null), deadlineMs);
+      this.timer = Number.isFinite(deadlineMs) ? setTimeout(() => this.finish(null), deadlineMs) : null;
     });
   }
 
   /** The cog's submission for the open phase (no-op if none is armed). */
   submit(value: T): void {
     this.finish(value);
+  }
+
+  /** Force the deadline NOW (no-op if already settled) — used when wait-ready
+   *  mode is switched off mid-window so a parked turn defaults and moves on. */
+  expire(): void {
+    this.finish(null);
   }
 
   private finish(value: T | null): void {

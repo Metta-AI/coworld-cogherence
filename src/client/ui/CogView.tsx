@@ -1,43 +1,105 @@
 // A single Cog's HUD: its identity (treasury → derived energy, territory shape),
-// its last committed resolution, what its model saw + decided, and the channels
-// it can read — beside the public lattice with its own territory in focus.
-import React, { useState } from "react";
+// the full Turn Log, what its model saw + decided, and the channels it can
+// read — beside the public lattice with its own territory in focus.
+import React, { useCallback, useEffect, useState } from "react";
 import type { GameSnapshot } from "../../shared/snapshot";
 import type { Message } from "../../shared/messages";
 import type { StampedEvent } from "../net/feed";
 import type { LatticeMode } from "../HexBoard";
+import type { Order } from "../../shared/engine/orders";
+import { distance } from "../../shared/engine/hex";
+import { ALIGN_MAX_ENERGY, ALIGN_REPEAT_SURCHARGE, COHERENCE_MAX, SINGLE_ENERGY, alignEnergyCost, exploitYield } from "../../shared/engine/constants";
 import { cogColor, cogName } from "../colors";
-import { CGIcon, CogSigil, Mineral } from "../cg/atoms";
-import { LatticePanel, ChannelMessage } from "../cg/panels";
+import { EnergyChip, CGIcon, Mineral } from "../cg/atoms";
+import { AuctionPanel, LatticePanel, ChannelMessage, TurnLog } from "../cg/panels";
 import { ResizableColumns } from "../cg/ResizableColumns";
-import {
-  MINERALS,
-  MINERAL_NAME,
-  setsOf,
-  territory,
-  rankedByHearts,
-  auctionAt,
-  eventsAt,
-  lastResolvedTurn,
-} from "../cg/derive";
-import { PromptsPanel } from "../PromptsPanel";
-import { SteeringPanel } from "./SteeringPanel";
-import type { ActPromptFrame } from "../net/feed";
+import { MINERALS, MINERAL_NAME, expectedMintBy, upkeepBy, setsOf, territory, rankedByHearts } from "../cg/derive";
+import { AutopilotPanel } from "./AutopilotPanel";
 
 const cogIdx = (id: string): number => Number(id.replace(/\D/g, "")) || 0;
 
-function Identity({ snapshot, cogId }: { snapshot: GameSnapshot; cogId: string }): React.ReactElement | null {
+/** Right-click menu on ONE treasury element: convert 1/5/10 of it (singles,
+ *  +1⚡ each — sets stay the better rate), plus a checkable per-element
+ *  AUTO-convert (burned every turn, server-side). */
+function ConvertMenu({ cogId, mineral, have, at, onClose }: { cogId: string; mineral: string; have: number; at: { x: number; y: number }; onClose: () => void }): React.ReactElement {
+  const [auto, setAuto] = useState<string[] | null>(null);
+  useEffect(() => {
+    void fetch(`/cog/${cogId}/steering`).then((r) => r.json()).then((j) => setAuto((j.autoConvert as string[]) ?? []));
+  }, [cogId]);
+  const isAuto = auto?.includes(mineral) ?? false;
+  const W = 240;
+  const x = Math.min(at.x, window.innerWidth - W - 12);
+  const y = Math.min(at.y, window.innerHeight - 220);
+  const row = { display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" } as const;
+  const convert = (n: number): void => {
+    void fetch(`/cog/${cogId}/convert`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mineral, count: n }) });
+    onClose();
+  };
+  return (
+    <div
+      data-convert-menu
+      className="cg-panel"
+      style={{ position: "fixed", left: x, top: y, width: W, zIndex: 120, background: "rgba(14,14,24,0.97)", backdropFilter: "blur(8px)" }}
+    >
+      <div className="cg-panel-head" style={{ padding: "7px 11px" }}>
+        <span className="cg-panel-title" style={{ fontSize: 10 }}>convert {MINERAL_NAME[mineral]} · hold {have}</span>
+        <button type="button" onClick={onClose} className="cg-mono" style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: 11 }}>
+          ✕
+        </button>
+      </div>
+      <div className="cg-panel-body" style={{ padding: "8px 10px", display: "flex", flexDirection: "column", gap: 3 }}>
+        {[1, 5, 10].map((n) => (
+          <button
+            key={n}
+            type="button"
+            className="cg-menu-row"
+            disabled={have < n}
+            data-tip={have < n ? `you hold ${have}` : `burn ${n} ${MINERAL_NAME[mineral]} as singles — full sets convert at 2.5× the rate`}
+            onClick={() => convert(n)}
+            style={have < n ? { opacity: 0.35, cursor: "default" } : undefined}
+          >
+            <span style={row}>
+              <span>Convert {n}</span>
+              <span className="cg-mono" style={{ fontSize: 10, color: "var(--energy)" }}>+{n * SINGLE_ENERGY}⚡</span>
+            </span>
+          </button>
+        ))}
+        <button
+          type="button"
+          className="cg-menu-row"
+          disabled={auto == null}
+          data-tip={`burn ALL ${MINERAL_NAME[mineral]} automatically at the start of each turn`}
+          onClick={() => {
+            if (auto == null) return;
+            const next = isAuto ? auto.filter((m) => m !== mineral) : [...auto, mineral];
+            setAuto(next);
+            void fetch(`/cog/${cogId}/steering`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ autoConvert: next }) });
+          }}
+        >
+          <span style={row}>
+            <span>{isAuto ? "☑" : "☐"} Auto-convert each turn</span>
+            <span className="cg-mono" style={{ fontSize: 9, color: isAuto ? "var(--coherence)" : "var(--muted)" }}>{isAuto ? "on" : "off"}</span>
+          </span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Identity({ snapshot, cogId, live }: { snapshot: GameSnapshot; cogId: string; live?: boolean }): React.ReactElement | null {
   const me = snapshot.cogs.find((c) => c.id === cogId);
   if (!me) return null;
   const color = cogColor(me.index);
   const terr = territory(snapshot).get(cogId) ?? { tiles: 0, fortresses: 0, salients: 0 };
   const rank = rankedByHearts(snapshot.cogs).findIndex((c) => c.id === cogId) + 1;
   const sets = setsOf(me.treasury);
+  const mint = expectedMintBy(snapshot).get(cogId) ?? { C: 0, O: 0, Ge: 0, S: 0 };
+  const bills = upkeepBy(snapshot).get(cogId) ?? 0;
+  const [convertMenu, setConvertMenu] = useState<{ mineral: string; x: number; y: number } | null>(null);
   return (
     <div className="cg-panel" style={{ borderTop: `3px solid ${color}` }} data-testid="identity">
       <div className="cg-panel-body" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <CogSigil index={me.index} size={52} />
           <div style={{ flex: 1 }}>
             <div style={{ fontFamily: "var(--f-ui)", fontWeight: 700, fontSize: 22, color: "var(--text)", letterSpacing: "0.03em" }}>{cogName(me.index)}</div>
             <div className="cg-mono" style={{ fontSize: 10, color: "var(--muted)" }}>
@@ -53,12 +115,14 @@ function Identity({ snapshot, cogId }: { snapshot: GameSnapshot; cogId: string }
           </div>
         </div>
         <div>
-          <div className="cg-label" style={{ fontSize: 9, marginBottom: 6 }}>treasury · energy is derived</div>
+          <div className="cg-label" style={{ fontSize: 9, marginBottom: 6 }}>treasury · sets convert to energy</div>
           <div style={{ padding: "10px 11px", background: "var(--panel-2)", borderRadius: 8, border: "1px solid var(--border)" }}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
               {MINERALS.map((m) => (
                 <div
                   key={m}
+                  onContextMenu={live ? (e) => { e.preventDefault(); setConvertMenu({ mineral: m, x: e.clientX, y: e.clientY }); } : undefined}
+                  data-tip={live ? `right-click to convert ${MINERAL_NAME[m]}` : undefined}
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -73,23 +137,67 @@ function Identity({ snapshot, cogId }: { snapshot: GameSnapshot; cogId: string }
                     <Mineral m={m} />
                     <span className="cg-mono" style={{ fontSize: 9, color: "var(--muted)" }}>{MINERAL_NAME[m]}</span>
                   </span>
-                  <span className="cg-num" style={{ fontSize: 16, color: me.treasury[m] ? "var(--text)" : "var(--muted-2)" }}>{me.treasury[m]}</span>
+                  <span style={{ display: "inline-flex", alignItems: "baseline", gap: 5 }}>
+                    <span className="cg-num" style={{ fontSize: 16, color: me.treasury[m] ? "var(--text)" : "var(--muted-2)" }}>{me.treasury[m]}</span>
+                    {mint[m] > 0 && (
+                      <span className="cg-mono" data-tip={`your tiles mint +${mint[m]} ${MINERAL_NAME[m]} at the next upkeep`} style={{ fontSize: 10, color: "var(--coherence)" }}>
+                        (+{mint[m]})
+                      </span>
+                    )}
+                  </span>
                 </div>
               ))}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 9, paddingTop: 9, borderTop: "1px solid var(--border)" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                <CGIcon name="energy" size={16} />
+              <div style={{ display: "flex", alignItems: "baseline", gap: 5 }} data-tip="STORED energy — the only spendable currency; convert minerals to refill">
+                <EnergyChip />
                 <span className="cg-num" style={{ fontSize: 22, color: "var(--energy)" }}>{me.energy}</span>
+                {bills > 0 && (
+                  <span className="cg-mono" data-tip={`expected upkeep at the next turn: ${terr.tiles} tile${terr.tiles === 1 ? "" : "s"} × ${terr.tiles ? Math.round(bills / terr.tiles) : 0}e base`} style={{ fontSize: 10, color: "var(--exploit)" }}>
+                    (−{bills})
+                  </span>
+                )}
                 <span className="cg-mono" style={{ fontSize: 9, color: "var(--muted)" }}>energy</span>
               </div>
               <div style={{ flex: 1 }} />
-              <div className="cg-mono" style={{ fontSize: 10, color: sets ? "var(--coherence)" : "var(--exploit)" }}>
-                {sets ? `${sets} COGS set${sets > 1 ? "s" : ""} ×10` : "no set — singles only"}
-              </div>
+              {live ? (
+                <button
+                  type="button"
+                  data-testid="convert-set"
+                  disabled={sets < 1}
+                  data-tip={sets < 1 ? "needs one of EACH mineral — trade for what you lack" : `burn 1×C O Ge S → +10 energy (${sets} set${sets > 1 ? "s" : ""} ready)`}
+                  onClick={() => void fetch(`/cog/${cogId}/convert`, { method: "POST" })}
+                  className="cg-mono"
+                  style={{
+                    background: "none",
+                    border: `1px solid ${sets ? "var(--coherence)" : "var(--border)"}`,
+                    borderRadius: 6,
+                    padding: "3px 9px",
+                    cursor: sets ? "pointer" : "default",
+                    fontSize: 10,
+                    letterSpacing: "0.06em",
+                    color: sets ? "var(--coherence)" : "var(--muted-2)",
+                  }}
+                >
+                  Convert Set → +10⚡
+                </button>
+              ) : (
+                <div className="cg-mono" style={{ fontSize: 10, color: sets ? "var(--coherence)" : "var(--muted)" }}>
+                  {sets ? `${sets} set${sets > 1 ? "s" : ""} convertible` : "no full set"}
+                </div>
+              )}
             </div>
           </div>
         </div>
+        {convertMenu && (
+          <ConvertMenu
+            cogId={cogId}
+            mineral={convertMenu.mineral}
+            have={me.treasury[convertMenu.mineral as keyof typeof me.treasury]}
+            at={convertMenu}
+            onClose={() => setConvertMenu(null)}
+          />
+        )}
         <div style={{ display: "flex", gap: 8 }}>
           {([["tiles", terr.tiles, "var(--text)"], ["fortresses", terr.fortresses, color], ["salients", terr.salients, "var(--exploit)"]] as const).map(([l, v, col]) => (
             <div key={l} style={{ flex: 1, padding: "8px 10px", background: "var(--panel-2)", borderRadius: 8, border: "1px solid var(--border)" }}>
@@ -103,65 +211,150 @@ function Identity({ snapshot, cogId }: { snapshot: GameSnapshot; cogId: string }
   );
 }
 
-function Orders({ snapshot, cogId, events }: { snapshot: GameSnapshot; cogId: string; events: StampedEvent[] }): React.ReactElement {
-  const turn = lastResolvedTurn(snapshot);
-  const evs = eventsAt(events, turn);
-  const board = evs.filter((e) => (e.type === "capture" && e.to === cogId) || (e.type === "exploit" && e.cog === cogId));
-  const transfersIn = evs.filter((e) => e.type === "transfer" && e.to === cogId);
-  const a = auctionAt(events, turn);
-  const wonHeart = a?.winner === cogId;
-  const myBid = a?.bids.find(([id]) => id === cogId)?.[1];
+/** The operator's tile context menu: queue an order for this cog on the clicked
+ *  tile. Owned tiles offer Reinforce (per-target-coherence energy, distance 0),
+ *  Exploit (windfall shown), and Abandon (refund shown); other tiles offer
+ *  Align at each reachable final coherence, costed by the sqrt curve —
+ *  energy = (finalCoh + incumbent)² + distance², capped at 100e. */
+function TileMenu({
+  snapshot,
+  cogId,
+  tileKey,
+  at,
+  queuedAligns,
+  onPick,
+  onClose,
+}: {
+  snapshot: GameSnapshot;
+  cogId: string;
+  tileKey: string;
+  at: { x: number; y: number };
+  /** Aligns already queued this turn — the next one bills +n×10e overhead. */
+  queuedAligns: number;
+  onPick: (o: Order) => void;
+  onClose: () => void;
+}): React.ReactElement | null {
+  useEffect(() => {
+    const onDoc = (e: MouseEvent): void => {
+      const el = e.target as Element | null;
+      if (!el?.closest?.("[data-tile-menu]")) onClose();
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [onClose]);
+
+  const t = snapshot.tiles.find((x) => `${x.q},${x.r}` === tileKey);
+  if (!t) return null;
+  const mine = t.alignment === cogId;
+  const myTiles = snapshot.tiles.filter((x) => x.alignment === cogId);
+  const dist = mine ? 0 : myTiles.reduce((d, x) => Math.min(d, distance({ q: x.q, r: x.r }, { q: t.q, r: t.r })), Infinity);
+
+  // align/reinforce cost per resulting coherence: arriving force must beat the
+  // incumbent (enemy tiles) or simply adds (own/neutral); energy = force² + dist².
+  // On enemy tiles, under-powered aligns still DAMAGE: arriving force f < defender
+  // coherence removes f (a tie annihilates the tile to neutral).
+  const options: Array<{ coh: number; force: number; energy: number }> = [];
+  const damage: Array<{ removed: number; force: number; energy: number; annihilates: boolean }> = [];
+  if (mine) {
+    for (let target = t.coherence + 1; target <= COHERENCE_MAX; target++) {
+      const force = target - t.coherence;
+      options.push({ coh: target, force, energy: alignEnergyCost(force, 0) });
+    }
+  } else {
+    const incumbent = t.alignment ? t.coherence : 0;
+    for (let f = 1; f <= incumbent; f++) {
+      const energy = alignEnergyCost(f, dist);
+      if (energy <= ALIGN_MAX_ENERGY) damage.push({ removed: f, force: f, energy, annihilates: f === incumbent });
+    }
+    for (let final = 1; final <= COHERENCE_MAX; final++) {
+      const force = final + incumbent;
+      if (force > COHERENCE_MAX) break; // force caps at 10
+      const energy = alignEnergyCost(force, dist);
+      if (energy <= ALIGN_MAX_ENERGY) options.push({ coh: final, force, energy });
+    }
+  }
+
+  const repeatTax = queuedAligns * ALIGN_REPEAT_SURCHARGE;
+  const W = 230;
+  const x = Math.min(at.x, window.innerWidth - W - 12);
+  const y = Math.min(at.y, window.innerHeight - 260);
+  const row = { display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" } as const;
   return (
-    <div className="cg-panel" style={{ flex: "0 0 auto", display: "flex", flexDirection: "column" }} data-testid="orders">
-      <div className="cg-panel-head">
-        <span className="cg-panel-title">Last Resolution</span>
-        <span className="cg-mono" style={{ fontSize: 9, color: "var(--muted)" }}>{turn >= 1 ? `T${String(turn).padStart(2, "0")}` : "—"}</span>
+    <div
+      data-tile-menu
+      className="cg-panel"
+      style={{ position: "fixed", left: x, top: y, width: W, zIndex: 120, background: "rgba(14,14,24,0.97)", backdropFilter: "blur(8px)" }}
+    >
+      <div className="cg-panel-head" style={{ padding: "7px 11px" }}>
+        <span className="cg-panel-title" style={{ fontSize: 10 }}>
+          [{tileKey}] · queue for {cogName(cogIdx(cogId))}
+        </span>
+        <button type="button" onClick={onClose} className="cg-mono" style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: 11 }}>
+          ✕
+        </button>
       </div>
-      <div className="cg-panel-body cg-scroll" style={{ maxHeight: 240, overflowY: "auto", display: "flex", flexDirection: "column", gap: 5, padding: "10px 12px" }}>
-        <div className="cg-label" style={{ fontSize: 8.5 }}>board actions</div>
-        {board.length === 0 && <div className="cg-mono" style={{ fontSize: 10, color: "var(--muted)" }}>held — no board orders resolved.</div>}
-        {board.map((e, i) => {
-          if (e.type === "exploit")
-            return (
-              <div key={i} style={{ display: "flex", alignItems: "baseline", gap: 7, padding: "3px 0" }}>
-                <span className="cg-verb exploit" style={{ flex: "0 0 auto" }}>EXPLOIT</span>
-                <span className="cg-mono" style={{ fontSize: 10.5, color: "var(--exploit)", lineHeight: 1.4 }}>{e.tile} → +{e.minted} {e.mineral}, scarred</span>
-              </div>
-            );
-          if (e.type === "capture")
-            return (
-              <div key={i} style={{ display: "flex", alignItems: "baseline", gap: 7, padding: "3px 0" }}>
-                <span className="cg-verb align" style={{ flex: "0 0 auto" }}>{e.from ? "FLIP" : "ALIGN"}</span>
-                <span className="cg-mono" style={{ fontSize: 10.5, color: "var(--text-dim)", lineHeight: 1.4 }}>{e.tile} → coherence {e.coherence}</span>
-              </div>
-            );
-          return null;
-        })}
-        <div className="cg-label" style={{ fontSize: 8.5, marginTop: 6 }}>resolution</div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          {a && (
-            <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "6px 9px", background: wonHeart ? "rgba(255,77,157,0.08)" : "var(--panel-2)", borderRadius: 7, border: `1px solid ${wonHeart ? "rgba(255,77,157,0.35)" : "var(--border)"}` }}>
-              <CGIcon name="heart" size={15} />
-              <span className="cg-mono" style={{ fontSize: 10.5, color: wonHeart ? "var(--heart)" : "var(--muted)" }}>
-                {wonHeart ? `Won the heart — paid ${a.price}e (2nd price)` : `Lost the auction${myBid != null ? ` · your bid ${myBid}e` : ""}`}
+      <div className="cg-panel-body cg-scroll" style={{ padding: "8px 10px", display: "flex", flexDirection: "column", gap: 3, maxHeight: 240, overflowY: "auto" }}>
+        {repeatTax > 0 && (
+          <div className="cg-mono" data-tip="each additional Align in one turn bills +10e more than the last — overhead, no force" style={{ fontSize: 8.5, color: "var(--deal)" }}>
+            {queuedAligns + 1}. align this turn: costs below include +{repeatTax}e repeat tax
+          </div>
+        )}
+        {mine && (
+          <>
+            <button type="button" className="cg-menu-row" onClick={() => onPick({ type: "exploit", tile: tileKey })}>
+              <span style={row}>
+                <span className="cg-verb exploit">EXPLOIT</span>
+                <span className="cg-mono" style={{ fontSize: 10, color: "var(--coherence)" }}>+{exploitYield(t.coherence, t.density)} {t.mineral} · scars</span>
               </span>
-            </div>
-          )}
-          {transfersIn.map((e, i) =>
-            e.type === "transfer" ? (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 7, padding: "6px 9px", background: "var(--panel-2)", borderRadius: 7, border: "1px solid var(--border)" }}>
-                <span className="cg-verb transfer">RECV</span>
-                <span className="cg-mono" style={{ fontSize: 10.5, color: "var(--text-dim)" }}>+{e.amount} {e.mineral} from {cogName(cogIdx(e.from))}</span>
-              </div>
-            ) : null,
-          )}
-        </div>
+            </button>
+            <button type="button" className="cg-menu-row" onClick={() => onPick({ type: "abandon", tile: tileKey })}>
+              <span style={row}>
+                <span className="cg-verb transfer">ABANDON</span>
+                <span className="cg-mono" style={{ fontSize: 10, color: "var(--coherence)" }}>+{t.coherence}e</span>
+              </span>
+            </button>
+            <div className="cg-label" style={{ fontSize: 8, padding: "5px 0 2px" }}>reinforce → coherence</div>
+          </>
+        )}
+        {damage.length > 0 && (
+          <>
+            <div className="cg-label" style={{ fontSize: 8, padding: "2px 0" }}>weaken (defender coh {t.coherence}) · dist {dist}</div>
+            {damage.map((o) => (
+              <button key={`d${o.removed}`} type="button" className="cg-menu-row" onClick={() => onPick({ type: "align", tile: tileKey, force: o.force })}>
+                <span style={row}>
+                  <span className="cg-mono" style={{ fontSize: 10.5, color: "var(--exploit)" }}>
+                    {o.annihilates ? "−" + o.removed + " coh ⌀ annihilates" : `−${o.removed} coh`}
+                  </span>
+                  <span className="cg-mono" style={{ fontSize: 10.5, color: "var(--energy)" }}>{o.energy + repeatTax}e</span>
+                </span>
+              </button>
+            ))}
+          </>
+        )}
+        {!mine && options.length > 0 && (
+          <div className="cg-label" style={{ fontSize: 8, padding: "2px 0" }}>
+            {t.alignment ? "capture" : "align"} → final coherence · dist {dist}
+          </div>
+        )}
+        {options.length === 0 && damage.length === 0 && (
+          <div className="cg-mono" style={{ fontSize: 9.5, color: "var(--muted)" }}>
+            {mine ? "already at max coherence." : "out of reach — no affordable force arrives."}
+          </div>
+        )}
+        {options.map((o) => (
+          <button key={o.coh} type="button" className="cg-menu-row" onClick={() => onPick({ type: "align", tile: tileKey, force: o.force })}>
+            <span style={row}>
+              <span className="cg-mono" style={{ fontSize: 10.5, color: "var(--coherence)" }}>coh={o.coh}</span>
+              <span className="cg-mono" style={{ fontSize: 10.5, color: "var(--energy)" }}>{o.energy + repeatTax}e</span>
+            </span>
+          </button>
+        ))}
       </div>
     </div>
   );
 }
 
-function CogChannels({ snapshot, cogId, messages, onSeekTurn }: { snapshot: GameSnapshot; cogId: string; messages: Message[]; onSeekTurn?: (turn: number) => void }): React.ReactElement {
+function CogChannels({ snapshot, cogId, messages, onSeekTurn, onCollapse }: { snapshot: GameSnapshot; cogId: string; messages: Message[]; onSeekTurn?: (turn: number) => void; onCollapse?: () => void }): React.ReactElement {
   const visible = messages
     .filter((m) => m.to === "public" || m.from === cogId || m.to === cogId)
     .slice(-30)
@@ -170,7 +363,21 @@ function CogChannels({ snapshot, cogId, messages, onSeekTurn }: { snapshot: Game
     <div className="cg-panel" style={{ display: "flex", flexDirection: "column", minHeight: 0 }} data-testid="cog-channels">
       <div className="cg-panel-head">
         <span className="cg-panel-title">{cogName(snapshot.cogs.find((c) => c.id === cogId)?.index ?? 0)}’s Channels</span>
-        <span className="cg-mono" style={{ fontSize: 9, color: "var(--muted)" }}>what it can read</span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+          <span className="cg-mono" style={{ fontSize: 9, color: "var(--muted)" }}>what it can read</span>
+          {onCollapse && (
+            <button
+              type="button"
+              data-testid="collapse-channels"
+              data-tip="collapse this side panel"
+              onClick={onCollapse}
+              className="cg-mono"
+              style={{ background: "none", border: "1px solid var(--border)", borderRadius: 5, color: "var(--muted)", cursor: "pointer", fontSize: 10, padding: "1px 6px" }}
+            >
+              »
+            </button>
+          )}
+        </span>
       </div>
       <div className="cg-panel-body cg-scroll" style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 7, padding: "10px 12px" }}>
         {visible.length === 0 && <div className="cg-mono" style={{ fontSize: 10, color: "var(--muted)" }}>no traffic yet.</div>}
@@ -185,22 +392,120 @@ function CogChannels({ snapshot, cogId, messages, onSeekTurn }: { snapshot: Game
 export function CogView({
   snapshot,
   cogId,
-  actPrompts,
   messages,
   events,
   live = false,
+  atLatest = true,
   onSeekTurn,
 }: {
   snapshot: GameSnapshot;
   cogId: string;
-  actPrompts: Record<string, ActPromptFrame[]>;
   messages: Message[];
   events: StampedEvent[];
   live?: boolean;
+  /** Whether the board is on the newest turn — steering is read-only in the past. */
+  atLatest?: boolean;
   onSeekTurn?: (turn: number) => void;
 }): React.ReactElement {
   const [mode, setMode] = useState<LatticeMode>("coherence");
-  const mine: Record<string, ActPromptFrame[]> = actPrompts[cogId] ? { [cogId]: actPrompts[cogId]! } : {};
+  const [menu, setMenu] = useState<{ tileKey: string; at: { x: number; y: number } } | null>(null);
+  const [pending, setPending] = useState<Order[]>([]);
+  // The queue as submitted via Ready — shown frozen ("Committed") until the
+  // turn resolves (the snapshot advancing past it clears the marker).
+  const [committed, setCommitted] = useState<{ turn: number; orders: Order[]; notes: Array<string | undefined>; total: number } | null>(null);
+  useEffect(() => {
+    if (committed && snapshot.turn > committed.turn) setCommitted(null);
+  }, [snapshot.turn, committed]);
+
+  // The operator's queued orders live server-side (they submit at the next
+  // Commit even if this page closes); refresh per turn — a commit consumes them.
+  useEffect(() => {
+    if (!live) return;
+    let on = true;
+    void fetch(`/cog/${cogId}/steering`)
+      .then((r) => r.json())
+      .then((st: { pending?: Order[] }) => on && setPending(st.pending ?? []));
+    return () => {
+      on = false;
+    };
+  }, [live, cogId, snapshot.turn]);
+  // per-order energy effect: an align's bill (force² + distance² + repeat
+  // surcharge), an abandon's refund, an exploit's mineral windfall — plus the
+  // total energy the queue will spend at Commit.
+  const ownTiles = snapshot.tiles.filter((x) => x.alignment === cogId);
+  let alignIdx = 0;
+  let pendingCommitted = 0;
+  const pendingNotes = pending.map((o) => {
+    if (o.type === "bid") {
+      pendingCommitted += o.energy;
+      return undefined; // the bid text already carries its amount
+    }
+    const t = "tile" in o ? snapshot.tiles.find((x) => `${x.q},${x.r}` === o.tile) : undefined;
+    if (o.type === "align") {
+      const d =
+        !t || t.alignment === cogId
+          ? 0
+          : ownTiles.reduce((m, x) => Math.min(m, distance({ q: x.q, r: x.r }, { q: t.q, r: t.r })), Infinity);
+      const cost = alignEnergyCost(o.force, d) + ALIGN_REPEAT_SURCHARGE * alignIdx++;
+      pendingCommitted += cost;
+      return `${cost}e`;
+    }
+    if (o.type === "abandon") return t ? `+${t.coherence}e` : undefined;
+    if (o.type === "exploit") return t ? `+${exploitYield(t.coherence, t.density)} ${t.mineral}` : undefined;
+    return undefined;
+  });
+  // The right side panel (Auction + Channels) collapses to a slim strip; the
+  // choice sticks across reloads via localStorage.
+  const [sideCollapsed, setSideCollapsed] = useState<boolean>(() => {
+    try {
+      return window.localStorage.getItem("cg.channels.collapsed") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const toggleSide = (): void =>
+    setSideCollapsed((c) => {
+      try {
+        window.localStorage.setItem("cg.channels.collapsed", c ? "0" : "1");
+      } catch {
+        // no persistence (SSR/jsdom/privacy mode) — the toggle still works
+      }
+      return !c;
+    });
+  // Planned aligns drawn on the board: queued + committed, each outlined with
+  // the EXPECTED post-resolve coherence — own tile reinforces (cap), neutral
+  // ground takes the force, enemy ground shows the capture margin (or what's
+  // left of the defense when the force falls short).
+  const expectedCoh = (o: Extract<Order, { type: "align" }>): { tile: string; coh: number; color: string } | null => {
+    const t = snapshot.tiles.find((x) => `${x.q},${x.r}` === o.tile);
+    if (!t) return null;
+    const coh =
+      t.alignment === cogId
+        ? Math.min(COHERENCE_MAX, t.coherence + o.force)
+        : t.alignment == null
+          ? Math.min(COHERENCE_MAX, o.force)
+          : Math.abs(o.force - t.coherence);
+    return { tile: o.tile, coh, color: cogColor(cogIdx(cogId)) };
+  };
+  const plannedAligns =
+    live && atLatest
+      ? [...pending, ...(committed?.orders ?? [])]
+          .filter((o): o is Extract<Order, { type: "align" }> => o.type === "align")
+          .map(expectedCoh)
+          .filter((p): p is NonNullable<typeof p> => p !== null)
+      : [];
+  const postPending = useCallback(
+    (next: Order[]): void => {
+      setPending(next);
+      void fetch(`/cog/${cogId}/steering`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ pending: next }),
+      });
+    },
+    [cogId],
+  );
+
   return (
     <div className="cg-view cg-cog" data-testid="cog-view">
       <ResizableColumns
@@ -209,17 +514,90 @@ export function CogView({
         defaultRight={320}
         left={
           <div className="cg-col cg-scroll" style={{ overflowY: "auto" }}>
-            <Identity snapshot={snapshot} cogId={cogId} />
-            <Orders snapshot={snapshot} cogId={cogId} events={events} />
-            {live && <SteeringPanel cogId={cogId} />}
-            <div className="cg-panel">
-              <PromptsPanel actPrompts={mine} />
+            <Identity snapshot={snapshot} cogId={cogId} live={live} />
+            {live && (
+              <AutopilotPanel
+                cogId={cogId}
+                atLatest={atLatest}
+                pending={pending}
+                pendingNotes={pendingNotes}
+                pendingCommitted={pendingCommitted}
+                energy={snapshot.cogs.find((c) => c.id === cogId)?.energy}
+                onCancelPending={(i) => postPending(pending.filter((_, j) => j !== i))}
+                onReady={() => {
+                  void fetch(`/cog/${cogId}/ready`, { method: "POST" });
+                  setCommitted({ turn: snapshot.turn, orders: pending, notes: pendingNotes, total: pendingCommitted });
+                  setPending([]); // the server consumes the queue as it submits
+                }}
+                committed={committed}
+              />
+            )}
+            {/* a block wrapper lets the Turn Log take its natural height, so the
+                column itself scrolls instead of squeezing the log */}
+            <div style={{ flex: "0 0 auto" }}>
+              <TurnLog snapshot={snapshot} events={events} />
             </div>
           </div>
         }
-        center={<LatticePanel snapshot={snapshot} events={events} mode={mode} setMode={setMode} highlight={cogId} />}
-        right={<CogChannels snapshot={snapshot} cogId={cogId} messages={messages} onSeekTurn={onSeekTurn} />}
+        center={
+          <LatticePanel
+            snapshot={snapshot}
+            events={events}
+            mode={mode}
+            setMode={setMode}
+            highlight={cogId}
+            onTileContextMenu={live && atLatest ? (key, at) => setMenu({ tileKey: key, at }) : undefined}
+            planned={plannedAligns}
+          />
+        }
+        right={
+          sideCollapsed ? (
+            <button
+              type="button"
+              data-testid="expand-channels"
+              data-tip="expand the auction + channels panel"
+              onClick={toggleSide}
+              className="cg-mono"
+              style={{
+                background: "var(--panel)",
+                border: "1px solid var(--border)",
+                borderRadius: 8,
+                color: "var(--muted)",
+                cursor: "pointer",
+                fontSize: 10,
+                letterSpacing: "0.14em",
+                writingMode: "vertical-rl",
+                padding: "14px 4px",
+                height: "100%",
+              }}
+            >
+              « CHANNELS · AUCTION
+            </button>
+          ) : (
+            <div className="cg-col cg-scroll" style={{ overflowY: "auto", display: "flex", flexDirection: "column", gap: 12, minHeight: 0 }}>
+              <div style={{ flex: "0 0 auto" }}>
+                <AuctionPanel snapshot={snapshot} events={events} bidder={live ? cogId : undefined} />
+              </div>
+              <CogChannels snapshot={snapshot} cogId={cogId} messages={messages} onSeekTurn={onSeekTurn} onCollapse={toggleSide} />
+            </div>
+          )
+        }
+        rightCollapsed={sideCollapsed}
       />
+      {menu && (
+        <TileMenu
+          snapshot={snapshot}
+          cogId={cogId}
+          tileKey={menu.tileKey}
+          at={menu.at}
+          queuedAligns={pending.filter((o) => o.type === "align").length}
+          onPick={(o) => {
+            postPending([...pending, o]);
+            setMenu(null);
+          }}
+          onClose={() => setMenu(null)}
+        />
+      )}
     </div>
   );
 }

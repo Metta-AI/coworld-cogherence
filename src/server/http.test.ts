@@ -43,6 +43,30 @@ describe("http", () => {
     srv.close();
   });
 
+  it("POST /cogs/claim -> by-name control: finds or creates, autopilot off", async () => {
+    const r2 = new GameRunner({ seed: 7, agents: [greedyAgent("cog0"), greedyAgent("cog1")], maxTurns: 100 });
+    const steering = new SteeringStore();
+    const srv = createApp(r2, undefined, steering).listen(0);
+    const p = (srv.address() as { port: number }).port;
+    const post = (body: unknown) =>
+      fetch(`http://127.0.0.1:${p}/cogs/claim`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    // existing name (case-insensitive) -> same cog, flipped to manual
+    const alice = await (await post({ name: "alice" })).json();
+    expect(alice).toEqual({ ok: true, id: "cog0", created: false });
+    expect(steering.paused("cog0")).toBe(true);
+    // unknown name -> a new cog wearing it, manual from birth
+    const dav = await (await post({ name: "daveey" })).json();
+    expect(dav).toEqual({ ok: true, id: "cog2", created: true });
+    expect(steering.paused("cog2")).toBe(true);
+    const snap = await (await fetch(`http://127.0.0.1:${p}/global.json`)).json();
+    expect(snap.cogs.find((c: { id: string }) => c.id === "cog2").name).toBe("daveey");
+    // re-claim is idempotent
+    expect(await (await post({ name: "DAVEEY" })).json()).toEqual({ ok: true, id: "cog2", created: false });
+    // garbage -> 400
+    expect((await post({ name: "" })).status).toBe(400);
+    srv.close();
+  });
+
   it("GET /cog/:id/act-prompts -> the cog's recorded entries", async () => {
     const hub = new ActPromptHub();
     hub.record({ cogId: "cog0", turn: 1, phase: "commit", content: "hello" });
@@ -59,18 +83,25 @@ describe("http", () => {
     const srv = createApp(runner, undefined, steering).listen(0);
     const url = `http://127.0.0.1:${(srv.address() as { port: number }).port}`;
     // defaults
-    expect(await (await fetch(`${url}/cog/cog0/steering`)).json()).toEqual({ persona: "", paused: false });
-    // edit
+    expect(await (await fetch(`${url}/cog/cog0/steering`)).json()).toEqual({ persona: "", paused: false, pending: [], standingBid: 0, autoConvert: [] });
+    // edit — including a queued operator order
     const posted = await (
       await fetch(`${url}/cog/cog0/steering`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ persona: "betray everyone", paused: true }),
+        body: JSON.stringify({ persona: "betray everyone", paused: true, pending: [{ type: "align", tile: "0,0", force: 3 }] }),
       })
     ).json();
+    // malformed pending orders bounce at the boundary
+    const bad = await fetch(`${url}/cog/cog0/steering`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ pending: [{ type: "align", tile: "0,0", force: 0 }] }),
+    });
     srv.close();
-    expect(posted).toEqual({ persona: "betray everyone", paused: true });
-    expect(steering.get("cog0")).toEqual({ persona: "betray everyone", paused: true });
+    expect(posted).toEqual({ persona: "betray everyone", paused: true, pending: [{ type: "align", tile: "0,0", force: 3 }], standingBid: 0, autoConvert: [] });
+    expect(steering.get("cog0").pending).toEqual([{ type: "align", tile: "0,0", force: 3 }]);
+    expect(bad.status).toBe(400);
   });
 
   it("GET /replay.json -> the live server's own recorded game", async () => {

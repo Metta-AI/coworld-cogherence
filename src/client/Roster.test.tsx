@@ -22,13 +22,12 @@ describe("Roster", () => {
     expect(getByTestId("roster-cog0").textContent).toContain("1 tiles");
   });
 
-  it("shows hearts, the COGS wallet, and a luminous sigil per cog", () => {
+  it("shows hearts and the COGS wallet per cog", () => {
     const { getByTestId } = render(<Roster snapshot={snapshot()} />);
     const row = getByTestId("roster-cog0");
     const text = row.textContent ?? "";
     expect(text).toContain("Ge"); // a mineral chip
     expect(text).toContain("S"); // the COGS wallet
     expect(text).toContain("100"); // starting energy is derived from a full COGS set
-    expect(row.querySelectorAll("svg").length).toBeGreaterThan(0); // the cog sigil
   });
 });

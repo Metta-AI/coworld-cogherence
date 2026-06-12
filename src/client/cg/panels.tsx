@@ -2,17 +2,19 @@
 // the public/DM Channels, the tile inspector, and the LatticePanel
 // that wraps the luminous board with its mode toggle, legend, turn pulse, and
 // inspector. All read the real GameSnapshot + event/message streams.
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { GameSnapshot } from "../../shared/snapshot";
 import type { Message } from "../../shared/messages";
 import type { TurnEvent } from "../../shared/engine/log";
 import type { StampedEvent } from "../net/feed";
 import { cogColor, cogName } from "../colors";
-import { TRANSFER_FEE } from "../../shared/engine/constants";
+import { TRANSFER_FEE, upkeepBase, mintOf, exploitYield } from "../../shared/engine/constants";
 import { HexBoard, type LatticeMode } from "../HexBoard";
-import { CGIcon, CogSigil, CogText, Mineral } from "./atoms";
+import { CGIcon, CogText, EnergyChip, Mineral, TilePill } from "./atoms";
+import { subscribeTileHighlight } from "./tile-highlight";
 import {
   MINERALS,
+  minClass,
   auctionAt,
   heartSpend,
   eventsAt,
@@ -24,6 +26,7 @@ import {
   neighbors,
   tileStatus,
   tileDrain,
+  mintEnergyBy,
 } from "./derive";
 
 const cogIdx = (id: string): number => {
@@ -32,7 +35,26 @@ const cogIdx = (id: string): number => {
 };
 
 // ===== Heart auction ======================================================
-export function AuctionPanel({ snapshot, events }: { snapshot: GameSnapshot; events: StampedEvent[] }): React.ReactElement {
+export function AuctionPanel({ snapshot, events, bidder }: { snapshot: GameSnapshot; events: StampedEvent[]; bidder?: string }): React.ReactElement {
+  // bidder (cog view, live): edit that cog's PERSISTENT standing bid here —
+  // auto-bid this amount at every auction while > 0 (steering-backed).
+  const [standingBid, setStandingBid] = useState<number | null>(null);
+  useEffect(() => {
+    if (!bidder) return;
+    let on = true;
+    void fetch(`/cog/${bidder}/steering`)
+      .then((r) => r.json())
+      .then((j: { standingBid?: number }) => {
+        if (on) setStandingBid(j.standingBid ?? 0);
+      });
+    return () => {
+      on = false;
+    };
+  }, [bidder]);
+  const postBid = (v: number): void => {
+    setStandingBid(v);
+    void fetch(`/cog/${bidder}/steering`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ standingBid: v }) });
+  };
   const turn = lastResolvedTurn(snapshot);
   const a = auctionAt(events, turn);
   const winnerIdx = a?.winner != null ? cogIdx(a.winner) : null;
@@ -52,7 +74,7 @@ export function AuctionPanel({ snapshot, events }: { snapshot: GameSnapshot; eve
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
           <CGIcon name="heart" size={34} />
           {winnerIdx != null ? (
-            <CogSigil index={winnerIdx} size={26} />
+            <span style={{ width: 12, height: 12, borderRadius: 3, background: cogColor(winnerIdx) }} />
           ) : (
             <span className="cg-mono" style={{ fontSize: 9, color: "var(--muted)" }}>
               unsold
@@ -104,9 +126,30 @@ export function AuctionPanel({ snapshot, events }: { snapshot: GameSnapshot; eve
               );
             })}
           </div>
+          {bidder && standingBid != null && (
+            <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 9, paddingTop: 8, borderTop: "1px solid var(--border)" }}>
+              <span
+                className="cg-mono"
+                data-tip="standing heart bid — auto-bid this amount at every auction while > 0 (replaces the autopilot's own bid; 0 = let it decide)"
+                style={{ fontSize: 10, color: "var(--muted)" }}
+              >
+                Heart bid
+              </span>
+              <input
+                type="number"
+                min={0}
+                data-testid="bid-input"
+                value={standingBid}
+                onChange={(e) => postBid(Math.max(0, Number(e.target.value) || 0))}
+                className="cg-mono"
+                style={{ width: 64, background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 6, color: "var(--text)", padding: "3px 6px", fontSize: 11 }}
+              />
+              <span className="cg-mono" style={{ fontSize: 10, color: "var(--muted)" }}>e</span>
+            </div>
+          )}
           {spend.total > 0 && (
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 9, paddingTop: 8, borderTop: "1px solid var(--border)" }} data-testid="heart-spend">
-              <CGIcon name="energy" size={13} />
+              <EnergyChip />
               <span className="cg-mono" style={{ fontSize: 9.5, color: "var(--muted)" }}>
                 spent on hearts
               </span>
@@ -128,108 +171,318 @@ export function AuctionPanel({ snapshot, events }: { snapshot: GameSnapshot; eve
   );
 }
 
-// ===== Resolve log ========================================================
-const EVENT_ORDER: Record<string, number> = { exploit: 0, abandon: 1, capture: 2, lost: 3, transfer: 4, auction: 5, starved: 6, firstCommit: 7, rejected: 8 };
+// ===== Turn log ===========================================================
+// Three information-dense sections per turn: ACTIONS (every board order a cog
+// played, paired with its consequence — joined from the turn's events and the
+// AFTER-board for outcomes that emit no event), AUCTION (all bids as chips,
+// winner + clearing price), and UPKEEP (per-cog mint income, rotting tiles,
+// and losses on one compact row each).
 
-function EventTag({ e }: { e: TurnEvent }): React.ReactElement {
-  if (e.type === "capture") return <span className={`cg-verb ${e.from ? "exploit" : "align"}`}>{e.from ? "FLIP" : "ALIGN"}</span>;
-  if (e.type === "exploit") return <span className="cg-verb exploit">EXPLOIT</span>;
-  if (e.type === "transfer") return <span className="cg-verb transfer">TRANSFER</span>;
-  if (e.type === "lost") return <span className="cg-verb exploit">LOST</span>;
-  if (e.type === "abandon") return <span className="cg-verb transfer">ABANDON</span>;
-  if (e.type === "auction") return <span className="cg-verb bid">AUCTION</span>;
+interface LogLine {
+  cog: string;
+  verb: string;
+  tone: string; // cg-verb class: align / exploit / transfer / bid
+  action: React.ReactNode; // tile addresses render as TilePills (hover highlights the tile)
+  outcome: string;
+  failed?: boolean;
+}
+
+type PlayedOrder = Extract<TurnEvent, { type: "order" }>["order"];
+
+/** The consequence of one board order, joined from the turn's events + the after-board. */
+function orderOutcome(
+  cog: string,
+  order: PlayedOrder,
+  evs: TurnEvent[],
+  rejection: string | undefined,
+  map: ReturnType<typeof tileMap>,
+): { outcome: string; failed: boolean } {
+  if (rejection) return { outcome: `rejected, ${rejection}`, failed: true };
+  switch (order.type) {
+    case "align": {
+      // rival aligns that exerted force on the same tile this turn (a rejected
+      // set exerts none) — equal top forces repel EVERYONE, so a quiet "failed"
+      // usually means a simultaneous clash the cog never saw coming.
+      const rejectedCogs = new Set(evs.filter((e) => e.type === "rejected").map((e) => e.cog));
+      const rivalForce = new Map<string, number>();
+      for (const e of evs)
+        if (e.type === "order" && e.cog !== cog && !rejectedCogs.has(e.cog) && e.order.type === "align" && e.order.tile === order.tile)
+          rivalForce.set(e.cog, (rivalForce.get(e.cog) ?? 0) + e.order.force);
+      const rivals = [...rivalForce.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .map(([c, f]) => `${cogName(cogIdx(c))} force ${f}`)
+        .join(", ");
+      const cap = evs.find((e) => e.type === "capture" && e.tile === order.tile);
+      if (cap && cap.type === "capture") {
+        if (cap.to === cog)
+          return {
+            outcome:
+              (cap.from ? `flipped ${cogName(cogIdx(cap.from))}, coh=${cap.coherence}` : `coh=${cap.coherence}`) +
+              (rivals ? ` (beat ${rivals})` : ""),
+            failed: false,
+          };
+        if (cap.to === null) return { outcome: `tie vs ${rivals || "the incumbent"} — all forces annihilated, ground neutral`, failed: true };
+        return { outcome: `failed, ${cogName(cogIdx(cap.to))} took it${rivalForce.has(cap.to) ? ` with force ${rivalForce.get(cap.to)}` : ""}`, failed: true };
+      }
+      // no capture: the tile's alignment didn't change — reinforce or repelled
+      const after = map.get(order.tile);
+      if (after?.alignment === cog) return { outcome: `coh=${after.coherence}${rivals ? ` (vs ${rivals})` : ""}`, failed: false };
+      return {
+        outcome: after?.alignment
+          ? `failed, ${cogName(cogIdx(after.alignment))} held at coh=${after.coherence}`
+          : rivals
+            ? `clashed with ${rivals} — tie, everyone repelled, tile stays neutral`
+            : "failed, tile still neutral",
+        failed: true,
+      };
+    }
+    case "exploit": {
+      const ev = evs.find((e) => e.type === "exploit" && e.cog === cog && e.tile === order.tile);
+      if (ev && ev.type === "exploit") return { outcome: `+${ev.minted} ${ev.mineral}, land scarred`, failed: false };
+      return { outcome: "failed, tile already gone", failed: true };
+    }
+    case "abandon": {
+      const ev = evs.find((e) => e.type === "abandon" && e.cog === cog && e.tile === order.tile);
+      if (ev && ev.type === "abandon") return { outcome: `+${ev.refund}e`, failed: false };
+      return { outcome: "failed, tile already gone", failed: true };
+    }
+    case "transfer":
+      return { outcome: `delivered, −${TRANSFER_FEE}e fee`, failed: false };
+    case "bid":
+      return { outcome: "", failed: false }; // bids render in the AUCTION section
+  }
+}
+
+function orderLine(order: PlayedOrder, cost?: number): { verb: string; tone: string; action: React.ReactNode } {
+  switch (order.type) {
+    case "align":
+      return { verb: "ALIGN", tone: "align", action: <>Align(<TilePill k={order.tile} />, force={order.force}){cost != null ? ` · ${cost}e` : ""}</> };
+    case "exploit":
+      return { verb: "EXPLOIT", tone: "exploit", action: <>Exploit(<TilePill k={order.tile} />)</> };
+    case "abandon":
+      return { verb: "ABANDON", tone: "transfer", action: <>Abandon(<TilePill k={order.tile} />)</> };
+    case "transfer":
+      return { verb: "TRANSFER", tone: "transfer", action: `Transfer(${order.amount} ${order.mineral} → ${cogName(cogIdx(order.to))})` };
+    case "bid":
+      return { verb: "BID", tone: "bid", action: `Bid(${order.energy}e)` };
+  }
+}
+
+function Section({ label, right, children }: { label: string; right?: React.ReactNode; children: React.ReactNode }): React.ReactElement {
   return (
-    <span className="cg-mono" style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", color: "var(--muted)", padding: "2px 6px", background: "var(--panel-2)", borderRadius: 5 }}>
-      {e.type === "starved" ? "STARVE" : e.type.toUpperCase()}
-    </span>
+    <div style={{ background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 8, padding: "5px 10px 7px", display: "flex", flexDirection: "column", gap: 2 }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", padding: "2px 0 3px", borderBottom: "1px solid var(--border)", marginBottom: 3 }}>
+        <span className="cg-label" style={{ fontSize: 8.5, letterSpacing: "0.12em" }}>{label}</span>
+        {right != null && <span className="cg-mono" style={{ fontSize: 9, color: "var(--muted)" }}>{right}</span>}
+      </div>
+      {children}
+    </div>
   );
 }
 
-function actorOf(e: TurnEvent): string | null {
-  switch (e.type) {
-    case "capture":
-      return e.to;
-    case "exploit":
-    case "abandon":
-    case "lost":
-    case "starved":
-    case "firstCommit":
-    case "rejected":
-      return e.cog;
-    case "transfer":
-      return e.from;
-    case "auction":
-      return e.winner;
-    default:
-      return null;
-  }
-}
+const Quiet = ({ text }: { text: string }): React.ReactElement => (
+  <div className="cg-mono" style={{ fontSize: 9.5, color: "var(--muted)", padding: "3px 0" }}>{text}</div>
+);
 
-function eventText(e: TurnEvent): React.ReactNode {
-  switch (e.type) {
-    case "capture": {
-      const cost = e.to && e.spent > 0 ? ` · −${e.spent} coh` : "";
-      return e.from
-        ? `flipped ${e.tile} from ${cogName(cogIdx(e.from))} → coherence ${e.coherence}${cost}`
-        : `claimed ${e.tile} → coherence ${e.coherence}${cost}`;
-    }
-    case "exploit":
-      return `strip-mined ${e.tile} → +${e.minted} ${e.mineral}, land scarred`;
-    case "transfer":
-      return `${e.amount} ${e.mineral} → ${cogName(cogIdx(e.to))} · −${TRANSFER_FEE}e fee`;
-    case "auction":
-      return e.winner ? `wins the heart, pays 2nd-price ${e.price}e` : "heart unsold";
-    case "abandon":
-      return `abandoned ${e.tile} → +${e.refund}e recovered`;
-    case "lost":
-      return `lost ${e.tile} — upkeep unpaid, rotted to neutral`;
-    case "starved":
-      return `${e.tile} starved → coherence ${e.coherence}`;
-    case "firstCommit":
-      return `committed first · +${e.reward}⚡`;
-    case "rejected":
-      return `order rejected — ${e.reason}`;
-    default:
-      return e.type;
-  }
-}
-
-export function ResolveLog({ snapshot, events }: { snapshot: GameSnapshot; events: StampedEvent[] }): React.ReactElement {
+export function TurnLog({ snapshot, events }: { snapshot: GameSnapshot; events: StampedEvent[] }): React.ReactElement {
   const turn = lastResolvedTurn(snapshot);
-  // Starve rows are upkeep noise at scale — the board shows rot directly.
-  const evs = eventsAt(events, turn)
-    .filter((e) => e.type !== "starved")
-    .sort((a, b) => (EVENT_ORDER[a.type] ?? 9) - (EVENT_ORDER[b.type] ?? 9));
+  const evs: TurnEvent[] = events.filter((e) => e.turn === turn).map((e) => e.event);
+  const map = tileMap(snapshot);
+  const rejectedBy = new Map<string, string>();
+  for (const e of evs) if (e.type === "rejected") rejectedBy.set(e.cog, e.reason);
+
+  // — ACTIONS: board orders with consequences, grouped by seat; tempo bonus last
+  const actions: LogLine[] = [];
+  for (const e of evs) {
+    if (e.type !== "order" || e.order.type === "bid") continue;
+    const { verb, tone, action } = orderLine(e.order, e.cost);
+    const { outcome, failed } = orderOutcome(e.cog, e.order, evs, rejectedBy.get(e.cog), map);
+    actions.push({ cog: e.cog, verb, tone, action, outcome, failed });
+  }
+  actions.sort((a, b) => cogIdx(a.cog) - cogIdx(b.cog));
+  const tempo = evs.find((e) => e.type === "firstCommit");
+
+  // — AUCTION: every bid order as a chip; the settle gives winner + price
+  const auction = evs.find((e) => e.type === "auction");
+  const bidders = evs
+    .filter((e): e is Extract<TurnEvent, { type: "order" }> => e.type === "order" && e.order.type === "bid")
+    .map((e) => {
+      const amount = (e.order as Extract<PlayedOrder, { type: "bid" }>).energy;
+      const rejected = rejectedBy.has(e.cog);
+      const eligible = auction?.type === "auction" && auction.bids.some(([id]) => id === e.cog);
+      const won = auction?.type === "auction" && auction.winner === e.cog;
+      return { cog: e.cog, amount, won, status: won ? "won" : rejected ? "set rejected" : eligible ? "outbid" : "void — holds no ground" };
+    })
+    .sort((a, b) => b.amount - a.amount);
+
+  // — PRODUCTION: one dense row per cog — mint income + net tiles gained/lost
+  const upkeepRows = new Map<string, { mint: Partial<Record<string, number>>; gained: string[]; lostT: string[] }>();
+  const upkeepRow = (cog: string) => {
+    let r = upkeepRows.get(cog);
+    if (!r) upkeepRows.set(cog, (r = { mint: {}, gained: [], lostT: [] }));
+    return r;
+  };
+  for (const e of evs) {
+    if (e.type === "mint") {
+      const r = upkeepRow(e.cog);
+      for (const m of MINERALS) if (e.gained[m] > 0) r.mint[m] = (r.mint[m] ?? 0) + e.gained[m];
+    } else if (e.type === "capture") {
+      if (e.to) upkeepRow(e.to).gained.push(`[${e.tile}]`);
+      if (e.from) upkeepRow(e.from).lostT.push(`[${e.tile}]`);
+    } else if (e.type === "exploit" || e.type === "abandon") upkeepRow(e.cog).lostT.push(`[${e.tile}]`);
+    else if (e.type === "lost") upkeepRow(e.cog).lostT.push(`[${e.tile}]`);
+  }
+  const upkeepList = [...upkeepRows.entries()]
+    .filter(([, r]) => Object.keys(r.mint).length > 0 || r.gained.length > 0 || r.lostT.length > 0)
+    .sort((a, b) => cogIdx(a[0]) - cogIdx(b[0]));
+  const mintEnergy = mintEnergyBy(events, snapshot); // what those minerals were worth in energy
+
+  const dot = (i: number): React.ReactElement => (
+    <span style={{ width: 7, height: 7, borderRadius: 2, background: cogColor(i), flex: "0 0 auto", marginTop: 4 }} />
+  );
+
   return (
-    <div className="cg-panel" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }} data-testid="resolve-log">
+    <div className="cg-panel" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }} data-testid="turn-log">
       <div className="cg-panel-head">
-        <span className="cg-panel-title">Resolve Log</span>
+        <span className="cg-panel-title">Turn Log</span>
         <span className="cg-mono" style={{ fontSize: 9, color: "var(--muted)" }}>
-          {turn >= 1 ? `T${String(turn).padStart(2, "0")} · ${evs.length}` : "awaiting first turn"}
+          {turn >= 1 ? `T${String(turn).padStart(2, "0")}` : "awaiting first turn"}
         </span>
       </div>
-      <div className="cg-panel-body cg-scroll" style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 5, padding: "8px 12px" }}>
-        {evs.length === 0 && (
-          <div className="cg-mono" style={{ fontSize: 10, color: "var(--muted)" }}>
-            nothing has resolved yet.
-          </div>
-        )}
-        {evs.map((e, i) => {
-          const actor = actorOf(e);
-          const ai = actor != null ? cogIdx(actor) : null;
-          return (
-            <div key={i} style={{ display: "grid", gridTemplateColumns: "74px 1fr", gap: 8, alignItems: "start", padding: "3px 0", borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
-              <EventTag e={e} />
-              <div style={{ display: "flex", alignItems: "baseline", gap: 6, minWidth: 0 }}>
-                {ai != null && <span style={{ width: 7, height: 7, borderRadius: 2, background: cogColor(ai), flex: "0 0 auto", marginTop: 4 }} />}
-                <span className="cg-mono" style={{ fontSize: 10.5, color: e.type === "exploit" ? "var(--exploit)" : "var(--text-dim)", lineHeight: 1.4 }}>
-                  {ai != null && <b style={{ color: cogColor(ai) }}>{cogName(ai)} </b>}
-                  {eventText(e)}
-                </span>
+      <div className="cg-panel-body cg-scroll" style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8, padding: "10px 12px" }}>
+        {turn < 1 ? (
+          <Quiet text="nothing has resolved yet." />
+        ) : (
+          <>
+            <Section label="Actions" right={`${actions.length}`}>
+            {actions.length === 0 && <Quiet text="no board orders — everyone held." />}
+            {actions.map((l, i) => {
+              const ai = cogIdx(l.cog);
+              return (
+                <div key={i} style={{ display: "grid", gridTemplateColumns: "64px 1fr", gap: 7, alignItems: "start", padding: "2px 0" }}>
+                  <span className={`cg-verb ${l.tone}`}>{l.verb}</span>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 5, minWidth: 0 }}>
+                    {dot(ai)}
+                    <span className="cg-mono" style={{ fontSize: 10.5, color: "var(--text-dim)", lineHeight: 1.4 }}>
+                      <b style={{ color: cogColor(ai) }}>{cogName(ai)}: </b>
+                      {l.action}
+                      <span style={{ color: l.failed ? "var(--exploit)" : "var(--coherence)" }}> =&gt; {l.outcome}</span>
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+            {tempo && tempo.type === "firstCommit" && (
+              <div className="cg-mono" style={{ fontSize: 9.5, color: "var(--muted)", padding: "2px 0" }}>
+                <b style={{ color: cogColor(cogIdx(tempo.cog)) }}>{cogName(cogIdx(tempo.cog))}</b> committed first · +{tempo.reward}⚡ · wins bid ties
               </div>
-            </div>
-          );
-        })}
+            )}
+            </Section>
+
+            <Section
+              label="Auction"
+              right={
+                auction?.type === "auction" && auction.winner
+                  ? <>♥ {cogName(cogIdx(auction.winner))} · {auction.price}e</>
+                  : "unsold"
+              }
+            >
+            {bidders.length === 0 ? (
+              <Quiet
+                text={
+                  auction?.type === "auction" && auction.winner
+                    ? "rival bids are sealed — only the winner and the clearing price are public."
+                    : "no bids — the heart goes unsold."
+                }
+              />
+            ) : (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, padding: "3px 0" }}>
+                {bidders.map((b) => (
+                  <span
+                    key={b.cog}
+                    data-tip={`${cogName(cogIdx(b.cog))} bid ${b.amount}e — ${b.status}${b.won ? `, paid the 2nd price ${auction?.type === "auction" ? auction.price : 0}e` : ""}`}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                      padding: "1px 6px",
+                      borderRadius: 5,
+                      background: b.won ? "rgba(255,77,157,0.14)" : "var(--panel-2)",
+                      border: `1px solid ${b.won ? "var(--heart)" : "var(--border)"}`,
+                      opacity: b.status.startsWith("void") || b.status === "set rejected" ? 0.55 : 1,
+                    }}
+                  >
+                    <span style={{ width: 7, height: 7, borderRadius: 2, background: cogColor(cogIdx(b.cog)) }} />
+                    <span className="cg-mono" style={{ fontSize: 10, fontWeight: 600, color: b.won ? "var(--heart)" : "var(--text-dim)" }}>
+                      {b.amount}
+                      {b.won ? " ✓" : b.status === "outbid" ? "" : " ∅"}
+                    </span>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            </Section>
+
+            <Section label="Production">
+            {upkeepList.length === 0 && <Quiet text="quiet turn — every bill paid, nothing minted." />}
+            {upkeepList.length > 0 && (
+              <div
+                style={{ display: "grid", gridTemplateColumns: "minmax(52px, auto) repeat(6, minmax(30px, auto)) 1fr", columnGap: 9, rowGap: 3, alignItems: "center", padding: "4px 0" }}
+                data-tip="minerals minted this upkeep (floor(density × coherence / 10) per tile), their energy value, and net tiles gained/lost"
+              >
+                <span />
+                {MINERALS.map((m) => (
+                  <span key={m} className={`cg-min ${minClass(m)}`} style={{ justifySelf: "end" }}>{m}</span>
+                ))}
+                <span style={{ justifySelf: "end" }}><EnergyChip /></span>
+                <span style={{ justifySelf: "end", display: "inline-flex" }} data-tip="net tiles gained/lost this turn">
+                  <svg width={18} height={18} viewBox="0 0 18 18">
+                    <path d="M9 2 L15.1 5.5 V12.5 L9 16 L2.9 12.5 V5.5 Z" fill="none" stroke="var(--text-dim)" strokeWidth="2" strokeLinejoin="round" />
+                  </svg>
+                </span>
+                <span />
+                {upkeepList.map(([cog, r]) => {
+                  const ci = cogIdx(cog);
+                  return (
+                    <React.Fragment key={cog}>
+                      <span style={{ display: "inline-flex", alignItems: "baseline", gap: 5 }}>
+                        {dot(ci)}
+                        <b className="cg-mono" style={{ fontSize: 10, color: cogColor(ci) }}>{cogName(ci)}</b>
+                      </span>
+                      {MINERALS.map((m) => (
+                        <span key={m} className="cg-mono" style={{ fontSize: 10, justifySelf: "end", color: (r.mint[m] ?? 0) > 0 ? "var(--coherence)" : "var(--muted-2)" }}>
+                          {(r.mint[m] ?? 0) > 0 ? `+${r.mint[m]}` : "·"}
+                        </span>
+                      ))}
+                      <span className="cg-mono" style={{ fontSize: 10, fontWeight: 700, justifySelf: "end", color: (mintEnergy.get(cog) ?? 0) > 0 ? "var(--energy)" : "var(--muted-2)" }}>
+                        {(mintEnergy.get(cog) ?? 0) > 0 ? `+${mintEnergy.get(cog)}` : "·"}
+                      </span>
+                      <span
+                        className="cg-mono"
+                        data-tip={
+                          r.gained.length + r.lostT.length > 0
+                            ? [r.gained.length > 0 ? `gained ${r.gained.join(" ")}` : null, r.lostT.length > 0 ? `lost ${r.lostT.join(" ")}` : null].filter(Boolean).join("\n")
+                            : "no tiles changed hands"
+                        }
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 700,
+                          justifySelf: "end",
+                          color: r.gained.length - r.lostT.length > 0 ? "var(--coherence)" : r.gained.length - r.lostT.length < 0 ? "var(--exploit)" : "var(--muted-2)",
+                        }}
+                      >
+                        {r.gained.length - r.lostT.length === 0 ? "·" : `${r.gained.length - r.lostT.length > 0 ? "+" : ""}${r.gained.length - r.lostT.length}`}
+                      </span>
+                      <span />
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+            )}
+            </Section>
+          </>
+        )}
       </div>
     </div>
   );
@@ -250,7 +503,7 @@ export function ChannelMessage({ m, onSeekTurn }: { m: Message; onSeekTurn?: (tu
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
-        <CogSigil index={fi} size={18} glow={false} />
+        <span style={{ width: 9, height: 9, borderRadius: 2, background: cogColor(fi) }} />
         <span style={{ fontFamily: "var(--f-ui)", fontWeight: 700, fontSize: 11, color: cogColor(fi) }}>{cogName(fi)}</span>
         {isPublic ? (
           <span className="cg-mono" style={{ fontSize: 8.5, color: "var(--coherence)" }}>
@@ -316,8 +569,13 @@ export function TileInspector({ tileKey: key, snapshot }: { tileKey: string; sna
   const nc = nb.length;
   const status = tileStatus(t, map, snapshot.coherenceMax, ownerColor);
   const drain = tileDrain(t, snapshot);
-  const scarred = t.density < t.density0; // an exploit halved the deposit
-  const mint = (t.density * t.coherence) / 10; // expected mineral/turn
+  // The bill is just the empire-scaled base — resistance costs no energy.
+  // Neighbors move COHERENCE instead: +1 per ally (paid bills only) − 1 per foe.
+  const enemies = t.alignment ? nb.filter((n) => n.alignment !== null && n.alignment !== t.alignment).length : 0;
+  const ownedCount = t.alignment ? snapshot.tiles.filter((x) => x.alignment === t.alignment).length : 0;
+  const base = upkeepBase(ownedCount);
+  const scarred = t.density < t.density0; // an exploit ground the deposit down
+  const mint = mintOf(t.density, t.coherence); // mineral/turn (deterministic)
   const row = (label: string, value: React.ReactNode): React.ReactElement => (
     <tr key={label}>
       <td className="cg-label" style={{ fontSize: 9, padding: "3px 0" }}>{label}</td>
@@ -330,14 +588,11 @@ export function TileInspector({ tileKey: key, snapshot }: { tileKey: string; sna
         <span className="cg-panel-title" style={{ fontSize: 11 }}>
           Tile {key}
         </span>
+        <Mineral m={t.mineral} />
       </div>
       <div className="cg-panel-body" style={{ padding: 11, display: "flex", flexDirection: "column", gap: 9 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-          {ownerIdx != null ? (
-            <CogSigil index={ownerIdx} size={26} />
-          ) : (
-            <div style={{ width: 26, height: 26, borderRadius: 6, border: "1px solid var(--border)", background: "var(--panel-2)" }} />
-          )}
+          <div style={{ width: 13, height: 13, borderRadius: 4, border: "1px solid var(--border)", background: ownerIdx != null ? ownerColor : "var(--panel-2)" }} />
           <div style={{ flex: 1 }}>
             <div style={{ fontFamily: "var(--f-ui)", fontWeight: 700, fontSize: 12, color: ownerColor }}>
               {ownerIdx != null ? cogName(ownerIdx) : "Unaligned"}
@@ -351,44 +606,78 @@ export function TileInspector({ tileKey: key, snapshot }: { tileKey: string; sna
           <tbody>
             {row("coherence", <span style={{ color: "var(--coherence)" }}>{t.coherence}/{snapshot.coherenceMax}</span>)}
             {row(
-              "mining",
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 5, justifyContent: "flex-end" }}>
-                {mint > 0 && <b style={{ color: "var(--text-dim)" }}>+{mint.toFixed(1)}</b>}
-                <Mineral m={t.mineral} />
-                {scarred ? (
-                  <span data-tip={`exploited — deposit halved from ${t.density0}`}>
-                    <s style={{ color: "var(--muted-2)" }}>{t.density0}</s>
-                    <span style={{ color: "var(--exploit)" }}> {t.density}</span>
-                  </span>
-                ) : (
-                  <span data-tip="deposit density — mints density × coherence / 10 per turn">{t.density}</span>
-                )}
-              </span>,
+              "density",
+              scarred ? (
+                <span data-tip={`exploited — deposit ground down from ${Math.floor(t.density0)}`}>
+                  <s style={{ color: "var(--muted-2)" }}>{Math.floor(t.density0)}</s>
+                  <span style={{ color: "var(--exploit)" }}> {Math.floor(t.density)}</span>
+                  <span style={{ color: "var(--muted)" }}>/10</span>
+                </span>
+              ) : (
+                <span data-tip="deposit richness (0-10) — mints floor(density × coherence / 10) per turn">
+                  {Math.floor(t.density)}<span style={{ color: "var(--muted)" }}>/10</span>
+                </span>
+              ),
             )}
             {row(
-              "energy",
+              "mining",
+              mint > 0 ? (
+                <span data-tip={`floor(density × coherence / 10) ${t.mineral} minted every upkeep`}>
+                  <b style={{ color: "var(--text-dim)" }}>+{mint}</b> {t.mineral}/turn
+                </span>
+              ) : (
+                <span data-tip="mints floor(density × coherence / 10) per turn — needs both density and coherence" style={{ color: "var(--muted)" }}>—</span>
+              ),
+            )}
+            {row(
+              "exploit",
+              exploitYield(t.coherence, t.density) > 0 ? (
+                <span data-tip={`one-time Exploit windfall: floor(10 × coherence × density) ${t.mineral} — wipes coherence and scars the deposit`} style={{ color: "var(--exploit)" }}>
+                  +{exploitYield(t.coherence, t.density)} {t.mineral}
+                </span>
+              ) : (
+                <span data-tip="Exploit yields floor(10 × coherence × density) — worthless without both" style={{ color: "var(--muted)" }}>—</span>
+              ),
+            )}
+            {row(
+              "upkeep",
               drain ? (
-                drain.verdict === "rots" ? (
-                  <span data-tip="the owner's wallet doesn't reach this tile — its bill goes unpaid and it loses 1 coherence" style={{ color: "var(--exploit)" }}>
-                    unpaid · −1 coh
+                drain.paid ? (
+                  <span data-tip={`base bill = floor(√${ownedCount} tiles) — empire scale taxes every tile; resistance costs no energy`} style={{ color: "var(--exploit)" }}>
+                    −{drain.drain}e/turn
                   </span>
                 ) : (
-                  <span
-                    data-tip={
-                      drain.verdict === "grows"
-                        ? "double-paid bill — this tile grows +1 coherence each turn the owner can afford it"
-                        : "base bill paid — the tile holds (double it to grow)"
-                    }
-                    style={{ color: "var(--exploit)" }}
-                  >
-                    −{drain.drain}e/turn
+                  <span data-tip="the owner's wallet doesn't reach this tile — an unpaid tile gets NO ally healing (enemy drain still applies)" style={{ color: "var(--exploit)" }}>
+                    unpaid
                   </span>
                 )
               ) : (
                 "—"
               ),
             )}
-            {row("neighbors", `${friendly}/${nc} friendly`)}
+            {drain &&
+              (drain.steps ?? 0) > 0 &&
+              row(
+                "pressure",
+                drain.verdict === "grows" ? (
+                  <span data-tip={`+1 coherence per allied neighbor − 1 per foe (${friendly} allies, ${enemies} foes) — free, every upkeep`} style={{ color: "var(--coherence)" }}>
+                    +{drain.steps} coh/turn
+                  </span>
+                ) : (
+                  <span
+                    data-tip={`−1 coherence per enemy neighbor + 1 per ally (${friendly} allies, ${enemies} foes)${drain.paid ? "" : " — ally healing needs a paid bill"} — at 0 the tile goes neutral`}
+                    style={{ color: "var(--exploit)" }}
+                  >
+                    −{drain.steps} coh/turn
+                  </span>
+                ),
+              )}
+            {row(
+              "neighbors",
+              t.alignment
+                ? `${friendly} ally · ${enemies} foe · ${nc - friendly - enemies} open`
+                : `${nb.filter((n) => n.alignment != null).length} claimed · ${nb.filter((n) => n.alignment == null).length} open`,
+            )}
           </tbody>
         </table>
       </div>
@@ -491,12 +780,18 @@ export function LatticePanel({
   mode,
   setMode,
   highlight = null,
+  onTileContextMenu,
+  planned,
 }: {
   snapshot: GameSnapshot;
   events: StampedEvent[];
   mode: LatticeMode;
   setMode: (m: LatticeMode) => void;
   highlight?: string | null;
+  /** Operator tile right-click (cog view: opens the queue-order context menu). */
+  onTileContextMenu?: (key: string, at: { x: number; y: number }) => void;
+  /** Planned/committed aligns to outline on the board (see HexBoard). */
+  planned?: Array<{ tile: string; coh: number; color: string }>;
 }): React.ReactElement {
   // The inspector is a hover card: it tracks the tile under the cursor and sits
   // just beside it, flipping at the panel's right/bottom edges. Leaving the
@@ -524,7 +819,12 @@ export function LatticePanel({
   const exploited = exploitTilesAt(events, turn);
   // Hovering a turn-pulse stat rings the tiles it mentions.
   const [pulse, setPulse] = useState<PulseGroup | null>(null);
-  const emphasis = pulse === "claimed" ? claimTilesAt(events, turn) : pulse === "flipped" ? flips : pulse === "exploited" ? exploited : [];
+  const [hotTiles, setHotTiles] = useState<string[]>([]);
+  useEffect(() => subscribeTileHighlight(setHotTiles), []);
+  const emphasis = [
+    ...(pulse === "claimed" ? claimTilesAt(events, turn) : pulse === "flipped" ? flips : pulse === "exploited" ? exploited : []),
+    ...hotTiles,
+  ];
   return (
     <div className="cg-panel cg-lattice" ref={wrapRef} data-testid="lattice">
       <div style={{ position: "absolute", inset: 0, padding: 8 }}>
@@ -536,7 +836,9 @@ export function LatticePanel({
           exploited={exploited}
           emphasis={emphasis}
           highlight={highlight}
-        />
+          planned={planned}
+        onTileContextMenu={onTileContextMenu}
+          />
       </div>
       <div style={{ position: "absolute", top: 12, left: 14 }}>
         <TurnPulse snapshot={snapshot} events={events} onHoverGroup={setPulse} />
@@ -549,7 +851,7 @@ export function LatticePanel({
       </div>
       <div className="cg-glass" style={{ position: "absolute", bottom: 12, left: 14, padding: "5px 9px", borderRadius: 8, border: "1px solid var(--border)", opacity: 0.75 }}>
         <span className="cg-mono" style={{ fontSize: 9, color: "var(--muted)" }}>
-          scroll zoom · drag pan · 2×click reset
+          scroll zoom · drag pan · 2×click reset{onTileContextMenu ? " · right-click queue order" : ""}
         </span>
       </div>
       {hover && (

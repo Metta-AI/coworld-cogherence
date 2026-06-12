@@ -25,20 +25,34 @@ export async function startServer(opts: {
   deadlineMs?: number;
   minTurnMs?: number;
   maxTurns?: number;
+  /** Soft auto-stop: the live loop pauses here; POST /extend adds 10 turns. */
+  turnLimit?: number;
   hub?: ActPromptHub;
   bus?: MessageBus;
   steering?: SteeringStore;
   agentSpecs?: string[];
+  /** Launch-time seat names (index-ordered). */
+  names?: string[];
+  /** Commit waits for every cog's Ready — no deadline, no countdown. */
+  waitForReady?: boolean;
+  /** Externally-reachable origin for share links (e.g. the Tailscale name). */
+  shareOrigin?: string | null;
   defaultLive?: boolean;
   autorun?: boolean;
+  /** Serve the client through Vite middleware (source + HMR) instead of nothing. */
+  dev?: boolean;
 }): Promise<ServerHandle> {
   const runner = new GameRunner({
     seed: opts.seed,
     agents: opts.agents,
     maxTurns: opts.maxTurns,
+    turnLimit: opts.turnLimit,
     deadlineMs: opts.deadlineMs,
     minTurnMs: opts.minTurnMs,
     bus: opts.bus,
+    steering: opts.steering,
+    names: opts.names,
+    waitForReady: opts.waitForReady,
   });
   // Record the live frame stream so the dashboard can replay this exact game.
   const recorder = new ReplayRecorder(
@@ -46,8 +60,24 @@ export async function startServer(opts: {
     { seed: opts.seed, agents: opts.agentSpecs ?? opts.agents.map((a) => a.id), turns: opts.maxTurns ?? 100 },
     { hub: opts.hub, bus: opts.bus },
   );
-  const http = createServer(createApp(runner, opts.hub, opts.steering, recorder, { defaultLive: opts.defaultLive }));
+  const http = createServer();
   const ws = attachWebsockets(http, runner, opts.hub, opts.bus, recorder);
+  // Dev: Vite in middleware mode serves client SOURCE with HMR — client edits
+  // land in the open page without a restart. Its HMR websocket shares this
+  // http server on /vite-hmr (whitelisted in websocket.ts).
+  const vite = opts.dev
+    ? await (await import("vite")).createServer({
+        // .ts.net lets the dev server be shared over Tailscale (vite's
+        // host-allowlist otherwise 403s any non-localhost hostname).
+        server: { middlewareMode: true, hmr: { server: http, path: "/vite-hmr" }, allowedHosts: [".ts.net"] },
+        // Each process mints a fresh ws token; after a tsx-watch restart an open
+        // page can revalidate /@vite/client from cache and present the DEAD
+        // process's token — vite 400s the handshake and the page silently stops
+        // hot-updating. Local-only dev server: skip the token, keep the host check.
+        legacy: { skipWebSocketTokenCheck: true },
+      })
+    : undefined;
+  http.on("request", createApp(runner, opts.hub, opts.steering, recorder, { defaultLive: opts.defaultLive, vite, shareOrigin: opts.shareOrigin }));
   await new Promise<void>((r) => http.listen(opts.port ?? 0, r));
   const port = (http.address() as { port: number }).port;
   if (opts.autorun !== false) void runner.run();
@@ -57,6 +87,7 @@ export async function startServer(opts: {
     runner,
     close: async () => {
       ws.close();
+      await vite?.close();
       await new Promise<void>((res) => http.close(() => res()));
     },
   };

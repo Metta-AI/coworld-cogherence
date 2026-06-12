@@ -1,17 +1,16 @@
-// The Upkeep phase: after Resolve, every Cog pays for its ground — and Coherence
-// is purely economic. Each tile's bill: the calm rate when a strict majority of
-// in-board neighbors share its alignment, the contested rate otherwise, plus a
-// surcharge per non-neutral neighbor (tileUpkeepCost). Heartland is funded first
-// (descending coherence). A tile whose bill goes unpaid loses 1 Coherence (and
-// goes neutral at 0); a tile the Cog pays DOUBLE for gains 1 (capped). Aligned
-// tiles then mint their mineral at density×coherence. Pure: the input state is
-// never mutated.
+// The Upkeep phase: after Resolve, every Cog pays for its ground — and the
+// NEIGHBORS move Coherence. Each tile's bill is just the empire-scaled base
+// (floor(sqrt(tiles owned)) — sprawl taxes itself), funded heartland-first.
+// Resistance costs no energy: every Upkeep a tile's coherence shifts by
+// (+1 per allied neighbor) − (1 per enemy neighbor), clamped 0..COHERENCE_MAX —
+// neutral neighbors count for nothing. The ally bonus rides on a PAID bill;
+// an unpaid tile still suffers the enemy drain but gets no healing. At 0 the
+// tile goes neutral. Aligned tiles then mint their mineral at
+// density×coherence. Pure: the input state is never mutated.
 
 import type { GameState, CogId, HexKey, Tile, Treasury, CogState } from "./types";
 import { neighbors, key } from "./hex";
-import { chargeEnergy, maxEnergy } from "./energy";
-import { makeRng } from "./rng";
-import { MINT_DIVISOR, COHERENCE_MAX, tileUpkeepCost } from "./constants";
+import { COHERENCE_MAX, mintOf, upkeepBase } from "./constants";
 
 /** Events emitted by an Upkeep phase (for the turn log / replay). */
 export type UpkeepEvent =
@@ -26,27 +25,14 @@ export type UpkeepEvent =
 
 const addT = (a: Treasury, b: Treasury): Treasury => ({ C: a.C + b.C, O: a.O + b.O, Ge: a.Ge + b.Ge, S: a.S + b.S });
 
-/** Round x down to floor(x), plus 1 with probability equal to its fractional part
- *  (so 2.3 → 2 with p=0.7, 3 with p=0.3). Unbiased: E[result] = x. */
-function stochasticRound(x: number, rng: () => number): number {
-  const floor = Math.floor(x);
-  return floor + (rng() < x - floor ? 1 : 0);
-}
-
 /**
- * The Upkeep phase: (1) bill every owned tile via tileUpkeepCost and pay base
- * upkeep heartland-first — unpaid tiles lose 1 Coherence (neutral at 0);
- * (2) with what's left, pay tiles DOUBLE (strongest first) to gain +1 Coherence,
- * capped at COHERENCE_MAX; (3) mint density×coherence of each aligned tile's
+ * The Upkeep phase: (1) bill every owned tile its empire-scaled base and pay
+ * heartland-first; (2) NEIGHBOR PRESSURE: each tile's coherence shifts by
+ * (paid ? allies : 0) − enemies, clamped 0..COHERENCE_MAX (at 0 the tile goes
+ * neutral); (3) mint floor(density × coherence / 10) of each aligned tile's
  * mineral. Pure.
  */
-export function upkeep(
-  state: GameState,
-  // Stochastic-mint RNG. Defaults to a per-turn stream seeded purely from
-  // (seed, turn) so a game stays fully reproducible (replay == live); tests
-  // inject a fixed rng for deterministic mint assertions.
-  rng: () => number = makeRng((state.seed >>> 0) ^ Math.imul(state.turn, 0x9e3779b1)),
-): { state: GameState; events: UpkeepEvent[] } {
+export function upkeep(state: GameState): { state: GameState; events: UpkeepEvent[] } {
   const events: UpkeepEvent[] = [];
   const tiles: Record<HexKey, Tile> = { ...state.tiles };
   const cogs: Record<CogId, CogState> = { ...state.cogs };
@@ -62,69 +48,64 @@ export function upkeep(
     const cog = state.cogs[cogId];
     if (!cog) continue;
     let treasury = cog.treasury;
+    let energy = cog.energy;
     const owned = ownedBy.get(cogId)!;
 
-    // bill each tile from the pre-upkeep snapshot (simultaneous across cogs)
-    const costs = new Map<HexKey, number>();
+    // count neighbors from the pre-upkeep snapshot (simultaneous across cogs)
+    const friendlyOf = new Map<HexKey, number>();
+    const enemiesOf = new Map<HexKey, number>();
     for (const k of owned) {
       const t = state.tiles[k]!;
-      let inBoard = 0;
       let friendly = 0;
-      let aligned = 0;
+      let enemies = 0;
       for (const n of neighbors(t.hex)) {
         const nt = state.tiles[key(n)];
-        if (!nt) continue;
-        inBoard++;
-        if (nt.alignment !== null) {
-          aligned++;
-          if (nt.alignment === t.alignment) friendly++;
-        }
+        if (!nt || nt.alignment === null) continue;
+        if (nt.alignment === t.alignment) friendly++;
+        else enemies++;
       }
-      costs.set(k, tileUpkeepCost(friendly, aligned, inBoard));
+      friendlyOf.set(k, friendly);
+      enemiesOf.set(k, enemies);
     }
     const desc = [...owned].sort((a, b) => state.tiles[b]!.coherence - state.tiles[a]!.coherence);
 
-    // 1. base upkeep, heartland first — an unpaid tile rots −1 (neutral at 0)
+    // 1. the empire-scaled base bill, heartland first, from STORED energy
+    //    (resistance bills nothing; minerals don't spend — they convert)
+    const base = upkeepBase(owned.length);
     const paid = new Set<HexKey>();
     for (const k of desc) {
-      const cost = costs.get(k)!;
-      if (maxEnergy(treasury) >= cost) {
-        treasury = chargeEnergy(treasury, cost)!;
+      if (energy >= base) {
+        energy -= base;
         paid.add(k);
-      } else {
-        const t = tiles[k]!;
-        const coherence = Math.max(0, t.coherence - 1);
-        tiles[k] = coherence === 0 ? { ...t, coherence, alignment: null } : { ...t, coherence };
-        events.push({ type: "starved", cog: cogId, tile: k, coherence });
-        if (coherence === 0) events.push({ type: "lost", cog: cogId, tile: k });
       }
     }
 
-    // 2. double-pay grows: a second full bill buys +1 Coherence, strongest first
+    // 2. neighbor pressure: +1 per ally (paid bills only) − 1 per enemy, net,
+    //    clamped 0..COHERENCE_MAX — a tile ground to 0 goes neutral.
     for (const k of desc) {
-      if (!paid.has(k)) continue;
       const t = tiles[k]!;
-      if (t.coherence >= COHERENCE_MAX) continue;
-      const cost = costs.get(k)!;
-      if (maxEnergy(treasury) < cost) continue; // cheaper tiles further down may still afford it
-      treasury = chargeEnergy(treasury, cost)!;
-      tiles[k] = { ...t, coherence: t.coherence + 1 };
+      const delta = (paid.has(k) ? friendlyOf.get(k)! : 0) - enemiesOf.get(k)!;
+      const coherence = Math.max(0, Math.min(COHERENCE_MAX, t.coherence + delta));
+      if (coherence === t.coherence) continue;
+      tiles[k] = coherence === 0 ? { ...t, coherence, alignment: null } : { ...t, coherence };
+      if (delta < 0) events.push({ type: "starved", cog: cogId, tile: k, coherence });
+      if (coherence === 0) events.push({ type: "lost", cog: cogId, tile: k });
     }
 
-    // 3. mint (post-upkeep coherence) — density×coherence/MINT_DIVISOR per tile
-    //    still aligned, stochastically rounded. Tile-less cogs mint nothing.
+    // 3. mint (post-upkeep coherence) — floor(density × coherence / 10) per
+    //    tile still aligned, deterministic. Tile-less cogs mint nothing.
     const stillMine = owned.filter((k) => tiles[k]!.alignment === cogId);
     if (stillMine.length > 0) {
       const gained: Treasury = { C: 0, O: 0, Ge: 0, S: 0 };
       for (const k of stillMine) {
         const t = tiles[k]!;
-        gained[t.mineral] += stochasticRound((t.density * t.coherence) / MINT_DIVISOR, rng);
+        gained[t.mineral] += mintOf(t.density, t.coherence);
       }
       treasury = addT(treasury, gained);
       events.push({ type: "mint", cog: cogId, gained });
     }
 
-    cogs[cogId] = { ...cog, treasury };
+    cogs[cogId] = { ...cog, treasury, energy };
   }
 
   return { state: { ...state, tiles, cogs }, events };

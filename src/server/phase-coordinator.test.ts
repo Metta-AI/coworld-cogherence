@@ -42,5 +42,6 @@ describe("PhaseCoordinator.collect", () => {
     pc.submit("cog1", ["c"]);
     await p;
     expect(progress).toHaveBeenCalledTimes(3);
+    expect(pc.submissionOrder()).toEqual(["cog2", "cog0", "cog1"]); // arrival order, not seat order
   });
 });

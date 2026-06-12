@@ -1,7 +1,8 @@
 // Cogherence neon-glass atoms: each Cog is a luminous hexagonal *sigil* (a mind,
 // not a body), mineral *chips* spell COGS, a *wallet* derives energy from a COGS
 // set, *verb tags* color the board verbs, plus the brand and the four-phase strip.
-import React from "react";
+import React, { useState } from "react";
+import { publishTileHighlight } from "./tile-highlight";
 import type { Treasury, Phase } from "../../shared/engine/types";
 import { Icon, type IconName } from "../Icon";
 import { cogColor, cogName } from "../colors";
@@ -31,6 +32,32 @@ export function CGIcon({ name, size = 16, title }: { name: IconName; size?: numb
   return <Icon name={name} size={size} data-tip={title} />;
 }
 
+/** A tile address as a hoverable pill — hovering highlights the tile on the
+ *  lattice (via the tile-highlight channel). */
+export function TilePill({ k }: { k: string }): React.ReactElement {
+  return (
+    <span
+      className="cg-tilepill"
+      onMouseEnter={() => publishTileHighlight([k])}
+      onMouseLeave={() => publishTileHighlight([])}
+    >
+      {k}
+    </span>
+  );
+}
+
+/** The energy badge — a glowing blue circle with the bolt, sized like a mineral chip. */
+export function EnergyChip(): React.ReactElement {
+  return (
+    <span className="cg-min energy" style={{ filter: "none" }}>
+      {/* the icon art is light — brightness(0) stamps it black on the white chip */}
+      <span style={{ display: "inline-flex", filter: "brightness(0)" }}>
+        <CGIcon name="energy" size={14} />
+      </span>
+    </span>
+  );
+}
+
 /** A mineral chip — a glowing rounded square stamped with its letter (C/O/Ge/S). */
 export function Mineral({ m, label }: { m: string; label?: boolean }): React.ReactElement {
   return (
@@ -45,124 +72,44 @@ export function Mineral({ m, label }: { m: string; label?: boolean }): React.Rea
   );
 }
 
-const hexPath = (cx: number, cy: number, R: number): string => {
-  let d = "";
-  for (let i = 0; i < 6; i++) {
-    const a = (Math.PI / 180) * (60 * i - 30);
-    d += `${i ? "L" : "M"}${(cx + R * Math.cos(a)).toFixed(1)},${(cy + R * Math.sin(a)).toFixed(1)} `;
-  }
-  return d + "Z";
-};
-
-/** One distinct inner glyph per seat index (0..5) — steward, expansionist, … */
-function Glyph({ idx, color }: { idx: number; color: string }): React.ReactElement {
-  const s = { stroke: color, strokeWidth: 2, fill: "none", strokeLinecap: "round", strokeLinejoin: "round" } as const;
-  switch (idx % 6) {
-    case 0: // concentric, solid core
-      return (
-        <g>
-          <path d={hexPath(32, 32, 13)} {...s} />
-          <circle cx="32" cy="32" r="5" fill={color} />
-        </g>
-      );
-    case 1: // radiating arms
-      return (
-        <g {...s}>
-          {[0, 60, 120, 180, 240, 300].map((a) => {
-            const rad = (a * Math.PI) / 180;
-            return (
-              <line
-                key={a}
-                x1={32 + 5 * Math.cos(rad)}
-                y1={32 + 5 * Math.sin(rad)}
-                x2={32 + 16 * Math.cos(rad)}
-                y2={32 + 16 * Math.sin(rad)}
-              />
-            );
-          })}
-          <circle cx="32" cy="32" r="3.5" fill={color} stroke="none" />
-        </g>
-      );
-    case 2: // split disc
-      return (
-        <g>
-          <circle cx="32" cy="32" r="13" {...s} />
-          <path d="M32 19 A13 13 0 0 1 32 45 Z" fill={color} opacity="0.9" />
-        </g>
-      );
-    case 3: // jagged shard
-      return (
-        <g {...s}>
-          <path d="M24 40 L30 22 L34 33 L41 24 L38 41 Z" />
-        </g>
-      );
-    case 4: // eccentric orbit
-      return (
-        <g {...s}>
-          <circle cx="32" cy="32" r="5" fill={color} stroke="none" />
-          <ellipse cx="32" cy="32" rx="15" ry="8" transform="rotate(28 32 32)" />
-          <circle cx="46" cy="26" r="3" fill={color} stroke="none" />
-        </g>
-      );
-    default: // lone core
-      return <circle cx="32" cy="32" r="6" fill={color} />;
-  }
-}
-
-/** A Cog's luminous sigil, tinted by its seat color. */
-export function CogSigil({ index, size = 30, glow = true }: { index: number; size?: number; glow?: boolean }): React.ReactElement {
-  const color = cogColor(index);
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 64 64"
-      style={{ flex: "0 0 auto", filter: glow ? `drop-shadow(0 0 5px ${color}88)` : "none" }}
-    >
-      <path d={hexPath(32, 32, 28)} fill="#0c0c15" stroke={color} strokeWidth="2" strokeOpacity="0.55" />
-      <path d={hexPath(32, 32, 28)} fill={color} fillOpacity="0.08" />
-      <Glyph idx={index} color={color} />
-    </svg>
-  );
-}
-
-/** A compact COGS wallet: the four mineral counts + the derived energy (sets ×10),
- *  with the per-turn upkeep drain beside it when provided. */
-export function Wallet({ treasury, energy, upkeep }: { treasury: Treasury; energy: number; upkeep?: number }): React.ReactElement {
+export function Wallet({ treasury, energy, upkeep, income, expected }: { treasury: Treasury; energy: number; upkeep?: number; income?: number; expected?: Record<string, number> }): React.ReactElement {
   const sets = setsOf(treasury);
+  const delta = income != null ? income - (upkeep ?? 0) : null;
+  const tipRow = (label: string, val: number, sign = false): string =>
+    `${label.padEnd(12)}${`${sign && val >= 0 ? "+" : ""}${val}e`.padStart(6)}`;
+  const energyTip = [
+    tipRow("energy stored", energy),
+    ...(sets > 0 ? [tipRow(`convertible: ${sets} set${sets > 1 ? "s" : ""} ×10e`, sets * 10)] : []),
+    ...(income != null ? [tipRow("minted last", income, true)] : []),
+    ...(upkeep != null && upkeep > 0 ? [tipRow("bills /turn", -upkeep, true)] : []),
+    ...(delta != null ? [tipRow("net /turn", delta, true)] : []),
+  ].join("\n");
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
       {MINERALS.map((m) => (
-        <span key={m} data-tip={`${MINERAL_NAME[m]} in treasury: ${treasury[m]}`} style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+        <span
+          key={m}
+          data-tip={
+            expected != null
+              ? `${(MINERAL_NAME[m] ?? m).padEnd(11)}${String(treasury[m]).padStart(6)}\n${"mint /turn".padEnd(11)}${`+${(expected[m] ?? 0).toFixed(1)}`.padStart(6)}`
+              : `${MINERAL_NAME[m]} in treasury: ${treasury[m]}`
+          }
+          style={{ display: "inline-flex", alignItems: "center", gap: 3 }}
+        >
           <span className={`cg-min ${minClass(m)}`}>{m}</span>
           <span className="cg-mono" style={{ fontSize: 12, fontWeight: 600, color: treasury[m] ? "var(--text)" : "var(--muted-2)" }}>
             {treasury[m]}
           </span>
         </span>
       ))}
-      <span
-        data-tip="energy derived from the treasury — a full C+O+Ge+S set is worth 10e, leftover singles 1e each"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 3,
-          marginLeft: 2,
-          paddingLeft: 8,
-          borderLeft: "1px solid var(--border)",
-        }}
-      >
-        <CGIcon name="energy" size={13} />
-        <span className="cg-mono" style={{ fontSize: 13, fontWeight: 700, color: "var(--energy)" }}>
+      <span data-tip={energyTip} style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+        <EnergyChip />
+        <span className="cg-mono" style={{ fontSize: 12, fontWeight: 600, color: "var(--energy)" }}>
           {energy}
         </span>
-        {sets > 0 && (
-          <span className="cg-mono" data-tip={`${sets} complete COGS set${sets > 1 ? "s" : ""} (10e each)`} style={{ fontSize: 9, color: "var(--muted)" }}>
-            ·{sets}×set
-          </span>
-        )}
-        {upkeep != null && upkeep > 0 && (
-          <span className="cg-mono" data-tip="tile upkeep drained each turn — the per-tile rate scales with empire size" style={{ fontSize: 10, color: "var(--exploit)", marginLeft: 4 }}>
-            −{upkeep}e/turn
+        {delta != null && (
+          <span className="cg-mono" style={{ fontSize: 9.5, fontWeight: 700, color: delta >= 0 ? "var(--coherence)" : "var(--exploit)" }}>
+            {delta >= 0 ? "+" : ""}{delta}
           </span>
         )}
       </span>
@@ -175,21 +122,63 @@ export function VerbTag({ kind, children }: { kind: string; children: React.Reac
   return <span className={`cg-verb ${kind}`}>{children}</span>;
 }
 
-/** The wordmark: the logo glyph + COGHERENCE, with an optional tagline. */
+/** Copy text in any context: the async clipboard API needs HTTPS/localhost,
+ *  and tailnet visitors arrive over plain HTTP — they get the textarea path. */
+function copyText(text: string): void {
+  if (navigator.clipboard?.writeText) {
+    void navigator.clipboard.writeText(text);
+    return;
+  }
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.position = "fixed";
+  ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.select();
+  document.execCommand("copy");
+  ta.remove();
+}
+
+/** The wordmark: the logo glyph + COGHERENCE, with an optional tagline.
+ *  CLICK copies the current view's PLAY LINK on the externally-reachable
+ *  origin (/share-info — the Tailscale name when the server knows one), so
+ *  the host doesn't hand out localhost. */
 export function Brand({ small = false }: { small?: boolean }): React.ReactElement {
+  const [copied, setCopied] = useState<string | null>(null);
+  const copyPlayLink = (): void => {
+    void fetch("/share-info")
+      .then((r) => r.json())
+      .then((j: { origin: string | null }) => {
+        const link = `${j.origin ?? window.location.origin}${window.location.pathname}`;
+        copyText(link);
+        setCopied(link);
+        window.setTimeout(() => setCopied(null), 2200);
+      });
+  };
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+    <div
+      role="button"
+      tabIndex={0}
+      data-testid="brand"
+      data-tip="click to copy this view's shareable play link"
+      onClick={copyPlayLink}
+      onKeyDown={(e) => e.key === "Enter" && copyPlayLink()}
+      style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}
+    >
       <CGIcon name="logo" size={small ? 26 : 32} />
       <div>
         <div style={{ fontFamily: "var(--f-ui)", fontWeight: 700, fontSize: small ? 17 : 20, letterSpacing: "0.04em", color: "var(--text)" }}>
           COGHERENCE
         </div>
         {!small && (
-          <div className="cg-mono" style={{ fontSize: 9, color: "var(--muted)", letterSpacing: "0.16em", marginTop: 1 }}>
-            A POLIS OF MINDS
+          <div className="cg-mono" style={{ fontSize: 9, color: copied ? "var(--coherence)" : "var(--muted)", letterSpacing: copied ? "0.04em" : "0.16em", marginTop: 1, whiteSpace: "nowrap" }}>
+            {copied ? `✓ copied ${copied.replace(/^https?:\/\//, "")}` : "A POLIS OF MINDS"}
           </div>
         )}
       </div>
+      {small && copied && (
+        <span className="cg-mono" style={{ fontSize: 9, color: "var(--coherence)", whiteSpace: "nowrap" }}>✓ copied</span>
+      )}
     </div>
   );
 }

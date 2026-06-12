@@ -1,15 +1,17 @@
 // The live turn loop: per turn, open a Commit phase (deadline-bounded), collect
 // each cog's orders (default [] on timeout), resolve + upkeep, emit frames.
 // Engine-pure underneath; this layer only adds timing, the coordinator, and IO.
-import type { GameState, CogId } from "../shared/engine/types";
+import type { GameState, CogId, Mineral } from "../shared/engine/types";
 import type { Order } from "../shared/engine/orders";
 import type { Agent } from "../agents/types";
 import type { ServerMessage, ServerStatus } from "../shared/protocol";
-import { newGame, stepTurn, scoreGame } from "../shared/engine/game";
-import { addCog } from "../shared/engine/board";
+import { newGame, stepTurn, scoreGame, convertCogSets, convertCogMineral } from "../shared/engine/game";
+import { fullSets } from "../shared/engine/energy";
+import { addCog, removeCog } from "../shared/engine/board";
 import { toSnapshot } from "../shared/snapshot";
 import { PhaseCoordinator } from "./phase-coordinator";
 import type { MessageBus } from "./message-bus";
+import type { SteeringStore } from "./steering-store";
 import type { TurnEvent } from "../shared/engine/log";
 
 type Listener = (m: ServerMessage) => void;
@@ -19,9 +21,15 @@ export class GameRunner {
   private agents: Agent[];
   private seed: number;
   private maxTurns: number;
+  /** Soft auto-stop: the loop PAUSES (doesn't finish) when the next turn would
+   *  exceed this; extendTurnLimit(+10) raises it and resumes. Infinity = off. */
+  private turnLimit: number;
   private deadlineMs: number;
   private minTurnMs: number;
   private bus?: MessageBus;
+  private steering?: SteeringStore;
+  private names?: string[];
+  private waitForReady = false;
   private negotiateRounds: number;
   private listeners: Listener[] = [];
   private clientCount = 0;
@@ -49,19 +57,30 @@ export class GameRunner {
     seed: number;
     agents: Agent[];
     maxTurns?: number;
+    turnLimit?: number;
     deadlineMs?: number;
     minTurnMs?: number;
     bus?: MessageBus;
+    steering?: SteeringStore;
+    /** Launch-time seat names (index-ordered); roster defaults fill the gaps. */
+    names?: string[];
+    /** Wait-ready mode: the Commit window has NO deadline — the turn advances
+     *  only when every cog submits (manual cogs: the operator's Ready). */
+    waitForReady?: boolean;
     negotiateRounds?: number;
   }) {
     this.agents = opts.agents;
     this.seed = opts.seed;
     this.maxTurns = opts.maxTurns ?? 100;
+    this.turnLimit = opts.turnLimit ?? Infinity;
     this.deadlineMs = opts.deadlineMs ?? 20_000;
     this.minTurnMs = opts.minTurnMs ?? 0;
     this.bus = opts.bus;
+    this.steering = opts.steering;
     this.negotiateRounds = opts.negotiateRounds ?? 1;
-    this.state = newGame(opts.seed, opts.agents.length);
+    this.names = opts.names;
+    this.waitForReady = opts.waitForReady ?? false;
+    this.state = newGame(opts.seed, opts.agents.length, opts.names);
   }
 
   /** Operator reset: abandon the current game and start a fresh one from turn 1.
@@ -69,7 +88,7 @@ export class GameRunner {
    *  we clear history (events + chat) and kick a new loop that re-broadcasts. */
   reset(): void {
     this.generation += 1;
-    this.state = newGame(this.seed, this.agents.length);
+    this.state = newGame(this.seed, this.agents.length, this.names);
     this.recent = [];
     this.coord = null;
     this.livePhase = null;
@@ -81,6 +100,13 @@ export class GameRunner {
     this.pausedAccumMs = 0;
     this.releaseWaiters();
     void this.run();
+  }
+
+  /** Raise the soft auto-stop by `by` turns (capped at maxTurns) and resume. */
+  extendTurnLimit(by: number): number {
+    this.turnLimit = Math.min(this.maxTurns, (Number.isFinite(this.turnLimit) ? this.turnLimit : this.maxTurns) + by);
+    this.setPaused(false);
+    return this.turnLimit;
   }
 
   /** Operator pause/resume of the live turn loop. Pausing parks the loop at the
@@ -96,6 +122,49 @@ export class GameRunner {
       this.pausedAt = undefined;
       this.releaseWaiters();
     }
+    this.emit({ type: "serverStatus", status: this.status() });
+  }
+
+  /** Kick a cog out of the game: its ground goes neutral, its agent stops
+   *  playing, its steering resets, and a parked commit window stops waiting
+   *  for it (expireOne — it defaults like a missed deadline). */
+  removeCog(cogId: CogId): boolean {
+    if (!this.state.cogs[cogId]) return false;
+    this.state = removeCog(this.state, cogId);
+    this.agents = this.agents.filter((a) => a.id !== cogId);
+    this.coord?.expireOne(cogId);
+    this.steering?.clear(cogId);
+    this.emit({ type: "snapshot", snapshot: toSnapshot(this.state) });
+    this.emit({ type: "serverStatus", status: this.status() });
+    return true;
+  }
+
+  /** Convert `sets` of a cog's full COGS sets into stored energy (the Convert
+   *  Set button). Conversion only adds energy, so mid-window application is
+   *  safe. Returns false when the treasury can't cover it. */
+  convert(cogId: CogId, sets = 1): boolean {
+    const next = convertCogSets(this.state, cogId, sets);
+    if (next === this.state) return false;
+    this.state = next;
+    this.emit({ type: "snapshot", snapshot: toSnapshot(this.state) });
+    return true;
+  }
+
+  /** Convert `count` of one element into stored energy (right-click menu). */
+  convertMineral(cogId: CogId, mineral: Mineral, count: number): boolean {
+    const next = convertCogMineral(this.state, cogId, mineral, count);
+    if (next === this.state) return false;
+    this.state = next;
+    this.emit({ type: "snapshot", snapshot: toSnapshot(this.state) });
+    return true;
+  }
+
+  /** Flip wait-ready mode live. Turning it OFF releases a currently-parked
+   *  commit window (un-submitted cogs default to [] — exactly as if the
+   *  deadline had just fired); turning it ON applies from the next window. */
+  setWaitForReady(on: boolean): void {
+    this.waitForReady = on;
+    if (!on) this.coord?.expireAll();
     this.emit({ type: "serverStatus", status: this.status() });
   }
 
@@ -117,12 +186,16 @@ export class GameRunner {
    *  the in-flight turn just treats it as holding (no orders collected yet) —
    *  and broadcasts the new board. Returns the seated cog's id; throws when the
    *  board is out of seats/corners (the HTTP layer surfaces that as an error). */
-  addCog(makeAgent: (id: CogId) => Agent): CogId {
-    const id: CogId = `cog${this.state.cogOrder.length}`;
-    this.state = addCog(this.state);
+  addCog(makeAgent: (id: CogId) => Agent, name?: string): CogId {
+    const before = new Set(this.state.cogOrder);
+    this.state = addCog(this.state, name);
+    const id = this.state.cogOrder.find((x) => !before.has(x))!;
+    // remember claimed names so a reset rebuilds the same roster
+    if (name) (this.names ??= [])[this.state.cogs[id]!.index] = name;
     this.agents.push(makeAgent(id));
     this.emit({ type: "snapshot", snapshot: toSnapshot(this.state) });
     this.emit({ type: "serverStatus", status: this.status() });
+    this.releaseWaiters(); // an empty board idles until its first seat — wake it
     return id;
   }
 
@@ -156,6 +229,8 @@ export class GameRunner {
       done: this.coord?.done() ?? [],
       paused: this.paused,
       pausedAccumMs: this.pausedAccumMs,
+      waitReady: this.waitForReady,
+      ...(Number.isFinite(this.turnLimit) ? { turnLimit: this.turnLimit } : {}),
       ...(this.pausedAt !== undefined ? { pausedAt: this.pausedAt } : {}),
       ...(this.phaseDeadlineAt !== undefined ? { phaseDeadlineAt: this.phaseDeadlineAt } : {}),
       ...(this.startedAt !== undefined ? { startedAt: this.startedAt } : {}),
@@ -170,11 +245,39 @@ export class GameRunner {
     this.emit({ type: "serverStatus", status: this.status() });
 
     while (this.state.turn <= this.maxTurns && gen === this.generation) {
+      // Soft auto-stop: pause at the limit (the operator extends it to continue).
+      if (this.state.turn > this.turnLimit && !this.paused) this.setPaused(true);
       // Operator pause parks here, at a clean turn boundary, until resume/reset.
       await this.waitWhilePaused(gen);
       if (gen !== this.generation) return scoreGame(this.state);
+      if (this.state.turn > this.turnLimit) continue; // resumed without extending -> re-park
+      // An EMPTY board idles — no cogs, nothing to simulate. The first claim
+      // (addCog) wakes the loop; without this, turns would burn through the
+      // limit before anyone joined a no-players launch.
+      if (this.agents.length === 0) {
+        await new Promise<void>((resolve) => this.resumeWaiters.push(resolve));
+        continue;
+      }
 
       const startedAt = Date.now();
+      // Turn-start conversions. FULL SETS always convert, for everyone — the
+      // best rate, and minerals only arrive at turn boundaries, so there's no
+      // reason to sit on a set. On top of that: autopilot cogs LIQUIDATE
+      // their leftover singles too (bots never starve), while manual cogs
+      // keep singles as trade goods unless an element is flagged auto-convert
+      // (right-click menu).
+      for (const a of this.agents) {
+        const st = this.steering?.get(a.id);
+        const cog = () => this.state.cogs[a.id];
+        if (!cog()) continue;
+        const sets = fullSets(cog()!.treasury);
+        if (sets > 0) this.state = convertCogSets(this.state, a.id, sets);
+        const singles = st?.paused ? st.autoConvert : (["C", "O", "Ge", "S"] as const);
+        for (const m of singles) {
+          const have = cog()!.treasury[m];
+          if (have > 0) this.state = convertCogMineral(this.state, a.id, m, have);
+        }
+      }
       const snapshot = this.state;
 
       // Negotiate phase (free-form cheap talk): a deadline-bounded window so the
@@ -187,23 +290,30 @@ export class GameRunner {
         this.phaseDeadlineAt = undefined;
       }
 
-      // Commit phase: open a deadline window; broadcast it + each cog's ready flip.
+      // Commit phase: open a deadline window; broadcast it + each cog's ready
+      // flip. Wait-ready mode drops the deadline entirely: the turn advances
+      // only when EVERY cog submits (no countdown in the header either).
       const coord = new PhaseCoordinator<Order[]>(this.agents.map((a) => a.id));
       this.coord = coord;
       this.livePhase = "commit";
-      this.phaseDeadlineAt = Date.now() + this.deadlineMs;
+      this.phaseDeadlineAt = this.waitForReady ? undefined : Date.now() + this.deadlineMs;
       this.emit({ type: "serverStatus", status: this.status() });
-      const collected = coord.collect(this.deadlineMs, () => [], () =>
+      const collected = coord.collect(this.waitForReady ? Infinity : this.deadlineMs, () => [], () =>
         this.emit({ type: "serverStatus", status: this.status() }),
       );
-      // The deadline guards a hung agent: its submit never fires -> default [].
-      await Promise.all(
-        this.agents.map(async (a) =>
-          coord.submit(a.id, await a.commit({ state: snapshot, me: a.id, messages: this.bus?.visibleTo(a.id) })),
-        ),
-      );
+      // Kick every agent; submissions feed the coordinator. NOT awaited: a
+      // manual cog that never hits Ready parks its commit promise forever, and
+      // awaiting it here would hang the turn past the deadline — `collect`
+      // owns the clock and defaults missing cogs to [].
+      for (const a of this.agents)
+        void (async () =>
+          coord.submit(a.id, await a.commit({ state: snapshot, me: a.id, messages: this.bus?.visibleTo(a.id) })))();
       const ordersByCog = await collected;
-      const firstCommitter = coord.first() ?? undefined; // the tempo winner this turn
+      // The window is closed: expire still-parked manual commits (keeping their
+      // queues) so a LATE Ready arms for the next window instead of resolving a
+      // dead promise — that path silently swallowed the operator's orders.
+      this.steering?.expireWaiting();
+      const commitOrder = coord.submissionOrder(); // tempo winner + auction tie-breaks
       this.coord = null;
       this.livePhase = null;
       this.phaseDeadlineAt = undefined;
@@ -224,7 +334,7 @@ export class GameRunner {
       this.livePhase = null;
       if (gen !== this.generation) return scoreGame(this.state);
 
-      this.state = stepTurn(this.state, ordersByCog, firstCommitter);
+      this.state = stepTurn(this.state, ordersByCog, commitOrder);
       const rec = this.state.log[this.state.log.length - 1]!;
       for (const ev of rec.events) {
         this.recent.push({ turn: rec.turn, event: ev });

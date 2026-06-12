@@ -10,7 +10,7 @@ npm run dev                       # vite dev server (HMR) on the bundled replay 
 npm run smoke                     # playwright against the same `serve` path
 ```
 
-`npm run serve` / `npm run smoke` regenerate `public/replay.json` and rebuild `dist/` first (the `preserve` hook); `npm run dev` regenerates the replay (`predev`). To record a specific game by hand:
+`npm run serve` runs the live server with the client served through Vite middleware (source + HMR — client edits hot-swap into the open page; `tsx watch` restarts the server on engine/server edits and the page reloads itself). `npm run dev` is the replay-only client and regenerates the replay first (`predev`). To record a specific game by hand:
 
 ```bash
 npm run play -- --seed 42 --agents greedy,peaceful,random,greedy --out public/replay.json

@@ -7,7 +7,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import type { CogId } from "../shared/engine/types";
 import type { ServerMessage } from "../shared/protocol";
 import { toSnapshot } from "../shared/snapshot";
-import { buildCogSnapshot } from "./redact";
+import { buildCogSnapshot, redactEventFor } from "./redact";
 import type { GameRunner } from "./game-runner";
 import type { ActPromptHub } from "./act-prompt-hub";
 import type { MessageBus } from "./message-bus";
@@ -34,8 +34,12 @@ function backfillFrame(ws: WebSocket, f: ServerMessage, cogId: CogId | null): vo
     if (!cogId || messageVisibleToCog(f.message, cogId)) send(ws, f);
   } else if (f.type === "actPrompt") {
     if (!cogId || f.cogId === cogId) send(ws, f);
+  } else if (f.type === "event" && cogId) {
+    // board events are public EXCEPT bids — those are sealed per viewer
+    const e = redactEventFor(f.event, cogId);
+    if (e) send(ws, { ...f, event: e });
   } else {
-    send(ws, f); // board events are public
+    send(ws, f);
   }
 }
 
@@ -55,6 +59,7 @@ export function attachWebsockets(
     let cogId: CogId | null;
     if (path === "/global/ws") cogId = null;
     else if (m) cogId = m[1]!;
+    else if (path === "/vite-hmr") return; // Vite HMR (dev) — vite's own upgrade listener owns this path
     else {
       socket.destroy();
       return;
@@ -72,7 +77,10 @@ export function attachWebsockets(
         // No recorder (tests / static): head-first sync + recent activity backfill.
         const head = toSnapshot(runner.state);
         send(ws, { type: "snapshot", snapshot: cogId ? buildCogSnapshot(head, cogId) : head });
-        for (const { turn, event } of runner.recentEvents()) send(ws, { type: "event", event, turn });
+        for (const { turn, event } of runner.recentEvents()) {
+          const e = cogId ? redactEventFor(event, cogId) : event;
+          if (e) send(ws, { type: "event", event: e, turn });
+        }
         if (cogId) {
           for (const e of hub?.list(cogId) ?? [])
             send(ws, { type: "actPrompt", cogId: e.cogId, turn: e.turn, phase: e.phase, content: e.content });
@@ -96,6 +104,9 @@ export function attachWebsockets(
     for (const c of clients) {
       if (c.cogId && msg.type === "snapshot") {
         send(c.ws, { type: "snapshot", snapshot: buildCogSnapshot(msg.snapshot, c.cogId) });
+      } else if (c.cogId && msg.type === "event") {
+        const e = redactEventFor(msg.event, c.cogId);
+        if (e) send(c.ws, { ...msg, event: e });
       } else {
         send(c.ws, msg);
       }

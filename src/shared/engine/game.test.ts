@@ -33,11 +33,10 @@ describe("game", () => {
 
   it("awards the first committer the tempo bonus and logs a firstCommit event", () => {
     const g = newGame(7, 4);
-    const sum = (t: Treasury) => t.C + t.O + t.Ge + t.S;
     const without = stepTurn(g, {});
-    const withFirst = stepTurn(g, {}, "cog1");
-    // cog1's wallet is FIRST_COMMIT_REWARD richer than if it hadn't moved first.
-    expect(sum(withFirst.cogs.cog1!.treasury)).toBe(sum(without.cogs.cog1!.treasury) + FIRST_COMMIT_REWARD);
+    const withFirst = stepTurn(g, {}, ["cog1"]);
+    // cog1's stored energy is FIRST_COMMIT_REWARD richer than if it hadn't moved first.
+    expect(withFirst.cogs.cog1!.energy).toBe(without.cogs.cog1!.energy + FIRST_COMMIT_REWARD);
     expect(withFirst.log[0]!.events.find((e) => e.type === "firstCommit")).toMatchObject({
       cog: "cog1",
       reward: FIRST_COMMIT_REWARD,
@@ -47,6 +46,15 @@ describe("game", () => {
   it("no first committer -> no bonus, no event (scripted replays opt out)", () => {
     const g2 = stepTurn(newGame(7, 4), {});
     expect(g2.log[0]!.events.some((e) => e.type === "firstCommit")).toBe(false);
+  });
+
+  it("records every order as played, ahead of its consequences (for the Turn Log)", () => {
+    const g = newGame(7, 4);
+    const next = stepTurn(g, { cog0: [{ type: "bid", energy: 3 }], cog2: [{ type: "bid", energy: 1 }] });
+    const events = next.log[0]!.events;
+    expect(events[0]).toEqual({ type: "order", cog: "cog0", order: { type: "bid", energy: 3 } });
+    expect(events[1]).toEqual({ type: "order", cog: "cog2", order: { type: "bid", energy: 1 } });
+    expect(events.findIndex((e) => e.type === "auction")).toBeGreaterThan(1);
   });
 
   it("runGame plays MAX_TURNS turns, returns a winner, and is fully deterministic for (seed, agents)", async () => {

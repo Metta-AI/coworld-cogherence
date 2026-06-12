@@ -7,13 +7,12 @@ import { makeRng, randInt } from "./rng";
 import { hexesInRadius, key } from "./hex";
 import { MINERALS } from "./types";
 import type { GameState, Tile, CogState, CogId, Treasury } from "./types";
-import { BOARD_RADIUS, COHERENCE_MAX, SET_ENERGY, STARTING_ENERGY } from "./constants";
+import { BARREN_FRACTION, BOARD_RADIUS, COHERENCE_MAX, DENSITY_MAX, DENSITY_POWER, SET_ENERGY, STARTING_ENERGY } from "./constants";
 
 /** A balanced starting wallet worth exactly STARTING_ENERGY (maxEnergy of N full sets). */
-const startingTreasury = (): Treasury => {
-  const each = STARTING_ENERGY / SET_ENERGY;
-  return { C: each, O: each, Ge: each, S: each };
-};
+/** Fresh cogs start with STORED energy and an empty treasury — mints bring
+ *  minerals in, which convert (full sets) or trade. */
+const startingTreasury = (): Treasury => ({ C: 0, O: 0, Ge: 0, S: 0 });
 
 /** The six corner hexes in rotational order — the board's home sites. */
 const boardCorners = (): Array<{ q: number; r: number }> => {
@@ -33,27 +32,27 @@ const boardCorners = (): Array<{ q: number; r: number }> => {
  * mineral + density per tile (seeded), and one home tile per Cog placed at the
  * board's six corners (spread apart) at full coherence. Deterministic for a seed.
  */
-export function generateBoard(seed: number, numCogs: number): GameState {
+export function generateBoard(seed: number, numCogs: number, names?: string[]): GameState {
   const rng = makeRng(seed);
   const hexes = hexesInRadius(BOARD_RADIUS);
 
   const tiles: Record<string, Tile> = {};
   for (const hex of hexes) {
     const mineral = MINERALS[randInt(rng, MINERALS.length)]!;
-    // Weighted density: 20% barren (no deposit), and across the rest most
-    // deposits are thin while rich ones stay rare — 20/48/24/8 over 0/1/2/3.
-    const roll = rng();
-    const density = roll < 0.2 ? 0 : roll < 0.68 ? 1 : roll < 0.92 ? 2 : 3;
+    // Half the board is truly BARREN (density 0); the rest follows a power law
+    // over 0..DENSITY_MAX (density = MAX × u^POWER — most deposits thin, rich
+    // ones rare). Stored as a float; every display floors it.
+    const density = rng() < BARREN_FRACTION ? 0 : DENSITY_MAX * rng() ** DENSITY_POWER;
     tiles[key(hex)] = { hex, alignment: null, coherence: 0, mineral, density, density0: density };
   }
 
   // The six corners of the hex board, in rotational order; spread cogs across them.
   const corners = boardCorners();
 
-  // Strategic landmarks — the six corners and the center — are always rich (density 3).
+  // Strategic landmarks — the six corners and the center — are always rich.
   for (const hex of [...corners, { q: 0, r: 0 }]) {
-    tiles[key(hex)]!.density = 3;
-    tiles[key(hex)]!.density0 = 3;
+    tiles[key(hex)]!.density = DENSITY_MAX;
+    tiles[key(hex)]!.density0 = DENSITY_MAX;
   }
 
   const cogs: Record<CogId, CogState> = {};
@@ -61,7 +60,7 @@ export function generateBoard(seed: number, numCogs: number): GameState {
   for (let i = 0; i < numCogs; i++) {
     const id: CogId = `cog${i}`;
     cogOrder.push(id);
-    cogs[id] = { id, index: i, treasury: startingTreasury(), hearts: 0 };
+    cogs[id] = { id, index: i, name: names?.[i]?.trim() || defaultCogName(i), treasury: startingTreasury(), energy: STARTING_ENERGY, hearts: 0 };
     const home = corners[Math.floor((i * corners.length) / numCogs)]!;
     const tile = tiles[key(home)]!;
     tile.alignment = id;
@@ -76,9 +75,15 @@ export function generateBoard(seed: number, numCogs: number): GameState {
  * starting wallet, and a home tile at the first UNOWNED corner at full
  * coherence. Pure; throws when the board is out of seats or free corners.
  */
-export function addCog(state: GameState): GameState {
-  const index = state.cogOrder.length;
-  if (index >= 6) throw new Error("addCog: the board seats at most 6 cogs");
+/** Default seat names, one per corner; a claimed cog may wear any name (addCog). */
+export const COG_NAMES = ["Alice", "Bob", "Carol", "David", "Erin", "Frank"];
+export const defaultCogName = (index: number): string => COG_NAMES[index] ?? `Cog ${index + 1}`;
+
+export function addCog(state: GameState, name?: string): GameState {
+  if (state.cogOrder.length >= 6) throw new Error("addCog: the board seats at most 6 cogs");
+  // first free seat id — kicks leave holes, and ids must never collide
+  let index = 0;
+  while (state.cogs[`cog${index}`]) index++;
   const id: CogId = `cog${index}`;
   const home = boardCorners().find((h) => state.tiles[key(h)]!.alignment === null);
   if (!home) throw new Error("addCog: no free corner to seat a new cog");
@@ -89,7 +94,19 @@ export function addCog(state: GameState): GameState {
   };
   const cogs: Record<CogId, CogState> = {
     ...state.cogs,
-    [id]: { id, index, treasury: startingTreasury(), hearts: 0 },
+    [id]: { id, index, name: name?.trim() || defaultCogName(index), treasury: startingTreasury(), energy: STARTING_ENERGY, hearts: 0 },
   };
   return { ...state, tiles, cogs, cogOrder: [...state.cogOrder, id] };
+}
+
+/** Kick a cog out of the game: its ground goes NEUTRAL (coherence 0) and its
+ *  seat frees up for a future addCog. Pure. */
+export function removeCog(state: GameState, cogId: CogId): GameState {
+  if (!state.cogs[cogId]) return state;
+  const tiles: GameState["tiles"] = {};
+  for (const [k, t] of Object.entries(state.tiles))
+    tiles[k] = t.alignment === cogId ? { ...t, alignment: null, coherence: 0 } : t;
+  const cogs = { ...state.cogs };
+  delete cogs[cogId];
+  return { ...state, tiles, cogs, cogOrder: state.cogOrder.filter((id) => id !== cogId) };
 }
