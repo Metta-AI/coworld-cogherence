@@ -13,7 +13,7 @@ import { cogColor, cogName } from "../colors";
 import { EnergyChip, CGIcon, Mineral } from "../cg/atoms";
 import { LatticePanel, ChannelMessage, TurnLog } from "../cg/panels";
 import { ResizableColumns } from "../cg/ResizableColumns";
-import { MINERALS, MINERAL_NAME, setsOf, territory, rankedByHearts } from "../cg/derive";
+import { MINERALS, MINERAL_NAME, expectedMintBy, setsOf, territory, rankedByHearts } from "../cg/derive";
 import { AutopilotPanel } from "./AutopilotPanel";
 
 const cogIdx = (id: string): number => Number(id.replace(/\D/g, "")) || 0;
@@ -93,6 +93,7 @@ function Identity({ snapshot, cogId, live }: { snapshot: GameSnapshot; cogId: st
   const terr = territory(snapshot).get(cogId) ?? { tiles: 0, fortresses: 0, salients: 0 };
   const rank = rankedByHearts(snapshot.cogs).findIndex((c) => c.id === cogId) + 1;
   const sets = setsOf(me.treasury);
+  const mint = expectedMintBy(snapshot).get(cogId) ?? { C: 0, O: 0, Ge: 0, S: 0 };
   const [convertMenu, setConvertMenu] = useState<{ mineral: string; x: number; y: number } | null>(null);
   return (
     <div className="cg-panel" style={{ borderTop: `3px solid ${color}` }} data-testid="identity">
@@ -135,7 +136,14 @@ function Identity({ snapshot, cogId, live }: { snapshot: GameSnapshot; cogId: st
                     <Mineral m={m} />
                     <span className="cg-mono" style={{ fontSize: 9, color: "var(--muted)" }}>{MINERAL_NAME[m]}</span>
                   </span>
-                  <span className="cg-num" style={{ fontSize: 16, color: me.treasury[m] ? "var(--text)" : "var(--muted-2)" }}>{me.treasury[m]}</span>
+                  <span style={{ display: "inline-flex", alignItems: "baseline", gap: 5 }}>
+                    <span className="cg-num" style={{ fontSize: 16, color: me.treasury[m] ? "var(--text)" : "var(--muted-2)" }}>{me.treasury[m]}</span>
+                    {mint[m] > 0 && (
+                      <span className="cg-mono" data-tip={`your tiles mint +${mint[m]} ${MINERAL_NAME[m]} at the next upkeep`} style={{ fontSize: 10, color: "var(--coherence)" }}>
+                        (+{mint[m]})
+                      </span>
+                    )}
+                  </span>
                 </div>
               ))}
             </div>
