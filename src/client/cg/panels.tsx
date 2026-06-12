@@ -741,6 +741,7 @@ export function LatticePanel({
   setMode,
   highlight = null,
   onTileContextMenu,
+  planned,
 }: {
   snapshot: GameSnapshot;
   events: StampedEvent[];
@@ -749,6 +750,8 @@ export function LatticePanel({
   highlight?: string | null;
   /** Operator tile right-click (cog view: opens the queue-order context menu). */
   onTileContextMenu?: (key: string, at: { x: number; y: number }) => void;
+  /** Planned/committed aligns to outline on the board (see HexBoard). */
+  planned?: Array<{ tile: string; coh: number; color: string }>;
 }): React.ReactElement {
   // The inspector is a hover card: it tracks the tile under the cursor and sits
   // just beside it, flipping at the panel's right/bottom edges. Leaving the
@@ -793,6 +796,7 @@ export function LatticePanel({
           exploited={exploited}
           emphasis={emphasis}
           highlight={highlight}
+          planned={planned}
         onTileContextMenu={onTileContextMenu}
           />
       </div>

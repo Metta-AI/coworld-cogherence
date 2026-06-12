@@ -440,6 +440,28 @@ export function CogView({
     if (o.type === "exploit") return t ? `+${exploitYield(t.coherence, t.density)} ${t.mineral}` : undefined;
     return undefined;
   });
+  // Planned aligns drawn on the board: queued + committed, each outlined with
+  // the EXPECTED post-resolve coherence — own tile reinforces (cap), neutral
+  // ground takes the force, enemy ground shows the capture margin (or what's
+  // left of the defense when the force falls short).
+  const expectedCoh = (o: Extract<Order, { type: "align" }>): { tile: string; coh: number; color: string } | null => {
+    const t = snapshot.tiles.find((x) => `${x.q},${x.r}` === o.tile);
+    if (!t) return null;
+    const coh =
+      t.alignment === cogId
+        ? Math.min(COHERENCE_MAX, t.coherence + o.force)
+        : t.alignment == null
+          ? Math.min(COHERENCE_MAX, o.force)
+          : Math.abs(o.force - t.coherence);
+    return { tile: o.tile, coh, color: cogColor(cogIdx(cogId)) };
+  };
+  const plannedAligns =
+    live && atLatest
+      ? [...pending, ...(committed?.orders ?? [])]
+          .filter((o): o is Extract<Order, { type: "align" }> => o.type === "align")
+          .map(expectedCoh)
+          .filter((p): p is NonNullable<typeof p> => p !== null)
+      : [];
   const postPending = useCallback(
     (next: Order[]): void => {
       setPending(next);
@@ -493,6 +515,7 @@ export function CogView({
             setMode={setMode}
             highlight={cogId}
             onTileContextMenu={live && atLatest ? (key, at) => setMenu({ tileKey: key, at }) : undefined}
+            planned={plannedAligns}
           />
         }
         right={<CogChannels snapshot={snapshot} cogId={cogId} messages={messages} onSeekTurn={onSeekTurn} />}

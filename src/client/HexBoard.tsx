@@ -58,6 +58,7 @@ export function HexBoard({
   exploited = [],
   emphasis = [],
   highlight = null,
+  planned = [],
 }: {
   snapshot: GameSnapshot;
   mode?: LatticeMode;
@@ -72,6 +73,9 @@ export function HexBoard({
   emphasis?: string[];
   /** Focus one Cog's territory (per-cog HUD): dim everyone else. */
   highlight?: string | null;
+  /** Planned/committed aligns (cog view): outline each target in the planner's
+   *  color with the EXPECTED post-resolve coherence at its center. */
+  planned?: Array<{ tile: string; coh: number; color: string }>;
 }): React.ReactElement {
   const cohMax = snapshot.coherenceMax;
   const indexById = new Map(snapshot.cogs.map((c) => [c.id, c.index]));
@@ -173,6 +177,7 @@ export function HexBoard({
   const flipSet = new Set(flips);
   const expSet = new Set(exploited);
   const emphSet = new Set(emphasis);
+  const plannedBy = new Map(planned.map((p) => [p.tile, p]));
   // Owner by hex key, for per-edge border classification in coherence mode.
   const ownerByKey = new Map(snapshot.tiles.map((t) => [tileKey(t.q, t.r), t.alignment]));
 
@@ -335,6 +340,22 @@ export function HexBoard({
             )}
             {emphSet.has(k) && (
               <polygon points={cn} fill="#fff" fillOpacity="0.1" stroke="#fff" strokeWidth="2.4" style={{ filter: "drop-shadow(0 0 8px #fff)" }} />
+            )}
+            {plannedBy.has(k) && (
+              <g pointerEvents="none">
+                <polygon
+                  points={cn}
+                  fill={plannedBy.get(k)!.color}
+                  fillOpacity="0.08"
+                  stroke={plannedBy.get(k)!.color}
+                  strokeWidth="2.2"
+                  strokeDasharray="5 3"
+                  style={{ filter: `drop-shadow(0 0 7px ${plannedBy.get(k)!.color})` }}
+                />
+                <text x={c.x} y={c.y + 4} textAnchor="middle" fontFamily="var(--f-mono)" fontSize="11" fontWeight="700" fill={plannedBy.get(k)!.color}>
+                  {plannedBy.get(k)!.coh}
+                </text>
+              </g>
             )}
           </g>
         );
