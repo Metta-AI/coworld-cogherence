@@ -48,7 +48,12 @@ export function applyFrame(store: FeedStore, m: ServerMessage): void {
       store.messages = [];
       store.actPrompts = {};
     }
-    store.snapshots.push(m.snapshot);
+    // ONE timeline entry per turn: operator actions (claims, converts, kicks)
+    // emit mid-turn snapshots, which REPLACE the turn's entry — otherwise every
+    // join would duplicate the turn in the scrubber.
+    const tail = store.snapshots[store.snapshots.length - 1];
+    if (tail && tail.turn === m.snapshot.turn) store.snapshots[store.snapshots.length - 1] = m.snapshot;
+    else store.snapshots.push(m.snapshot);
     // display names follow the live roster — keyed by seat INDEX (kicks leave holes)
     const names: string[] = [];
     for (const c of m.snapshot.cogs) names[c.index] = c.name;

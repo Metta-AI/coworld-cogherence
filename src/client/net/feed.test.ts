@@ -76,6 +76,15 @@ describe("connectLiveFeed", () => {
     expect(store.snapshots).toHaveLength(1);
     expect(onChange).toHaveBeenCalled();
   });
+  it("a same-turn snapshot REPLACES the turn's entry — operator actions don't duplicate turns", () => {
+    const store = newStore();
+    const sock = new FakeSocket();
+    connectLiveFeed(store, () => sock, vi.fn());
+    sock.emit({ type: "snapshot", snapshot: snap(1) });
+    sock.emit({ type: "snapshot", snapshot: snap(1) }); // a claim/convert/kick mid-turn
+    sock.emit({ type: "snapshot", snapshot: snap(2) });
+    expect(store.snapshots.map((s) => s.turn)).toEqual([1, 2]);
+  });
   it("drops malformed frames", () => {
     const store = newStore();
     const sock = new FakeSocket();
