@@ -49,7 +49,10 @@ export function applyFrame(store: FeedStore, m: ServerMessage): void {
       store.actPrompts = {};
     }
     store.snapshots.push(m.snapshot);
-    setCogNames(m.snapshot.cogs.map((c) => c.name)); // display names follow the live roster
+    // display names follow the live roster — keyed by seat INDEX (kicks leave holes)
+    const names: string[] = [];
+    for (const c of m.snapshot.cogs) names[c.index] = c.name;
+    setCogNames(names);
   } else if (m.type === "event") store.events.push({ turn: m.turn, event: m.event });
   else if (m.type === "serverStatus") store.status = m.status;
   else if (m.type === "actPrompt") {

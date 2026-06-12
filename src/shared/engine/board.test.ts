@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { generateBoard, addCog } from "./board";
+import { generateBoard, addCog, removeCog } from "./board";
 import { key } from "./hex";
 import { DENSITY_MAX, BOARD_RADIUS } from "./constants";
 
@@ -59,6 +59,16 @@ describe("generateBoard", () => {
     const g2 = addCog(g, "daveey");
     expect(g2.cogs.cog4!.name).toBe("daveey");
     expect(addCog(g).cogs.cog4!.name).toBe("Erin"); // no name -> next roster default
+  });
+
+  it("removeCog frees the seat and neutralizes its ground; addCog reuses the hole without id collisions", () => {
+    let g = generateBoard(7, 4);
+    g = removeCog(g, "cog1");
+    expect(g.cogOrder).toEqual(["cog0", "cog2", "cog3"]);
+    expect(Object.values(g.tiles).some((t) => t.alignment === "cog1")).toBe(false); // ground went neutral
+    g = addCog(g, "newcomer");
+    expect(g.cogs.cog1).toMatchObject({ id: "cog1", index: 1, name: "newcomer" }); // the hole, not cog4
+    expect(removeCog(g, "nope")).toBe(g); // unknown id: no-op
   });
 
   it("addCog seats the next cog at a free corner; throws when out of seats", () => {

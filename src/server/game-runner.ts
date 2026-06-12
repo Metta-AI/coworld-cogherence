@@ -7,7 +7,7 @@ import type { Agent } from "../agents/types";
 import type { ServerMessage, ServerStatus } from "../shared/protocol";
 import { newGame, stepTurn, scoreGame, convertCogSets, convertCogMineral } from "../shared/engine/game";
 import { fullSets } from "../shared/engine/energy";
-import { addCog } from "../shared/engine/board";
+import { addCog, removeCog } from "../shared/engine/board";
 import { toSnapshot } from "../shared/snapshot";
 import { PhaseCoordinator } from "./phase-coordinator";
 import type { MessageBus } from "./message-bus";
@@ -125,6 +125,20 @@ export class GameRunner {
     this.emit({ type: "serverStatus", status: this.status() });
   }
 
+  /** Kick a cog out of the game: its ground goes neutral, its agent stops
+   *  playing, its steering resets, and a parked commit window stops waiting
+   *  for it (expireOne — it defaults like a missed deadline). */
+  removeCog(cogId: CogId): boolean {
+    if (!this.state.cogs[cogId]) return false;
+    this.state = removeCog(this.state, cogId);
+    this.agents = this.agents.filter((a) => a.id !== cogId);
+    this.coord?.expireOne(cogId);
+    this.steering?.clear(cogId);
+    this.emit({ type: "snapshot", snapshot: toSnapshot(this.state) });
+    this.emit({ type: "serverStatus", status: this.status() });
+    return true;
+  }
+
   /** Convert `sets` of a cog's full COGS sets into stored energy (the Convert
    *  Set button). Conversion only adds energy, so mid-window application is
    *  safe. Returns false when the treasury can't cover it. */
@@ -173,8 +187,9 @@ export class GameRunner {
    *  and broadcasts the new board. Returns the seated cog's id; throws when the
    *  board is out of seats/corners (the HTTP layer surfaces that as an error). */
   addCog(makeAgent: (id: CogId) => Agent, name?: string): CogId {
-    const id: CogId = `cog${this.state.cogOrder.length}`;
+    const before = new Set(this.state.cogOrder);
     this.state = addCog(this.state, name);
+    const id = this.state.cogOrder.find((x) => !before.has(x))!;
     // remember claimed names so a reset rebuilds the same roster
     if (name) (this.names ??= [])[this.state.cogs[id]!.index] = name;
     this.agents.push(makeAgent(id));

@@ -1,7 +1,7 @@
 // The roster: one card per Cog, ranked by hearts — luminous sigil, name + tiles
 // held, hearts (glowing), and the COGS wallet with derived energy. Each card is a
 // button: clicking it spotlights that Cog's territory on the lattice (toggle).
-import React from "react";
+import React, { useState } from "react";
 import type { GameSnapshot } from "../shared/snapshot";
 import type { StampedEvent } from "./net/feed";
 import { cogColor, cogName } from "./colors";
@@ -31,6 +31,8 @@ export function Roster({
   waiting?: string[];
 }): React.ReactElement {
   const ranked = rankedByHearts(snapshot.cogs);
+  // right-click a card (live): the kick menu — a confirm-style destructive row
+  const [kick, setKick] = useState<{ id: string; index: number; x: number; y: number } | null>(null);
   const terr = territory(snapshot);
   const upkeep = upkeepBy(snapshot);
   const income = events ? mintEnergyBy(events, snapshot) : null;
@@ -69,8 +71,9 @@ export function Roster({
               className="cg-roster-card"
               data-testid={`roster-${c.id}`}
               aria-pressed={active}
-              data-tip={`Spotlight ${cogName(c.index)}’s territory`}
+              data-tip={live ? `Spotlight ${cogName(c.index)}’s territory · right-click to kick` : `Spotlight ${cogName(c.index)}’s territory`}
               onClick={() => onToggleFocus?.(c.id)}
+              onContextMenu={live ? (e) => { e.preventDefault(); setKick({ id: c.id, index: c.index, x: e.clientX, y: e.clientY }); } : undefined}
               style={{
                 appearance: "none",
                 font: "inherit",
@@ -123,6 +126,34 @@ export function Roster({
           );
         })}
       </div>
+      {kick && (
+        <div
+          data-kick-menu
+          className="cg-panel"
+          style={{ position: "fixed", left: Math.min(kick.x, window.innerWidth - 252), top: Math.min(kick.y, window.innerHeight - 120), width: 240, zIndex: 120, background: "rgba(14,14,24,0.97)", backdropFilter: "blur(8px)" }}
+        >
+          <div className="cg-panel-head" style={{ padding: "7px 11px" }}>
+            <span className="cg-panel-title" style={{ fontSize: 10 }}>{cogName(kick.index)}</span>
+            <button type="button" onClick={() => setKick(null)} className="cg-mono" style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: 11 }}>
+              ✕
+            </button>
+          </div>
+          <div className="cg-panel-body" style={{ padding: "8px 10px" }}>
+            <button
+              type="button"
+              className="cg-menu-row"
+              data-testid="kick-cog"
+              data-tip="remove this cog from the game — its ground goes neutral and the seat frees up"
+              onClick={() => {
+                void fetch(`/cog/${kick.id}/kick`, { method: "POST" });
+                setKick(null);
+              }}
+            >
+              <span style={{ color: "var(--exploit)" }}>Kick {cogName(kick.index)} out of the game</span>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

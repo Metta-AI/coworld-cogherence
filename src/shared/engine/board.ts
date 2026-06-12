@@ -80,8 +80,10 @@ export const COG_NAMES = ["Alice", "Bob", "Carol", "David", "Erin", "Frank"];
 export const defaultCogName = (index: number): string => COG_NAMES[index] ?? `Cog ${index + 1}`;
 
 export function addCog(state: GameState, name?: string): GameState {
-  const index = state.cogOrder.length;
-  if (index >= 6) throw new Error("addCog: the board seats at most 6 cogs");
+  if (state.cogOrder.length >= 6) throw new Error("addCog: the board seats at most 6 cogs");
+  // first free seat id — kicks leave holes, and ids must never collide
+  let index = 0;
+  while (state.cogs[`cog${index}`]) index++;
   const id: CogId = `cog${index}`;
   const home = boardCorners().find((h) => state.tiles[key(h)]!.alignment === null);
   if (!home) throw new Error("addCog: no free corner to seat a new cog");
@@ -95,4 +97,16 @@ export function addCog(state: GameState, name?: string): GameState {
     [id]: { id, index, name: name?.trim() || defaultCogName(index), treasury: startingTreasury(), energy: STARTING_ENERGY, hearts: 0 },
   };
   return { ...state, tiles, cogs, cogOrder: [...state.cogOrder, id] };
+}
+
+/** Kick a cog out of the game: its ground goes NEUTRAL (coherence 0) and its
+ *  seat frees up for a future addCog. Pure. */
+export function removeCog(state: GameState, cogId: CogId): GameState {
+  if (!state.cogs[cogId]) return state;
+  const tiles: GameState["tiles"] = {};
+  for (const [k, t] of Object.entries(state.tiles))
+    tiles[k] = t.alignment === cogId ? { ...t, alignment: null, coherence: 0 } : t;
+  const cogs = { ...state.cogs };
+  delete cogs[cogId];
+  return { ...state, tiles, cogs, cogOrder: state.cogOrder.filter((id) => id !== cogId) };
 }

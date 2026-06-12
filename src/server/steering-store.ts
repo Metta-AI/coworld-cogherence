@@ -107,6 +107,13 @@ export class SteeringStore {
   expireWaiting(): void {
     this.waiting.clear();
   }
+
+  /** Forget a cog entirely (kicked) — a future seat reusing its id starts clean. */
+  clear(cog: CogId): void {
+    this.byCog.delete(cog);
+    this.waiting.delete(cog);
+    this.readyArmed.delete(cog);
+  }
 }
 
 /** Wrap an agent under operator steering: MANUAL cogs wait for the operator's

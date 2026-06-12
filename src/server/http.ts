@@ -142,6 +142,13 @@ export function createApp(
     return res.status(409).json({ ok: false, error: "treasury can't cover that conversion" });
   });
 
+  // Kick a cog out of the game (roster right-click): ground goes neutral,
+  // the seat frees up.
+  app.post("/cog/:id/kick", (req, res) => {
+    if (runner.removeCog(req.params.id)) return res.json({ ok: true });
+    return res.status(404).json({ ok: false, error: "no such cog" });
+  });
+
   // Operator steering (Phase D): read + edit a cog's persona / paused flag live.
   app.get("/cog/:id/steering", (req, res) => res.json(steering?.get(req.params.id) ?? { persona: "", paused: false, pending: [], standingBid: 0, autoConvert: [] }));
   // Operator READY (manual mode): submit the queued orders for this Commit now.

@@ -48,6 +48,12 @@ export class PhaseCoordinator<T = unknown> {
     for (const s of this.stores.values()) s.expire();
   }
 
+  /** Fire ONE cog's deadline (e.g. it was kicked mid-window) — it defaults
+   *  and a wait-ready window stops waiting for it. */
+  expireOne(id: CogId): void {
+    this.stores.get(id)?.expire();
+  }
+
   pending(): CogId[] {
     return this.cogIds.filter((id) => !this.answered.has(id));
   }
