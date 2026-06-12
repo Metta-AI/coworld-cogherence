@@ -195,14 +195,16 @@ export function AutopilotPanel({
 
   return (
     <div className="panel steering" data-testid="autopilot">
-      <h2>Control</h2>
-      <label className={`steer-toggle ${paused ? "is-paused" : ""}`}>
-        <span className={`cg-switch ${!paused ? "on" : ""}`}>
-          <input type="checkbox" checked={!paused} onChange={(e) => post({ paused: !e.target.checked })} />
-          <span className="cg-knob" />
-        </span>
-        <span>Auto Pilot</span>
-      </label>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <h2 style={{ margin: 0 }}>Control</h2>
+        <label className={`steer-toggle ${paused ? "is-paused" : ""}`} style={{ margin: 0 }}>
+          <span>Auto Pilot</span>
+          <span className={`cg-switch ${!paused ? "on" : ""}`}>
+            <input type="checkbox" checked={!paused} onChange={(e) => post({ paused: !e.target.checked })} />
+            <span className="cg-knob" />
+          </span>
+        </label>
+      </div>
       <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}>
         <span className="cg-mono" data-tip="standing heart bid — auto-bid this amount at every auction while > 0 (replaces the autopilot's own bid; 0 = let it decide)" style={{ fontSize: 10, color: "var(--muted)" }}>
           Heart bid

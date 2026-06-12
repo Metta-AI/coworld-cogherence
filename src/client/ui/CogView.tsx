@@ -13,7 +13,7 @@ import { cogColor, cogName } from "../colors";
 import { EnergyChip, CGIcon, Mineral } from "../cg/atoms";
 import { LatticePanel, ChannelMessage, TurnLog } from "../cg/panels";
 import { ResizableColumns } from "../cg/ResizableColumns";
-import { MINERALS, MINERAL_NAME, expectedMintBy, setsOf, territory, rankedByHearts } from "../cg/derive";
+import { MINERALS, MINERAL_NAME, expectedMintBy, upkeepBy, setsOf, territory, rankedByHearts } from "../cg/derive";
 import { AutopilotPanel } from "./AutopilotPanel";
 
 const cogIdx = (id: string): number => Number(id.replace(/\D/g, "")) || 0;
@@ -94,6 +94,7 @@ function Identity({ snapshot, cogId, live }: { snapshot: GameSnapshot; cogId: st
   const rank = rankedByHearts(snapshot.cogs).findIndex((c) => c.id === cogId) + 1;
   const sets = setsOf(me.treasury);
   const mint = expectedMintBy(snapshot).get(cogId) ?? { C: 0, O: 0, Ge: 0, S: 0 };
+  const bills = upkeepBy(snapshot).get(cogId) ?? 0;
   const [convertMenu, setConvertMenu] = useState<{ mineral: string; x: number; y: number } | null>(null);
   return (
     <div className="cg-panel" style={{ borderTop: `3px solid ${color}` }} data-testid="identity">
@@ -148,9 +149,14 @@ function Identity({ snapshot, cogId, live }: { snapshot: GameSnapshot; cogId: st
               ))}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 9, paddingTop: 9, borderTop: "1px solid var(--border)" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 5 }} data-tip="STORED energy — the only spendable currency; convert full COGS sets to refill">
+              <div style={{ display: "flex", alignItems: "baseline", gap: 5 }} data-tip="STORED energy — the only spendable currency; convert minerals to refill">
                 <EnergyChip />
                 <span className="cg-num" style={{ fontSize: 22, color: "var(--energy)" }}>{me.energy}</span>
+                {bills > 0 && (
+                  <span className="cg-mono" data-tip={`expected upkeep at the next turn: ${terr.tiles} tile${terr.tiles === 1 ? "" : "s"} × ${terr.tiles ? Math.round(bills / terr.tiles) : 0}e base`} style={{ fontSize: 10, color: "var(--exploit)" }}>
+                    (−{bills})
+                  </span>
+                )}
                 <span className="cg-mono" style={{ fontSize: 9, color: "var(--muted)" }}>energy</span>
               </div>
               <div style={{ flex: 1 }} />
