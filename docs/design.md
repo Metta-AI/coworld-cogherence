@@ -132,7 +132,7 @@ On a tile you hold: return it to **neutral** and recover its standing **Coherenc
 **Mineral production (every Upkeep):** each aligned tile mints **⌊Density × Coherence ÷ 10⌋** of its mineral into its Cog's **treasury** — deterministic. A tile at full Coherence yields ⌊its Density⌋ and weaker tiles proportionally less, so output rewards *both* good geography (Density, 0–10 power-law seeded) *and* stable, consolidated holdings (Coherence).
 
 **Energy is STORED — and it is the only spendable currency.** Cogs start with **100⚡** and an empty treasury; every spend (aligns, fees, bids, upkeep) draws stored energy alone. Minerals are **trade goods** with exactly one bridge to money — **CONVERSION**:
-- A full **COGS set** (1 C + 1 O + 1 Ge + 1 S) converts to **10 energy** (the Convert Set button; autopilot cogs convert automatically each turn).
+- A full **COGS set** (1 C + 1 O + 1 Ge + 1 S) converts to **10 energy** — and full sets AUTO-CONVERT at the start of every turn, for everyone (the Convert Set button just does it early).
 - **Singles have no energy value.** A lopsided pile is dead weight until balanced.
 
 That all-or-nothing set rule is the political economy in one line: since almost no Cog's land yields all four minerals, **trade is survival, not flavor** — the mineral map *is* the diplomatic map.

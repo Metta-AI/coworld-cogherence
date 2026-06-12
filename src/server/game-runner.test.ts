@@ -130,14 +130,16 @@ describe("GameRunner", () => {
       await runner.run();
       return runner.state.cogs.cog0!;
     };
-    const flagged = await run(["C"], true); // manual: burns ALL its C (2 × 1⚡) at turn start
-    expect(flagged.energy).toBe(101); // 100 + 2 − 1 upkeep
+    // FULL SETS auto-convert for everyone (best rate): C2 O1 Ge1 S1 -> one set
+    // burns (+10⚡), leaving C1. Flagged elements then burn as singles.
+    const flagged = await run(["C"], true); // the leftover C also burns (+1⚡)
+    expect(flagged.energy).toBe(110); // 100 + 10 set + 1 single − 1 upkeep
     expect(flagged.treasury.C).toBe(10); // burned to 0, then upkeep minted 10 fresh C
-    expect(flagged.treasury.O).toBe(1); // unflagged elements sit
+    expect(flagged.treasury.O).toBe(0); // consumed by the set
     const manual = await run([], true);
-    expect(manual.energy).toBe(99); // 100 − 1 upkeep; nothing converted
-    expect(manual.treasury.C).toBe(12); // the 2 held + the 10 minted
-    expect(manual.treasury.O).toBe(1);
+    expect(manual.energy).toBe(109); // 100 + 10 set − 1 upkeep; singles sit
+    expect(manual.treasury.C).toBe(11); // the leftover 1 + the 10 minted
+    expect(manual.treasury.O).toBe(0);
   });
 
   it("a hung negotiate can't stall the turn — it's raced against the deadline", async () => {

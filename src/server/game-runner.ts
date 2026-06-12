@@ -260,27 +260,22 @@ export class GameRunner {
       }
 
       const startedAt = Date.now();
-      // Turn-start conversions. Autopilot cogs can't click — they LIQUIDATE:
-      // every full set (best rate), then every leftover single, so the strict
-      // stored-energy economy never starves a bot. Manual (paused) cogs
-      // convert by hand, plus whatever elements they flagged auto-convert
-      // (right-click menu) — burned as singles each turn.
+      // Turn-start conversions. FULL SETS always convert, for everyone — the
+      // best rate, and minerals only arrive at turn boundaries, so there's no
+      // reason to sit on a set. On top of that: autopilot cogs LIQUIDATE
+      // their leftover singles too (bots never starve), while manual cogs
+      // keep singles as trade goods unless an element is flagged auto-convert
+      // (right-click menu).
       for (const a of this.agents) {
         const st = this.steering?.get(a.id);
         const cog = () => this.state.cogs[a.id];
         if (!cog()) continue;
-        if (st?.paused) {
-          for (const m of st.autoConvert) {
-            const have = cog()!.treasury[m];
-            if (have > 0) this.state = convertCogMineral(this.state, a.id, m, have);
-          }
-        } else {
-          const sets = fullSets(cog()!.treasury);
-          if (sets > 0) this.state = convertCogSets(this.state, a.id, sets);
-          for (const m of ["C", "O", "Ge", "S"] as const) {
-            const have = cog()!.treasury[m];
-            if (have > 0) this.state = convertCogMineral(this.state, a.id, m, have);
-          }
+        const sets = fullSets(cog()!.treasury);
+        if (sets > 0) this.state = convertCogSets(this.state, a.id, sets);
+        const singles = st?.paused ? st.autoConvert : (["C", "O", "Ge", "S"] as const);
+        for (const m of singles) {
+          const have = cog()!.treasury[m];
+          if (have > 0) this.state = convertCogMineral(this.state, a.id, m, have);
         }
       }
       const snapshot = this.state;
