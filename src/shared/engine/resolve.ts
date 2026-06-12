@@ -122,7 +122,9 @@ export function resolve(
     const alignCost = aligns.reduce((s, [, e]) => s + e, 0);
     const spendBase = transfers.length * TRANSFER_FEE + alignCost;
     if (cog.energy < spendBase + bid) {
-      events.push({ type: "rejected", cog: cogId, reason: "cannot afford committed spend" });
+      // name the numbers: orders are billed as ONE set (incl. repeat-align tax
+      // and the bid cover), and an unaffordable set bounces wholesale.
+      events.push({ type: "rejected", cog: cogId, reason: `cannot afford committed spend (${spendBase + bid}e total vs ${cog.energy}⚡ stored)` });
       continue;
     }
     plans.set(cogId, { aligns, exploits, abandons, transfers, bid, sent, spendBase });

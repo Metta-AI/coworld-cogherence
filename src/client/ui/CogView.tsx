@@ -462,6 +462,7 @@ export function CogView({
                 pending={pending}
                 pendingNotes={pendingNotes}
                 pendingCommitted={pendingCommitted}
+                energy={snapshot.cogs.find((c) => c.id === cogId)?.energy}
                 onCancelPending={(i) => postPending(pending.filter((_, j) => j !== i))}
                 onReady={() => {
                   void fetch(`/cog/${cogId}/ready`, { method: "POST" });

@@ -48,13 +48,18 @@ function PendingActions({
   pending,
   notes,
   committed = 0,
+  energy,
   onCancel,
 }: {
   pending: Order[];
   notes?: Array<string | undefined>;
   committed?: number;
+  /** The cog's STORED energy — the queue must fit inside it or the engine
+   *  rejects the whole set at resolve. */
+  energy?: number;
   onCancel?: (i: number) => void;
 }): React.ReactElement {
+  const over = energy != null && committed > energy;
   return (
     <div data-testid="pending-actions" style={{ marginTop: 8 }}>
       <div className="cg-label" style={{ fontSize: 8.5, letterSpacing: "0.12em", paddingBottom: 3, borderBottom: "1px solid var(--border)" }}>
@@ -85,8 +90,17 @@ function PendingActions({
         ))
       )}
       {committed > 0 && (
-        <div className="cg-mono" data-tip="total energy this queue will spend at Commit (align bills + bid + fees)" style={{ fontSize: 9.5, color: "var(--energy)", paddingTop: 4 }}>
+        <div
+          className="cg-mono"
+          data-tip={
+            over
+              ? "orders are billed as ONE set (incl. the repeat-align tax) — an unaffordable set is rejected WHOLESALE at resolve"
+              : "total energy this queue will spend at Commit (align bills + bid + fees)"
+          }
+          style={{ fontSize: 9.5, color: over ? "var(--exploit)" : "var(--energy)", paddingTop: 4 }}
+        >
           committed: −{committed}e
+          {over && ` — exceeds your ${energy}⚡: the whole set will be REJECTED`}
         </div>
       )}
       {pending.length > 0 && (
@@ -107,6 +121,7 @@ export function AutopilotPanel({
   onCancelPending,
   onReady,
   committed = null,
+  energy,
 }: {
   cogId: string;
   atLatest?: boolean;
@@ -121,6 +136,8 @@ export function AutopilotPanel({
   onReady?: () => void;
   /** The orders submitted via Ready this turn — displayed frozen until Resolve. */
   committed?: { orders: Order[]; notes: Array<string | undefined>; total: number } | null;
+  /** The cog's stored energy (for the over-budget warning). */
+  energy?: number;
 }): React.ReactElement {
   const [persona, setPersona] = useState("");
   const [paused, setPaused] = useState(false);
@@ -171,7 +188,7 @@ export function AutopilotPanel({
         <div className="cg-mono" style={{ fontSize: 9, color: "var(--muted)", marginTop: 6 }}>
           viewing a past turn — jump to the latest to steer
         </div>
-        <PendingActions pending={pending} notes={pendingNotes} committed={pendingCommitted} />
+        <PendingActions pending={pending} notes={pendingNotes} committed={pendingCommitted} energy={energy} />
       </div>
     );
   }
@@ -234,7 +251,7 @@ export function AutopilotPanel({
         </>
       ) : (
         <>
-          <PendingActions pending={pending} notes={pendingNotes} committed={pendingCommitted} onCancel={onCancelPending} />
+          <PendingActions pending={pending} notes={pendingNotes} committed={pendingCommitted} energy={energy} onCancel={onCancelPending} />
           <div className="steer-actions" style={{ marginTop: 8 }}>
             <button type="button" data-testid="ready-btn" onClick={onReady} data-tip="submit the queued actions for this Commit and mark this cog ready (empty queue = hold)">
               Ready
