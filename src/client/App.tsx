@@ -43,7 +43,8 @@ export function App({ replay: injected, live: liveProp }: { replay?: Replay; liv
   const rerender = () => setTick((t) => t + 1);
   const [index, setIndex] = useState(0);
   const [follow, setFollow] = useState(liveMode);
-  const [playing, setPlaying] = useState(false);
+  // The Coworld /client/replay surface auto-plays from the first frame.
+  const [playing, setPlaying] = useState(loc.replayLoop ?? false);
   const [connected, setConnected] = useState(false);
 
   // A /cog/<name> URL (anything that isn't a cogN id) CLAIMS that agent on the
@@ -96,9 +97,14 @@ export function App({ replay: injected, live: liveProp }: { replay?: Replay; liv
   }, [snaps.length, follow, playing]);
   useEffect(() => {
     if (!playing || liveMode || snaps.length === 0) return;
-    const id = setInterval(() => setIndex((i) => (i + 1 < snaps.length ? i + 1 : (setPlaying(false), i))), 250);
+    // Replay-loop mode wraps back to turn 0 at the end (Coworld /client/replay);
+    // otherwise playback stops on the last frame.
+    const id = setInterval(
+      () => setIndex((i) => (i + 1 < snaps.length ? i + 1 : loc.replayLoop ? 0 : (setPlaying(false), i))),
+      250,
+    );
     return () => clearInterval(id);
-  }, [playing, liveMode, snaps.length]);
+  }, [playing, liveMode, snaps.length, loc.replayLoop]);
 
   // Spacebar toggles the game: live -> pause/resume the server's turn loop;
   // replay -> toggle playback. Ignored while typing in a field.
