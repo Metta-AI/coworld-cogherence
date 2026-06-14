@@ -16,10 +16,9 @@ function setup(backstopMs = 10_000) {
 }
 
 describe("RemotePlayerAgent", () => {
-  it("with no player connected, negotiate/commit resolve empty immediately", async () => {
+  it("with no player connected, commit resolves empty immediately", async () => {
     const { agent, view } = setup();
     expect(await agent.commit(view)).toEqual([]);
-    expect(await agent.negotiate(view)).toEqual([]);
     expect(agent.connected).toBe(false);
   });
 
@@ -31,16 +30,8 @@ describe("RemotePlayerAgent", () => {
     const req = sent[1]!;
     expect(req.type).toBe("commit");
     expect((req as Extract<GameToPlayer, { type: "commit" }>).turn).toBe(view.state.turn);
-    agent.deliver(JSON.stringify({ type: "commit_result", turn: view.state.turn, orders: [{ type: "bid", energy: 3 }] }));
+    agent.deliver({ type: "commit_result", turn: view.state.turn, orders: [{ type: "bid", energy: 3 }] });
     expect(await p).toEqual([{ type: "bid", energy: 3 }]);
-  });
-
-  it("sends a negotiate request and resolves with the player's posts", async () => {
-    const { sink, agent, view, hello } = setup();
-    agent.attach(sink, hello);
-    const p = agent.negotiate(view);
-    agent.deliver(JSON.stringify({ type: "negotiate_result", turn: view.state.turn, posts: [{ to: "public", text: "hi" }] }));
-    expect(await p).toEqual([{ to: "public", text: "hi" }]);
   });
 
   it("redacts opponents' treasury/energy in the view it sends", async () => {
@@ -60,13 +51,20 @@ describe("RemotePlayerAgent", () => {
     }
   });
 
-  it("drops a reply whose turn does not match the open request", async () => {
+  it("pushes an async message frame to the player", () => {
+    const { sent, sink, agent, hello } = setup();
+    agent.attach(sink, hello);
+    agent.pushMessage({ type: "message", message: { seq: 1, turn: 2, from: "cog1", to: "public", text: "hi" } });
+    expect(sent[1]).toEqual({ type: "message", message: { seq: 1, turn: 2, from: "cog1", to: "public", text: "hi" } });
+  });
+
+  it("drops a commit_result whose turn does not match the open request", async () => {
     vi.useFakeTimers();
     const { sink, agent, view, hello } = setup(500);
     agent.attach(sink, hello);
-    const p = agent.commit(view); // turn = view.state.turn (1)
-    agent.deliver(JSON.stringify({ type: "commit_result", turn: 99, orders: [{ type: "bid", energy: 7 }] }));
-    await vi.advanceTimersByTimeAsync(500); // backstop fires → []
+    const p = agent.commit(view); // turn 1
+    agent.deliver({ type: "commit_result", turn: 99, orders: [{ type: "bid", energy: 7 }] });
+    await vi.advanceTimersByTimeAsync(500); // backstop → []
     expect(await p).toEqual([]);
     vi.useRealTimers();
   });
@@ -81,7 +79,7 @@ describe("RemotePlayerAgent", () => {
     vi.useRealTimers();
   });
 
-  it("a disconnect resolves the open request to []", async () => {
+  it("a disconnect resolves the open commit to []", async () => {
     const { sink, agent, view, hello } = setup();
     agent.attach(sink, hello);
     const p = agent.commit(view);

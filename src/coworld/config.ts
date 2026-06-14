@@ -13,10 +13,11 @@ export const gameConfigSchema = z
     players: z.array(z.object({ name: z.string().min(1) }).strict()).min(3).max(6),
     seed: z.number().int().default(7),
     max_turns: z.number().int().min(1).max(1000),
-    /** Per-phase wall-clock budget (negotiate window, then commit window). */
+    /** Wall-clock budget for the commit window each turn. */
     deadline_ms: z.number().int().min(0).default(15_000),
-    /** Cheap-talk rounds per turn (0 disables negotiation entirely). */
-    negotiate_rounds: z.number().int().min(0).max(5).default(1),
+    /** Legacy synchronous negotiate-phase rounds. The Coworld uses ASYNC chat
+     *  (players post any time), so this defaults to 0 — no negotiate phase. */
+    negotiate_rounds: z.number().int().min(0).max(5).default(0),
     /** Start the episode after this long even if not every slot connected. */
     player_connect_timeout_seconds: z.number().min(0).default(180),
   })

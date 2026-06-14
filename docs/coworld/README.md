@@ -15,10 +15,11 @@ replay clients.
 | Coworld role | Cogherence module | Notes |
 |---|---|---|
 | Game container | `src/coworld/game-server.ts` | Reuses the engine, `GameRunner`, redaction, message bus, replay recorder, and dashboard unchanged. |
-| Player slot ↔ in-process agent | `src/coworld/remote-player.ts` | `RemotePlayerAgent` answers `GameRunner`'s `negotiate`/`commit` over the slot's WebSocket. |
+| Player slot ↔ in-process agent | `src/coworld/remote-player.ts` | `RemotePlayerAgent` answers `GameRunner`'s `commit` over the slot's WebSocket. No negotiate phase. |
+| Async chat | `src/coworld/game-server.ts` | Players send `message` frames any time → posted to the bus → pushed live to other players + viewers. |
 | Wire protocol | `src/coworld/protocol.ts` | game→player trusted; player→game zod-validated. |
 | Fog-of-war | `src/coworld/redact-state.ts` | Per-slot `GameState` projection (rivals' treasury/energy zeroed). |
-| Reference player | `src/coworld/player.ts` + `player-main.ts` | Delegates to the existing fail-safe LLM agent. |
+| Reference player | `src/coworld/player.ts` + `player-main.ts` | One model call per turn → orders + async messages (fail-safe). |
 
 ## Slot count
 

@@ -22,7 +22,7 @@ import type { ServerMessage } from "../shared/protocol";
 import { gameConfigSchema } from "./config";
 import { readJson, writeData, artifactMethod } from "./io";
 import { RemotePlayerAgent } from "./remote-player";
-import type { CoworldResults, GameToPlayer } from "./protocol";
+import { parsePlayerMessage, type CoworldResults, type GameToPlayer } from "./protocol";
 
 const env = process.env;
 const HOST = env.COGAME_HOST ?? "0.0.0.0";
@@ -137,9 +137,29 @@ async function startGame(): Promise<void> {
       seed: config.seed,
       maxTurns: config.max_turns,
     };
-    agents[slot]!.attach({ send: (t) => sendRaw(ws, t) }, hello);
-    ws.on("message", (d) => agents[slot]!.deliver(d.toString()));
-    ws.on("close", () => agents[slot]!.detach());
+    const agent = agents[slot]!;
+    agent.attach({ send: (t) => sendRaw(ws, t) }, hello);
+    // Async chat: push messages visible to this slot (not its own echoes) as they
+    // arrive — players talk any time, not in a negotiate phase.
+    const unsubBus = bus.onPost((m) => {
+      if (m.from !== ids[slot] && messageVisibleToCog(m, ids[slot]!)) agent.pushMessage({ type: "message", message: m });
+    });
+    ws.on("message", (d) => {
+      let raw: unknown;
+      try {
+        raw = JSON.parse(d.toString());
+      } catch {
+        return; // not JSON — ignore
+      }
+      const msg = parsePlayerMessage(raw);
+      if (!msg) return;
+      if (msg.type === "commit_result") agent.deliver(msg);
+      else bus.post(ids[slot]!, msg.to, msg.text, runner.state.turn); // async chat
+    });
+    ws.on("close", () => {
+      unsubBus();
+      agent.detach();
+    });
     connected.add(slot);
     console.log(`player slot ${slot} connected (${connected.size}/${n})`);
     if (connected.size === n) startEpisode();

@@ -169,6 +169,18 @@ A coworlds-expert review of this design surfaced fixes now baked into the build:
 - **`source_url` omitted** for v1 (repo is private; a `github.com` `source_url` is strictly validated to
   contain a Dockerfile). Add later when public.
 
+## Update (2026-06-13): async chat, no negotiate phase
+
+The synchronous negotiate phase described above was removed. The Coworld now runs
+`negotiate_rounds: 0` (GameRunner skips the negotiate phase entirely; the original
+app keeps it for `> 0`), and chat is **fully asynchronous**: a player may send
+`{type:"message", to, text}` over its WebSocket at any time; the game-server posts
+it to the bus and pushes visible `{type:"message", message}` frames to other
+players live. The reference player makes **one** model call per `commit` offering
+both `submit_orders` and `send_messages` (parallel tool use) → a `commit_result`
+plus async `message` frames. This halves model calls per turn and decouples chat
+from turn structure. `negotiate`/`negotiate_result` frames are gone.
+
 ## Risks / open items
 
 - **Client static serving + WS path** is the main new surface; the rest is config/glue over reused

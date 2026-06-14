@@ -282,7 +282,9 @@ export class GameRunner {
 
       // Negotiate phase (free-form cheap talk): a deadline-bounded window so the
       // spectator sees a countdown here too — it's the longest cog-facing stretch.
-      if (this.bus) {
+      // negotiateRounds=0 removes the phase entirely (the Coworld uses async
+      // messaging instead — players post over the wire any time, no window).
+      if (this.bus && this.negotiateRounds > 0) {
         this.livePhase = "negotiate";
         this.phaseDeadlineAt = Date.now() + this.deadlineMs;
         this.emit({ type: "serverStatus", status: this.status() });

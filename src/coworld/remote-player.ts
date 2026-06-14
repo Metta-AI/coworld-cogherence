@@ -1,31 +1,29 @@
 // The seam that turns an external player container into an in-process `Agent`.
-// `GameRunner` drives the turn loop by calling `agent.negotiate(view)` /
-// `agent.commit(view)`; a RemotePlayerAgent answers those by sending the slot's
-// REDACTED view over its player WebSocket and awaiting the typed reply. The
-// runner already bounds the wait (the negotiate race + the commit coordinator
-// default missing answers to []), and late/duplicate submits are no-ops there,
-// so this class only has to:
-//   - send the request and resolve with the matching reply,
-//   - resolve [] when no player is connected or the socket drops, and
-//   - drop replies whose (phase, turn) don't match the open request,
-//   - carry a backstop timeout so a silent player never leaks a pending promise.
-import type { Agent, AgentView, Post } from "../agents/types";
+// `GameRunner` drives the turn loop by calling `agent.commit(view)`; a
+// RemotePlayerAgent answers by sending the slot's REDACTED view over its player
+// WebSocket and awaiting `commit_result`. There is no negotiate phase — chat is
+// async and handled by the game-server directly against the message bus.
+//
+// The runner already bounds the wait (the commit coordinator defaults missing
+// answers to []), and late/duplicate submits are no-ops there, so this class
+// only has to: send the request and resolve with the matching reply, resolve []
+// when no player is connected or the socket drops, drop replies whose turn
+// doesn't match the open request, and carry a backstop timeout so a silent
+// player never leaks a pending promise.
+import type { Agent, AgentView } from "../agents/types";
 import type { CogId } from "../shared/engine/types";
 import type { Order } from "../shared/engine/orders";
 import { redactStateFor } from "./redact-state";
-import { parsePlayerMessage, type GameToPlayer, type PlayerView } from "./protocol";
+import type { GameToPlayer, PlayerToGame, PlayerView } from "./protocol";
 
 /** What RemotePlayerAgent needs from a player WebSocket: a way to send text. */
 export interface PlayerSink {
   send(text: string): void;
 }
 
-type Phase = "negotiate" | "commit";
 interface Pending {
-  phase: Phase;
   turn: number;
   resolve: (orders: Order[] | null) => void;
-  posts: boolean; // true → a negotiate request (resolve carries posts via the `result` field)
   timer: ReturnType<typeof setTimeout> | null;
 }
 
@@ -37,8 +35,6 @@ export class RemotePlayerAgent implements Agent {
   private readonly backstopMs: number;
   private sink: PlayerSink | null = null;
   private pending: Pending | null = null;
-  /** The latest negotiate posts (set when a negotiate_result lands). */
-  private lastPosts: Post[] = [];
 
   constructor(opts: { id: CogId; slot: number; backstopMs: number }) {
     this.id = opts.id;
@@ -67,52 +63,32 @@ export class RemotePlayerAgent implements Agent {
     if (this.sink) this.send({ type: "final", results } as GameToPlayer);
   }
 
-  /** Feed an inbound raw frame from the player socket. */
-  deliver(raw: string): void {
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      return; // not JSON — ignore
-    }
-    const msg = parsePlayerMessage(parsed);
-    if (!msg || !this.pending) return;
-    const wantNegotiate = this.pending.posts;
-    if (msg.type === "negotiate_result" && wantNegotiate && msg.turn === this.pending.turn) {
-      this.lastPosts = msg.posts.map((p) => ({ to: p.to, text: p.text }));
-      this.settle([]); // resolve the pending negotiate (posts read from lastPosts)
-    } else if (msg.type === "commit_result" && !wantNegotiate && msg.turn === this.pending.turn) {
-      this.settle(msg.orders);
-    }
-    // anything else (wrong phase, stale turn) is dropped.
+  /** Push a live (async) chat message visible to this player. */
+  pushMessage(msg: GameToPlayer & { type: "message" }): void {
+    this.send(msg);
   }
 
-  negotiate(view: AgentView): Promise<Post[]> {
-    this.lastPosts = [];
-    return this.request("negotiate", view).then(() => this.lastPosts);
+  /** Handle a parsed inbound player frame. Only commit_result is the agent's
+   *  concern; async `message` frames are routed to the bus by the game-server. */
+  deliver(msg: PlayerToGame): void {
+    if (msg.type === "commit_result" && this.pending && msg.turn === this.pending.turn) {
+      this.settle(msg.orders);
+    }
   }
 
   commit(view: AgentView): Promise<Order[]> {
-    return this.request("commit", view).then((orders) => orders ?? []);
-  }
-
-  // --- internals -----------------------------------------------------------
-
-  private request(phase: Phase, view: AgentView): Promise<Order[] | null> {
-    // A new request supersedes any still-open one (phases are sequential, so this
+    // A new request supersedes any still-open one (turns are sequential, so this
     // only fires if a prior player never answered): default the stale one.
     this.settle(null);
     const turn = view.state.turn;
-    if (!this.sink) return Promise.resolve(null); // no player → passive
+    if (!this.sink) return Promise.resolve([]); // no player → passive
 
     const wire: PlayerView = { state: redactStateFor(view.state, this.id), me: this.id, messages: view.messages ?? [] };
-    this.send({ type: phase, turn, view: wire } as GameToPlayer);
-    return new Promise<Order[] | null>((resolve) => {
+    this.send({ type: "commit", turn, view: wire } as GameToPlayer);
+    return new Promise<Order[]>((resolve) => {
       this.pending = {
-        phase,
         turn,
-        posts: phase === "negotiate",
-        resolve,
+        resolve: (orders) => resolve(orders ?? []),
         timer: setTimeout(() => this.settle(null), this.backstopMs),
       };
     });
