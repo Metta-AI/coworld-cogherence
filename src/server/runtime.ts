@@ -41,6 +41,8 @@ export async function startServer(opts: {
   autorun?: boolean;
   /** Serve the client through Vite middleware (source + HMR) instead of nothing. */
   dev?: boolean;
+  /** Production: directory of the built client (dist) to serve statically. */
+  distDir?: string;
 }): Promise<ServerHandle> {
   const runner = new GameRunner({
     seed: opts.seed,
@@ -77,7 +79,7 @@ export async function startServer(opts: {
         legacy: { skipWebSocketTokenCheck: true },
       })
     : undefined;
-  http.on("request", createApp(runner, opts.hub, opts.steering, recorder, { defaultLive: opts.defaultLive, vite, shareOrigin: opts.shareOrigin }));
+  http.on("request", createApp(runner, opts.hub, opts.steering, recorder, { defaultLive: opts.defaultLive, vite, shareOrigin: opts.shareOrigin, distDir: opts.distDir }));
   await new Promise<void>((r) => http.listen(opts.port ?? 0, r));
   const port = (http.address() as { port: number }).port;
   if (opts.autorun !== false) void runner.run();

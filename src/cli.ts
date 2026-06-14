@@ -137,4 +137,8 @@ async function main(): Promise<void> {
 }
 
 // Run main() only when this file is the entry point (not when imported by tests).
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
+// The basename guard also stops main() firing when esbuild inlines this module
+// into the dist-server/cli-serve.js bundle, where import.meta.url collapses to
+// the bundle path (which ends in cli-serve.js, not cli.js, so it won't match).
+const entryHref = process.argv[1] ? pathToFileURL(process.argv[1]).href : "";
+if (entryHref === import.meta.url && /\/cli\.[cm]?[jt]s$/.test(entryHref)) main();

@@ -7,7 +7,8 @@
 import express from "express";
 import { z } from "zod";
 import { fileURLToPath } from "node:url";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import type { ViteDevServer } from "vite";
 import { toSnapshot } from "../shared/snapshot";
@@ -39,12 +40,21 @@ export function createApp(
   hub?: ActPromptHub,
   steering?: SteeringStore,
   recorder?: ReplayRecorder,
-  opts: { defaultLive?: boolean; vite?: ViteDevServer; shareOrigin?: string | null } = {},
+  opts: { defaultLive?: boolean; vite?: ViteDevServer; shareOrigin?: string | null; distDir?: string } = {},
 ): express.Express {
   const app = express();
   app.use(express.json());
 
   app.get("/health", (_req, res) => res.type("text/plain").send("ok"));
+
+  // Per-deploy identity, written by scripts/deploy-prod.sh into the app root
+  // (the parent of distDir). The deploy script polls this for the deployId to
+  // prove a rollout end-to-end. In dev (no distDir) there is no deploy stamp.
+  app.get("/version", (_req, res) => {
+    const versionFile = opts.distDir ? join(dirname(opts.distDir), ".deploy-version.json") : null;
+    if (versionFile && existsSync(versionFile)) res.type("application/json").send(readFileSync(versionFile, "utf8"));
+    else res.json({ deployId: "dev" });
+  });
 
   // The externally-reachable origin for share links (Tailscale name when the
   // server found one) — the wordmark's copy-play-link uses this so the host
@@ -166,19 +176,24 @@ export function createApp(
     return res.json(steering.update(req.params.id, parsed.data));
   });
 
-  // Client serving: Vite middleware transforms source modules on demand and
-  // hot-swaps client edits into the open page — no build step, no server
-  // restart, and the live game survives UI iteration. (Restarts are what left
-  // the preview pane stranded on its non-retrying "Awaiting server…" screen.)
-  const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+  // Client serving. Three modes:
+  //  - dev (opts.vite): Vite middleware transforms source modules on demand and
+  //    hot-swaps client edits into the open page — no build step, no server
+  //    restart, and the live game survives UI iteration. index.html comes from
+  //    the repo root, run through Vite's transform.
+  //  - prod (opts.distDir): serve the built client (hashed assets, favicon,
+  //    icons) statically, with an SPA fallback to dist/index.html.
+  //  - tests (neither): repo-root index.html (tests exercise the API only).
+  const indexHtmlDir = opts.distDir ?? resolve(dirname(fileURLToPath(import.meta.url)), "../..");
   if (opts.vite) app.use(opts.vite.middlewares);
+  else if (opts.distDir) app.use(express.static(opts.distDir, { index: false }));
   // SPA fallback for client routes (index.html drives view selection). On a
   // live server, default the bare routes to the LIVE view (add ?live) so
   // opening the URL watches the running game instead of the static recording —
   // live mode also lets you scrub buffered history, so nothing is lost.
   app.get(["/", "/cog/:id", "/feed"], async (req, res) => {
     if (opts.defaultLive && req.query.live === undefined) return res.redirect(`${req.path}?live`);
-    const raw = await readFile(resolve(root, "index.html"), "utf-8");
+    const raw = await readFile(resolve(indexHtmlDir, "index.html"), "utf-8");
     res.type("html").send(opts.vite ? await opts.vite.transformIndexHtml(req.originalUrl, raw) : raw);
   });
 
