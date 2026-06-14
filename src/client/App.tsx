@@ -15,6 +15,7 @@ import { GlobalView } from "./ui/GlobalView";
 import { FeedView } from "./ui/FeedView";
 import { CogView } from "./ui/CogView";
 import { ScoresOverlay } from "./ui/ScoresOverlay";
+import { Lobby } from "./ui/Lobby";
 
 const emptyStore = (): FeedStore => ({
   snapshots: [],
@@ -61,6 +62,12 @@ export function App({ replay: injected, live: liveProp }: { replay?: Replay; liv
     fetch("/cogs/claim", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: claimName }) })
       .then(async (r) => {
         const j = await r.json();
+        // Joining is lobby-only — once play has started, late arrivals observe
+        // the global live view instead of grabbing a seat.
+        if (!r.ok && j.started) {
+          window.location.href = "/?live";
+          return;
+        }
         setClaimed(r.ok ? { name: claimName, id: j.id as string } : { name: claimName, error: (j.error as string) ?? `claim failed (${r.status})` });
       });
   }, [claimName]);
@@ -127,11 +134,16 @@ export function App({ replay: injected, live: liveProp }: { replay?: Replay; liv
     return () => window.removeEventListener("keydown", onKey);
   }, [liveMode]);
 
-  // A new game (status no longer finished) re-arms the end-of-game scoreboard.
-  const finished = store.status?.finished ?? false;
+  // Lobby gate: false while the lobby collects cogs (show the Lobby overlay),
+  // true once play begins. Replays/older statuses omit it — read as started.
+  const started = store.status?.started ?? true;
+  // The game is over when it reaches its turn limit (ended) or the hard max
+  // (finished) — either way, offer the end-of-game scoreboard + Start new game.
+  const gameOver = (store.status?.ended ?? false) || (store.status?.finished ?? false);
+  // A new game (status no longer over) re-arms the end-of-game scoreboard.
   useEffect(() => {
-    if (!finished) setScoreClosed(false);
-  }, [finished]);
+    if (!gameOver) setScoreClosed(false);
+  }, [gameOver]);
 
   const snapshot = snaps.length ? snaps[Math.min(index, snaps.length - 1)]! : null;
   const cogs = snapshot ? snapshot.cogs.map((c) => ({ id: c.id, index: c.index })) : [];
@@ -210,7 +222,7 @@ export function App({ replay: injected, live: liveProp }: { replay?: Replay; liv
           />
         </>
       )}
-      {liveMode && finished && !scoreClosed && snapshot && (
+      {liveMode && gameOver && !scoreClosed && snapshot && (
         <ScoresOverlay
           snapshot={snaps[snaps.length - 1] ?? snapshot}
           onNewGame={() => {
@@ -218,6 +230,19 @@ export function App({ replay: injected, live: liveProp }: { replay?: Replay; liv
             setScoreClosed(false);
           }}
           onClose={() => setScoreClosed(true)}
+        />
+      )}
+      {liveMode && !started && store.status && (
+        <Lobby
+          status={store.status}
+          onAddBot={() => void fetch("/cogs/add", { method: "POST" })}
+          onJoin={(nm) => {
+            void fetch("/cogs/claim", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: nm }) }).then((r) => {
+              if (r.ok) window.location.href = `/cog/${encodeURIComponent(nm)}?live`;
+            });
+          }}
+          onStart={() => void fetch("/start", { method: "POST" })}
+          onRemove={(id) => void fetch(`/cog/${id}/kick`, { method: "POST" })}
         />
       )}
     </div>

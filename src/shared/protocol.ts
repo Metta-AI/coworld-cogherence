@@ -97,6 +97,14 @@ export const serverStatusSchema = z
     turnLimit: z.number().int().optional(), // soft auto-stop (live); extendable
     waitReady: z.boolean().optional(), // commit waits for every Ready (no deadline)
     startedAt: z.number().optional(), // epoch ms the live game began — drives the header GAME clock
+    // Lobby: false while the lobby collects cogs, true once play has begun. Older
+    // replays omit it (a recorded game was always a started one) — read as true.
+    started: z.boolean().optional(),
+    ended: z.boolean().optional(), // game reached its turn limit — offer "Start new game"
+    maxCogs: z.number().int().optional(), // seat cap (engine max)
+    // Lobby roster: who's seated, and whether each seat is a bot (autopilot) or a
+    // human (joined by name, autopilot off).
+    roster: z.array(z.object({ id: z.string(), name: z.string(), bot: z.boolean() }).strict()).optional(),
   })
   .strict();
 

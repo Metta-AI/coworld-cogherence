@@ -121,6 +121,12 @@ export class SteeringStore {
     this.waiting.delete(cog);
     this.readyArmed.delete(cog);
   }
+  /** Forget every cog (a reset to an empty lobby starts from a clean slate). */
+  clearAll(): void {
+    this.byCog.clear();
+    this.waiting.clear();
+    this.readyArmed.clear();
+  }
 }
 
 /** Wrap an agent under operator steering: MANUAL cogs wait for the operator's

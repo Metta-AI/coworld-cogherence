@@ -72,9 +72,15 @@ export function createApp(
   app.get("/cog/:id/state.json", (req, res) => res.json(buildCogSnapshot(toSnapshot(runner.state), req.params.id)));
   app.get("/cog/:id/act-prompts", (req, res) => res.json(hub?.list(req.params.id) ?? []));
 
-  // Operator: restart the live game from turn 1 (keeps personas/pauses).
+  // "Start new game": abandon the current game and return to an empty lobby.
   app.post("/reset", (_req, res) => {
     runner.reset();
+    res.json({ ok: true });
+  });
+
+  // "Start game" from the lobby: lock the roster and begin play.
+  app.post("/start", (_req, res) => {
+    runner.start();
     res.json({ ok: true });
   });
 
@@ -117,6 +123,8 @@ export function createApp(
   app.post("/cogs/claim", (req, res) => {
     const parsed = z.object({ name: z.string().trim().min(1).max(24) }).strict().safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "invalid name" });
+    // Joining is lobby-only: once play has started, late arrivals observe.
+    if (runner.currentStatus().started) return res.status(409).json({ ok: false, started: true, error: "the game is in progress — observe instead" });
     const name = parsed.data.name;
     const existing = runner.state.cogOrder.find((id) => runner.state.cogs[id]!.name.toLowerCase() === name.toLowerCase());
     if (existing) {

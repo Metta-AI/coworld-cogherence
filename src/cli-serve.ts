@@ -18,12 +18,26 @@ const flag = (name: string): boolean => process.argv.includes(`--${name}`);
 const ROTATION = ["greedy", "peaceful", "random", "greedy"];
 
 async function main(): Promise<void> {
+  // Production (NODE_ENV=production, set by the systemd unit) serves the built
+  // client from dist/ instead of through Vite, defaults the bare routes to the
+  // live view, and boots into an empty LOBBY (people join / add bots, then hit
+  // Start) rather than auto-running a bot game.
+  const prod = process.env.NODE_ENV === "production";
+  // Lobby mode: boot empty + unstarted (the default in prod, opt-in elsewhere via
+  // --lobby). --start begins play immediately instead.
+  const lobby = flag("lobby") || (prod && !flag("start"));
+  const started = !lobby;
+
   const seed = Number(arg("seed", "7"));
-  const cogs = Number(arg("cogs", "4"));
+  // In the lobby the board starts EMPTY (no preloaded bots); otherwise default to 4.
+  const cogs = Number(arg("cogs", lobby ? "0" : "4"));
   const port = Number(arg("port", "8080"));
   const deadlineMs = Number(arg("deadline", "20000"));
   const minTurnMs = Number(arg("pace", "800"));
   const maxTurns = Number(arg("turns", "0")) || undefined;
+  // Soft auto-stop / game length: a game ends (offering "Start new game") at this
+  // turn. 20 in prod (a public game finishes in reasonable time), 10 elsewhere.
+  const turnLimit = Number(arg("limit", prod ? "20" : "10"));
   const agentsArg = arg("agents", "");
   // --cogs 0 launches an EMPTY board: the loop idles until players claim in
   // via /cog/<name> (each claim seats a manual cog at a free corner).
@@ -46,10 +60,6 @@ async function main(): Promise<void> {
     model: (id) => steering.model(id),
   }).map((a) => steerableAgent(a, steering));
   if (manual) for (let i = 0; i < specs.length; i++) steering.update(`cog${i}`, { paused: true });
-  // Production (NODE_ENV=production, set by the systemd unit) serves the built
-  // client from dist/ instead of through Vite, and defaults the bare routes to
-  // the live view so visitors watch the running game.
-  const prod = process.env.NODE_ENV === "production";
   const defaultLive = prod || flag("default-live");
   // The SHARE link must be reachable by other machines: prefer the Tailscale
   // MagicDNS name (the host usually browses via localhost, which is useless to
@@ -62,12 +72,12 @@ async function main(): Promise<void> {
     });
   });
   const h = await startServer({
-    seed, agents, port, deadlineMs, minTurnMs, maxTurns, turnLimit: 10, hub, bus, steering, agentSpecs: specs, names, waitForReady, defaultLive, autorun: true,
+    seed, agents, port, deadlineMs, minTurnMs, maxTurns, turnLimit, hub, bus, steering, agentSpecs: specs, names, waitForReady, defaultLive, autorun: true, started,
     dev: !prod,
     distDir: prod ? join(dirname(fileURLToPath(import.meta.url)), "..", "dist") : undefined,
     shareOrigin: tailnetName ? `http://${tailnetName}:${port}` : null,
   });
-  console.log(`Cogherence live — seed ${seed}, agents [${specs.join(", ")}]`);
+  console.log(`Cogherence ${lobby ? "lobby" : "live"} — seed ${seed}, agents [${specs.join(", ")}]`);
   console.log(`  server:   ${h.url}`);
   console.log(`  viewer:   ${h.url}/${defaultLive ? "" : "?live"}`);
   console.log(`  globalws: ws://127.0.0.1:${h.port}/global/ws`);

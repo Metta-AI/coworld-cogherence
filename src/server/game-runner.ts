@@ -39,6 +39,12 @@ export class GameRunner {
   /** Operator pause: the run loop parks at the next turn boundary while paused.
    *  `resumeWaiters` are the parked loop's continuations, released on resume/reset. */
   private paused = false;
+  /** Lobby gate: false while the lobby collects cogs (the run loop parks instead
+   *  of simulating), true once start() begins play. */
+  private started: boolean;
+  /** Set when the loop stops at the turn limit — the client offers "Start new
+   *  game" (which reset()s back to an empty lobby). Cleared on start/reset/extend. */
+  private ended = false;
   private resumeWaiters: Array<() => void> = [];
   /** Game-clock pause accounting: epoch the current pause began (undefined while
    *  running) and total ms spent paused before it, so the header GAME clock can
@@ -67,6 +73,9 @@ export class GameRunner {
     /** Wait-ready mode: the Commit window has NO deadline — the turn advances
      *  only when every cog submits (manual cogs: the operator's Ready). */
     waitForReady?: boolean;
+    /** Start in the lobby (false) collecting cogs until start(), or begin play
+     *  immediately (true, the default for tests / non-lobby launches). */
+    started?: boolean;
     negotiateRounds?: number;
   }) {
     this.agents = opts.agents;
@@ -80,21 +89,29 @@ export class GameRunner {
     this.negotiateRounds = opts.negotiateRounds ?? 1;
     this.names = opts.names;
     this.waitForReady = opts.waitForReady ?? false;
+    this.started = opts.started ?? true;
     this.state = newGame(opts.seed, opts.agents.length, opts.names);
   }
 
-  /** Operator reset: abandon the current game and start a fresh one from turn 1.
-   *  Bumping the generation makes any in-flight run loop exit at its next guard;
-   *  we clear history (events + chat) and kick a new loop that re-broadcasts. */
+  /** "Start new game": abandon the current game and return to an EMPTY lobby —
+   *  no cogs, nobody seated — so the next group joins / adds bots fresh. Bumping
+   *  the generation makes any in-flight run loop exit at its next guard; we clear
+   *  history (events + chat) and kick a new loop that idles in the lobby. */
   reset(): void {
     this.generation += 1;
-    this.state = newGame(this.seed, this.agents.length, this.names);
+    this.agents = [];
+    this.names = undefined;
+    this.steering?.clearAll();
+    this.state = newGame(this.seed, 0);
+    this.started = false;
+    this.ended = false;
     this.recent = [];
     this.coord = null;
     this.livePhase = null;
     this.phaseDeadlineAt = undefined;
+    this.startedAt = undefined; // lobby has no game clock until start()
     this.bus?.clear();
-    // A fresh game always plays from a zeroed clock; release any parked stale loop.
+    // A fresh lobby always plays from a zeroed clock; release any parked stale loop.
     this.paused = false;
     this.pausedAt = undefined;
     this.pausedAccumMs = 0;
@@ -102,9 +119,21 @@ export class GameRunner {
     void this.run();
   }
 
+  /** "Start game" from the lobby: lock the roster and begin play. The run loop
+   *  is parked in its lobby guard; flipping started + releasing it wakes it. */
+  start(): void {
+    if (this.started) return;
+    this.started = true;
+    this.ended = false;
+    this.startedAt = Date.now(); // the game clock starts now, not at lobby boot
+    this.releaseWaiters();
+    this.emit({ type: "serverStatus", status: this.status() });
+  }
+
   /** Raise the soft auto-stop by `by` turns (capped at maxTurns) and resume. */
   extendTurnLimit(by: number): number {
     this.turnLimit = Math.min(this.maxTurns, (Number.isFinite(this.turnLimit) ? this.turnLimit : this.maxTurns) + by);
+    this.ended = false;
     this.setPaused(false);
     return this.turnLimit;
   }
@@ -187,6 +216,7 @@ export class GameRunner {
    *  and broadcasts the new board. Returns the seated cog's id; throws when the
    *  board is out of seats/corners (the HTTP layer surfaces that as an error). */
   addCog(makeAgent: (id: CogId) => Agent, name?: string): CogId {
+    if (this.started) throw new Error("the game has already started — observe instead");
     const before = new Set(this.state.cogOrder);
     this.state = addCog(this.state, name);
     const id = this.state.cogOrder.find((x) => !before.has(x))!;
@@ -230,6 +260,14 @@ export class GameRunner {
       paused: this.paused,
       pausedAccumMs: this.pausedAccumMs,
       waitReady: this.waitForReady,
+      started: this.started,
+      ended: this.ended,
+      maxCogs: 6, // engine seats at most 6 cogs (board corners)
+      roster: this.state.cogOrder.map((id) => ({
+        id,
+        name: this.state.cogs[id]!.name,
+        bot: !(this.steering?.get(id).paused ?? false), // joined humans are paused (manual); bots autopilot
+      })),
       ...(Number.isFinite(this.turnLimit) ? { turnLimit: this.turnLimit } : {}),
       ...(this.pausedAt !== undefined ? { pausedAt: this.pausedAt } : {}),
       ...(this.phaseDeadlineAt !== undefined ? { phaseDeadlineAt: this.phaseDeadlineAt } : {}),
@@ -240,13 +278,23 @@ export class GameRunner {
 
   async run(): Promise<{ winner: CogId | null; standings: Array<{ cog: CogId; hearts: number }> }> {
     const gen = this.generation;
-    this.startedAt = Date.now(); // game clock starts now (reset → a fresh clock)
+    if (this.started) this.startedAt = Date.now(); // game clock starts now (reset → a fresh clock)
     this.emit({ type: "snapshot", snapshot: toSnapshot(this.state) });
     this.emit({ type: "serverStatus", status: this.status() });
 
     while (this.state.turn <= this.maxTurns && gen === this.generation) {
-      // Soft auto-stop: pause at the limit (the operator extends it to continue).
-      if (this.state.turn > this.turnLimit && !this.paused) this.setPaused(true);
+      // Lobby: collect cogs (join / add bot) but DON'T simulate until start().
+      // The loop parks here; start() flips `started` and releases it.
+      if (!this.started) {
+        await new Promise<void>((resolve) => this.resumeWaiters.push(resolve));
+        continue;
+      }
+      // Soft auto-stop: pause at the limit (the game is over — the client offers
+      // "Start new game"; an operator can still extendTurnLimit to continue).
+      if (this.state.turn > this.turnLimit && !this.paused) {
+        this.ended = true;
+        this.setPaused(true);
+      }
       // Operator pause parks here, at a clean turn boundary, until resume/reset.
       await this.waitWhilePaused(gen);
       if (gen !== this.generation) return scoreGame(this.state);

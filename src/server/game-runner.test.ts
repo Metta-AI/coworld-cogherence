@@ -103,22 +103,27 @@ describe("GameRunner", () => {
     expect(runner.state.turn).toBe(2);
   });
 
-  it("an empty board idles at turn 1; the first addCog wakes it and the game runs", async () => {
-    const runner = new GameRunner({ seed: 7, agents: [], maxTurns: 2, deadlineMs: 30 });
+  it("an empty lobby idles at turn 1; addCog seats and start() begins play", async () => {
+    const runner = new GameRunner({ seed: 7, agents: [], maxTurns: 2, deadlineMs: 30, started: false });
     const done = runner.run();
     await new Promise((r) => setTimeout(r, 80));
-    expect(runner.state.turn).toBe(1); // idling — zero cogs, nothing simulated
-    runner.addCog((id) => greedyAgent(id));
+    expect(runner.state.turn).toBe(1); // lobby — zero cogs, nothing simulated
+    runner.addCog((id) => greedyAgent(id)); // seat a cog (still in the lobby)
+    await new Promise((r) => setTimeout(r, 40));
+    expect(runner.state.turn).toBe(1); // still the lobby — not started yet
+    runner.start();
     const result = await done; // greedy plays both turns to completion
     expect(runner.state.turn).toBe(3);
     expect(result.standings).toHaveLength(1);
   });
 
-  it("reset keeps claimed names — the roster survives a clean-board restart", () => {
-    const runner = new GameRunner({ seed: 7, agents: [], maxTurns: 2, deadlineMs: 30 });
+  it("reset returns to an empty lobby — the roster is cleared, play not started", () => {
+    const runner = new GameRunner({ seed: 7, agents: [], maxTurns: 2, deadlineMs: 30, started: false });
     runner.addCog((id) => greedyAgent(id), "zoe");
+    expect(runner.state.cogOrder).toHaveLength(1);
     runner.reset();
-    expect(runner.state.cogs.cog0!.name).toBe("zoe");
+    expect(runner.state.cogOrder).toHaveLength(0);
+    expect(runner.currentStatus().started).toBe(false);
   });
 
   it("auto-convert elements: a paused cog's flagged minerals burn as singles each turn; bots liquidate", async () => {

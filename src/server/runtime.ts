@@ -35,6 +35,8 @@ export async function startServer(opts: {
   names?: string[];
   /** Commit waits for every cog's Ready — no deadline, no countdown. */
   waitForReady?: boolean;
+  /** Start in the lobby (false) collecting cogs until /start, or begin immediately. */
+  started?: boolean;
   /** Externally-reachable origin for share links (e.g. the Tailscale name). */
   shareOrigin?: string | null;
   defaultLive?: boolean;
@@ -55,6 +57,7 @@ export async function startServer(opts: {
     steering: opts.steering,
     names: opts.names,
     waitForReady: opts.waitForReady,
+    started: opts.started,
   });
   // Record the live frame stream so the dashboard can replay this exact game.
   const recorder = new ReplayRecorder(

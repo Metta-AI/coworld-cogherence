@@ -30,7 +30,8 @@ describe("http", () => {
     expect(j.cogs.find((c: { id: string }) => c.id === "cog1").treasury).toEqual({ C: 0, O: 0, Ge: 0, S: 0 });
   });
   it("POST /cogs/add seats a new cog; a full board is a 409", async () => {
-    const r2 = new GameRunner({ seed: 7, agents: [greedyAgent("cog0"), greedyAgent("cog1")], maxTurns: 100 });
+    // Joining is lobby-only, so the runner must be unstarted (the lobby).
+    const r2 = new GameRunner({ seed: 7, agents: [greedyAgent("cog0"), greedyAgent("cog1")], maxTurns: 100, started: false });
     const srv = createApp(r2).listen(0);
     const p = (srv.address() as { port: number }).port;
     const j = await (await fetch(`http://127.0.0.1:${p}/cogs/add`, { method: "POST" })).json();
@@ -45,7 +46,8 @@ describe("http", () => {
   });
 
   it("POST /cogs/claim -> by-name control: finds or creates, autopilot off", async () => {
-    const r2 = new GameRunner({ seed: 7, agents: [greedyAgent("cog0"), greedyAgent("cog1")], maxTurns: 100 });
+    // Joining is lobby-only, so the runner must be unstarted (the lobby).
+    const r2 = new GameRunner({ seed: 7, agents: [greedyAgent("cog0"), greedyAgent("cog1")], maxTurns: 100, started: false });
     const steering = new SteeringStore();
     const srv = createApp(r2, undefined, steering).listen(0);
     const p = (srv.address() as { port: number }).port;
@@ -65,6 +67,22 @@ describe("http", () => {
     expect(await (await post({ name: "DAVEEY" })).json()).toEqual({ ok: true, id: "cog2", created: false });
     // garbage -> 400
     expect((await post({ name: "" })).status).toBe(400);
+    srv.close();
+  });
+
+  it("joining is lobby-only: /start begins play, then /cogs/add & /cogs/claim are 409", async () => {
+    const r2 = new GameRunner({ seed: 7, agents: [greedyAgent("cog0")], maxTurns: 100, started: false });
+    const srv = createApp(r2).listen(0);
+    const url = (path: string) => `http://127.0.0.1:${(srv.address() as { port: number }).port}${path}`;
+    // lobby: a bot can be added before the game starts
+    expect((await fetch(url("/cogs/add"), { method: "POST" })).status).toBe(200);
+    // start the game
+    expect((await fetch(url("/start"), { method: "POST" })).status).toBe(200);
+    // now adding / joining is rejected — late arrivals observe
+    expect((await fetch(url("/cogs/add"), { method: "POST" })).status).toBe(409);
+    const claim = await fetch(url("/cogs/claim"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: "late" }) });
+    expect(claim.status).toBe(409);
+    expect((await claim.json()).started).toBe(true);
     srv.close();
   });
 
