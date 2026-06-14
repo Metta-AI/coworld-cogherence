@@ -90,7 +90,10 @@ export function App({ replay: injected, live: liveProp }: { replay?: Replay; liv
     const endpoint = loc.view === "cog" && cogId ? `/cog/${cogId}/ws` : "/global/ws";
     storeRef.current = emptyStore();
     setConnected(true);
-    return connectLiveFeed(storeRef.current, () => makeWorldSocket(`ws://${window.location.host}${endpoint}`), rerender);
+    // Match the page protocol: an https:// page must use wss:// (browsers block a
+    // mixed-content ws:// socket), while local http dev uses ws://.
+    const wsProto = window.location.protocol === "https:" ? "wss" : "ws";
+    return connectLiveFeed(storeRef.current, () => makeWorldSocket(`${wsProto}://${window.location.host}${endpoint}`), rerender);
   }, [liveMode, loc.view, cogId]);
 
   const store = storeRef.current;
