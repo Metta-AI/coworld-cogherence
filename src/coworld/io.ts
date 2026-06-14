@@ -22,12 +22,17 @@ export async function readBytes(uri: string): Promise<Buffer> {
   return readFile(pathOf(uri));
 }
 
-/** Read + JSON-parse, transparently decompressing `.json.z` (zlib) / `.json.gz`
- *  (gzip) — the hosted replay artifact is stored zlib-compressed as replay.json.z. */
+/** Read + JSON-parse, transparently decompressing zlib (`.json.z`) / gzip
+ *  (`.json.gz`) replays. The hosted replay artifact is zlib-compressed, and the
+ *  CLI/runner may mount it under a name WITHOUT the suffix — so detect by magic
+ *  bytes (gzip 1f 8b, zlib 78 xx) and fall back to the suffix. Plain JSON starts
+ *  with '{'/'['/whitespace, never 0x1f or 0x78. */
 export async function readJson(uri: string): Promise<unknown> {
   let bytes = await readBytes(uri);
-  if (uri.endsWith(".json.z")) bytes = Buffer.from(inflateSync(bytes));
-  else if (uri.endsWith(".json.gz")) bytes = Buffer.from(gunzipSync(bytes));
+  const isGzip = bytes.length > 1 && bytes[0] === 0x1f && bytes[1] === 0x8b;
+  const isZlib = bytes.length > 1 && bytes[0] === 0x78;
+  if (isGzip || uri.endsWith(".json.gz")) bytes = Buffer.from(gunzipSync(bytes));
+  else if (isZlib || uri.endsWith(".json.z")) bytes = Buffer.from(inflateSync(bytes));
   return JSON.parse(bytes.toString("utf-8"));
 }
 

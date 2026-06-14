@@ -13,7 +13,7 @@ import { BedrockToolUseClient, bedrockConfigFromEnv, type ToolUseClient } from "
 import type { GameToPlayer, PlayerToGame, PlayerView } from "./protocol";
 
 const MESSAGE_SUFFIX =
-  "\n\nYou may ALSO call send_messages to talk to other Cogs at any time — public broadcasts or DMs to a cog id — to form alliances, propose trades, bluff, or threaten. Nothing is binding. Messages are optional.";
+  "\n\nThis is a CHEAP-TALK game — talking is how you build alliances, broker mineral trades, and win. In the SAME response, ALSO call send_messages (public broadcasts to \"public\" and/or private DMs to a cog id) to coordinate, propose trades, bluff, or threaten. Nothing is binding — you can betray later. Send at least one message most turns; call both send_messages and submit_orders.";
 
 /** Decide this turn's orders (robustly) + any chat, in one model call. */
 export async function act(view: PlayerView, client: ToolUseClient, persona?: string): Promise<{ orders: Order[]; posts: Post[] }> {
