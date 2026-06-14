@@ -9,5 +9,13 @@ services:
     build:
       context: .
   commissioner:
-    image: ghcr.io/metta-ai/commissioners-baseline:latest
+    # ruleset_strategy commissioner (default round-robin config). The old
+    # baseline/auto commissioner graduates champions with substatus=None but only
+    # schedules Competition rounds for substatus=="champion" entrants, so it never
+    # runs Competition rounds under the current backend. ruleset_strategy
+    # graduates champions with substatus="champion", keeping promotion and
+    # scheduling consistent. Pinned to the linux/amd64 manifest digest of
+    # commissioners-default:latest (the :latest tag is an amd64-only manifest list
+    # that `coworld build` can't docker-pull on an arm64 host).
+    image: ghcr.io/metta-ai/commissioners-default@sha256:eb4ba4ffe217db428fc8a52d3aced310c6b0d065bb698063d7202e748b7f2421
     platform: linux/amd64
