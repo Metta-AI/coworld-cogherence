@@ -5,6 +5,7 @@ import { greedyAgent } from "../agents/stub";
 import { ActPromptHub } from "./act-prompt-hub";
 import { SteeringStore } from "./steering-store";
 import { ReplayRecorder } from "./replay-recorder";
+import { DEFAULT_BEDROCK_MODEL } from "../shared/models";
 
 const runner = new GameRunner({ seed: 7, agents: [greedyAgent("cog0"), greedyAgent("cog1")], maxTurns: 100 });
 const server = createApp(runner).listen(0);
@@ -83,7 +84,7 @@ describe("http", () => {
     const srv = createApp(runner, undefined, steering).listen(0);
     const url = `http://127.0.0.1:${(srv.address() as { port: number }).port}`;
     // defaults
-    expect(await (await fetch(`${url}/cog/cog0/steering`)).json()).toEqual({ persona: "", paused: false, pending: [], standingBid: 0, autoConvert: [] });
+    expect(await (await fetch(`${url}/cog/cog0/steering`)).json()).toEqual({ persona: "", paused: false, pending: [], standingBid: 0, autoConvert: [], model: DEFAULT_BEDROCK_MODEL });
     // edit — including a queued operator order
     const posted = await (
       await fetch(`${url}/cog/cog0/steering`, {
@@ -99,7 +100,7 @@ describe("http", () => {
       body: JSON.stringify({ pending: [{ type: "align", tile: "0,0", force: 0 }] }),
     });
     srv.close();
-    expect(posted).toEqual({ persona: "betray everyone", paused: true, pending: [{ type: "align", tile: "0,0", force: 3 }], standingBid: 0, autoConvert: [] });
+    expect(posted).toEqual({ persona: "betray everyone", paused: true, pending: [{ type: "align", tile: "0,0", force: 3 }], standingBid: 0, autoConvert: [], model: DEFAULT_BEDROCK_MODEL });
     expect(steering.get("cog0").pending).toEqual([{ type: "align", tile: "0,0", force: 3 }]);
     expect(bad.status).toBe(400);
   });

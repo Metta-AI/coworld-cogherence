@@ -174,6 +174,7 @@ export function App({ replay: injected, live: liveProp }: { replay?: Replay; liv
               live={liveMode}
               atLatest={index >= snaps.length - 1}
               onSeekTurn={seekTurn}
+              prompts={store.actPrompts[cogId] ?? []}
             />
           )}
           <Scrubber

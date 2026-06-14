@@ -68,12 +68,21 @@ export async function llmNegotiate(
 export function llmAgent(
   id: CogId,
   client: ToolUseClient,
-  opts?: { report?: ReportFn; persona?: () => string },
+  opts?: {
+    report?: ReportFn;
+    persona?: () => string;
+    /** Per-turn model id (operator-selectable). Used with `clientFor`. */
+    model?: () => string;
+    /** Resolve a client for a model id (cached). When given with `model`, the
+     *  agent picks the client per turn so a live model switch takes effect. */
+    clientFor?: (model: string) => ToolUseClient;
+  },
 ): Agent {
   const now = () => ({ report: opts?.report, persona: opts?.persona?.() });
+  const pick = (): ToolUseClient => (opts?.clientFor && opts?.model ? opts.clientFor(opts.model()) : client);
   return {
     id,
-    negotiate: (view) => llmNegotiate(view, client, now()),
-    commit: (view) => llmDecide(view, client, now()),
+    negotiate: (view) => llmNegotiate(view, pick(), now()),
+    commit: (view) => llmDecide(view, pick(), now()),
   };
 }

@@ -12,6 +12,7 @@ import { makeReplay, type Replay } from "./shared/replay";
 import { greedyAgent, peacefulAgent, randomAgent } from "./agents/stub";
 import { llmAgent } from "./agents/llm/llm-agent";
 import { BedrockToolUseClient, type ToolUseClient } from "./agents/llm/tool-client";
+import { DEFAULT_BEDROCK_MODEL } from "./shared/models";
 import type { Agent } from "./agents/types";
 import type { ActPromptEntry } from "./server/act-prompt-hub";
 import type { GameState, CogId } from "./shared/engine/types";
@@ -59,19 +60,31 @@ export function parseArgs(argv: string[]): CliOptions {
 export function buildAgents(
   specs: string[],
   seed: number,
-  opts?: { onActPrompt?: (e: ActPromptEntry) => void; persona?: (id: CogId) => string },
+  opts?: {
+    onActPrompt?: (e: ActPromptEntry) => void;
+    persona?: (id: CogId) => string;
+    /** Per-cog Bedrock model id, read each turn so a live model switch applies. */
+    model?: (id: CogId) => string;
+  },
 ): Agent[] {
-  let toolClient: ToolUseClient | null = null;
-  const llmClient = (): ToolUseClient => (toolClient ??= new BedrockToolUseClient());
+  // One client per distinct model id, created lazily and reused.
+  const clients = new Map<string, ToolUseClient>();
+  const clientFor = (model: string): ToolUseClient => {
+    let c = clients.get(model);
+    if (!c) clients.set(model, (c = new BedrockToolUseClient({ model })));
+    return c;
+  };
   return specs.map((spec, i) => {
     const id: CogId = `cog${i}`;
     if (spec === "greedy") return greedyAgent(id);
     if (spec === "peaceful") return peacefulAgent(id);
     if (spec === "random") return randomAgent(id, seed * 1000 + i);
     if (spec === "llm")
-      return llmAgent(id, llmClient(), {
+      return llmAgent(id, clientFor(DEFAULT_BEDROCK_MODEL), {
         report: (turn, content) => opts?.onActPrompt?.({ cogId: id, turn, phase: "commit", content }),
         persona: opts?.persona ? () => opts.persona!(id) : undefined,
+        model: opts?.model ? () => opts.model!(id) : undefined,
+        clientFor: opts?.model ? clientFor : undefined,
       });
     throw new Error(`unknown agent type: "${spec}" (expected greedy | peaceful | random | llm)`);
   });

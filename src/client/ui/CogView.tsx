@@ -14,7 +14,7 @@ import { EnergyChip, CGIcon, Mineral } from "../cg/atoms";
 import { AuctionPanel, LatticePanel, ChannelMessage, TurnLog } from "../cg/panels";
 import { ResizableColumns } from "../cg/ResizableColumns";
 import { MINERALS, MINERAL_NAME, expectedMintBy, upkeepBy, setsOf, territory, rankedByHearts } from "../cg/derive";
-import { AutopilotPanel } from "./AutopilotPanel";
+import { AutopilotPanel, type ReasoningEntry } from "./AutopilotPanel";
 
 const cogIdx = (id: string): number => Number(id.replace(/\D/g, "")) || 0;
 
@@ -397,6 +397,7 @@ export function CogView({
   live = false,
   atLatest = true,
   onSeekTurn,
+  prompts = [],
 }: {
   snapshot: GameSnapshot;
   cogId: string;
@@ -406,6 +407,8 @@ export function CogView({
   /** Whether the board is on the newest turn — steering is read-only in the past. */
   atLatest?: boolean;
   onSeekTurn?: (turn: number) => void;
+  /** This Cog's act-prompt transcripts (what the model saw & decided). */
+  prompts?: ReasoningEntry[];
 }): React.ReactElement {
   const [mode, setMode] = useState<LatticeMode>("coherence");
   const [menu, setMenu] = useState<{ tileKey: string; at: { x: number; y: number } } | null>(null);
@@ -519,6 +522,7 @@ export function CogView({
               <AutopilotPanel
                 cogId={cogId}
                 atLatest={atLatest}
+                prompts={prompts}
                 pending={pending}
                 pendingNotes={pendingNotes}
                 pendingCommitted={pendingCommitted}
