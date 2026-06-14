@@ -139,10 +139,23 @@ function copyText(text: string): void {
   ta.remove();
 }
 
-/** The wordmark: the logo glyph + COGHERENCE, with an optional tagline.
- *  CLICK copies the current view's PLAY LINK on the externally-reachable
- *  origin (/share-info — the Tailscale name when the server knows one), so
- *  the host doesn't hand out localhost. */
+/** The COGHERENCE wordmark — the gear-as-O lockup generated with nano-banana
+ *  (see AGENTS.md), keyed to a transparent PNG so it drops onto the dark UI. */
+export function Wordmark({ small = false }: { small?: boolean }): React.ReactElement {
+  return (
+    <img
+      src={`${import.meta.env.BASE_URL}art/logo-wordmark.png`}
+      alt="COGHERENCE"
+      draggable={false}
+      style={{ height: small ? 21 : 27, width: "auto", display: "block" }}
+    />
+  );
+}
+
+/** The brand: the gear-as-O COGHERENCE wordmark. CLICK copies the current
+ *  view's PLAY LINK on the externally-reachable origin (/share-info — the
+ *  Tailscale name when the server knows one, so the host doesn't hand out
+ *  localhost) and flashes a "✓ copied" confirmation under the wordmark. */
 export function Brand({ small = false }: { small?: boolean }): React.ReactElement {
   const [copied, setCopied] = useState<string | null>(null);
   const copyPlayLink = (): void => {
@@ -165,14 +178,11 @@ export function Brand({ small = false }: { small?: boolean }): React.ReactElemen
       onKeyDown={(e) => e.key === "Enter" && copyPlayLink()}
       style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}
     >
-      <CGIcon name="logo" size={small ? 26 : 32} />
       <div>
-        <div style={{ fontFamily: "var(--f-ui)", fontWeight: 700, fontSize: small ? 17 : 20, letterSpacing: "0.04em", color: "var(--text)" }}>
-          COGHERENCE
-        </div>
-        {!small && (
-          <div className="cg-mono" style={{ fontSize: 9, color: copied ? "var(--coherence)" : "var(--muted)", letterSpacing: copied ? "0.04em" : "0.16em", marginTop: 1, whiteSpace: "nowrap" }}>
-            {copied ? `✓ copied ${copied.replace(/^https?:\/\//, "")}` : "A POLIS OF MINDS"}
+        <Wordmark small={small} />
+        {!small && copied && (
+          <div className="cg-mono" style={{ fontSize: 9, color: "var(--coherence)", letterSpacing: "0.04em", marginTop: 1, whiteSpace: "nowrap" }}>
+            ✓ copied {copied.replace(/^https?:\/\//, "")}
           </div>
         )}
       </div>
