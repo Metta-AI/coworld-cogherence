@@ -105,7 +105,13 @@ returns to an empty lobby. Controls map to endpoints (reachable on
 `POST /cogs/add` (bot), `POST /cogs/claim` (join by name), `POST /reset` (→ empty
 lobby), `POST /extend` (+10 turns), `POST /pause` · `/resume`.
 
+Pacing is **wait-ready** in prod (default on): a turn's Commit has no deadline —
+it advances only once every cog is ready (bots ready themselves; humans hit
+Ready), so the shared game is player-paced. Caveat: an idle human stalls the
+turn; the operator can `POST /resume` after toggling, or kick the seat.
+
 Relevant `cli-serve` flags: `--lobby` (boot into the lobby; the prod default),
 `--start` (begin immediately), `--cogs N` / `--agents …` (pre-seat), `--limit N`
-(game length). Running LLM seats would need `bedrock:InvokeModel` on the instance
-role; seats are also switchable to autopilot live per-panel in the UI.
+(game length), `--no-wait-ready` (timed pacing instead). Running LLM seats would
+need `bedrock:InvokeModel` on the instance role; seats are also switchable to
+autopilot live per-panel in the UI.

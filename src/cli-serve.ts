@@ -48,8 +48,11 @@ async function main(): Promise<void> {
   // seat with autopilot OFF (operators drive via the Control panel / Ready).
   const names = arg("names", "") ? arg("names", "").split(",").map((s) => s.trim()) : undefined;
   const manual = flag("manual");
-  // --wait-ready: turns never auto-advance — Commit waits for every cog's Ready.
-  const waitForReady = flag("wait-ready");
+  // Wait-ready: turns never auto-advance — Commit waits for every cog's Ready
+  // (bots ready themselves; humans hit Ready). ON by default in prod so the
+  // shared public game is player-paced; --no-wait-ready opts out, --wait-ready
+  // opts in elsewhere.
+  const waitForReady = flag("wait-ready") || (prod && !flag("no-wait-ready"));
 
   const hub = new ActPromptHub();
   const bus = new MessageBus();
