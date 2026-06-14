@@ -14,6 +14,7 @@ import { TooltipLayer } from "./cg/Tooltip";
 import { GlobalView } from "./ui/GlobalView";
 import { FeedView } from "./ui/FeedView";
 import { CogView } from "./ui/CogView";
+import { ScoresOverlay } from "./ui/ScoresOverlay";
 
 const emptyStore = (): FeedStore => ({
   snapshots: [],
@@ -46,6 +47,8 @@ export function App({ replay: injected, live: liveProp }: { replay?: Replay; liv
   // The Coworld /client/replay surface auto-plays from the first frame.
   const [playing, setPlaying] = useState(loc.replayLoop ?? false);
   const [connected, setConnected] = useState(false);
+  // The end-of-game scoreboard can be dismissed to scrub the finished timeline.
+  const [scoreClosed, setScoreClosed] = useState(false);
 
   // A /cog/<name> URL (anything that isn't a cogN id) CLAIMS that agent on the
   // live server: find-or-create by name, autopilot off — the share-a-link
@@ -120,6 +123,12 @@ export function App({ replay: injected, live: liveProp }: { replay?: Replay; liv
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [liveMode]);
+
+  // A new game (status no longer finished) re-arms the end-of-game scoreboard.
+  const finished = store.status?.finished ?? false;
+  useEffect(() => {
+    if (!finished) setScoreClosed(false);
+  }, [finished]);
 
   const snapshot = snaps.length ? snaps[Math.min(index, snaps.length - 1)]! : null;
   const cogs = snapshot ? snapshot.cogs.map((c) => ({ id: c.id, index: c.index })) : [];
@@ -197,6 +206,16 @@ export function App({ replay: injected, live: liveProp }: { replay?: Replay; liv
             live={liveMode && follow}
           />
         </>
+      )}
+      {liveMode && finished && !scoreClosed && snapshot && (
+        <ScoresOverlay
+          snapshot={snaps[snaps.length - 1] ?? snapshot}
+          onNewGame={() => {
+            void fetch("/reset", { method: "POST" });
+            setScoreClosed(false);
+          }}
+          onClose={() => setScoreClosed(true)}
+        />
       )}
     </div>
   );

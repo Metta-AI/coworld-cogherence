@@ -1,7 +1,7 @@
 // Observatory header: brand + view switcher (left), the four-phase strip (center),
 // the turn readout + phase/game clocks + the live operator menu (right). One chrome
 // shared by every view.
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import type { GameSnapshot } from "../../shared/snapshot";
 import type { ServerStatus } from "../../shared/protocol";
 import { MAX_TURNS } from "../../shared/engine/constants";
@@ -21,6 +21,42 @@ function useNow(): number {
 const pad = (n: number): string => String(n).padStart(2, "0");
 const mmss = (s: number): string => `${pad(Math.floor(s / 60))}:${pad(s % 60)}`;
 const hhmmss = (s: number): string => `${pad(Math.floor(s / 3600))}:${pad(Math.floor((s % 3600) / 60))}:${pad(s % 60)}`;
+
+const post = (path: string): void => void fetch(path, { method: "POST" });
+
+/** Live operator/table controls (the "lobby"): pause/resume the loop, start a
+ *  fresh game, or seat another cog — a small dropdown beside the live badge. */
+function OperatorMenu({ paused }: { paused: boolean }): React.ReactElement {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent): void => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+  const item = (label: string, tip: string, onClick: () => void): React.ReactElement => (
+    <button type="button" className="vs-row" data-tip={tip} onClick={() => { onClick(); setOpen(false); }} style={{ borderLeftColor: "transparent", textAlign: "left", width: "100%" }}>
+      {label}
+    </button>
+  );
+  return (
+    <div className="view-switcher" ref={ref} data-testid="operator-menu">
+      <button type="button" className="vs-button" aria-haspopup="menu" aria-expanded={open} data-tip="operator controls" onClick={() => setOpen((o) => !o)}>
+        <span className="vs-current" style={{ fontSize: 14, lineHeight: 1 }}>⚙</span>
+      </button>
+      {open && (
+        <div className="vs-menu" role="menu" style={{ right: 0 }}>
+          {item(paused ? "▶ Resume" : "❚❚ Pause", "pause / resume the live turn loop", () => post(paused ? "/resume" : "/pause"))}
+          {item("↻ New game", "restart from turn 1 (keeps the roster)", () => post("/reset"))}
+          {item("＋ Add cog", "seat a new cog at a free corner", () => post("/cogs/add"))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function AppHeader({
   snapshot,
@@ -88,6 +124,7 @@ export function AppHeader({
             <span className="cg-mono" data-tip={status?.turnLimit != null ? `auto-stops at turn ${status.turnLimit} (of ${MAX_TURNS})` : undefined} style={{ fontSize: 12, color: "var(--muted)" }}>/{status?.turnLimit ?? MAX_TURNS}</span>
           </span>
         )}
+        {live && connected && <OperatorMenu paused={paused} />}
         {connected ? (
           <span className={`conn conn-live ${paused ? "is-paused" : ""}`} data-testid="live-badge">
             {paused ? "❚❚ paused" : "● live"}
