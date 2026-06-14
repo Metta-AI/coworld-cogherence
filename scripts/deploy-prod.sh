@@ -270,12 +270,26 @@ if [[ "$skip_public_verify" == "1" || "$skip_public_verify" == "true" ]]; then
   exit 0
 fi
 
-echo "Verifying ${public_url}/health..."
-curl -fsS --max-time 15 "${public_url%/}/health" -o "$health_body"
-grep -q '^ok$' "$health_body" || { echo "Public health check failed." >&2; head -c 1000 "$health_body" >&2; exit 1; }
-
-echo "Verifying ${public_url}/version..."
-curl -fsS --max-time 15 "${public_url%/}/version" -o "$version_body"
-grep -q "\"deployId\": *\"${deploy_id}\"" "$version_body" || { echo "Public version check did not return deployId ${deploy_id}." >&2; cat "$version_body" >&2; exit 1; }
+# Restarting the tunnel connector drops it for a few seconds while it
+# re-registers at the edge (a bare curl in that window gets a Cloudflare 530), so
+# poll both endpoints for up to ~60s before declaring failure.
+echo "Verifying ${public_url}/health and /version (deployId ${deploy_id})..."
+verified=""
+for _ in $(seq 1 20); do
+  if curl -fsS --max-time 15 "${public_url%/}/health" -o "$health_body" 2>/dev/null &&
+    grep -q '^ok$' "$health_body" &&
+    curl -fsS --max-time 15 "${public_url%/}/version" -o "$version_body" 2>/dev/null &&
+    grep -q "\"deployId\": *\"${deploy_id}\"" "$version_body"; then
+    verified="1"
+    break
+  fi
+  sleep 3
+done
+if [[ -z "$verified" ]]; then
+  echo "Public health/version check did not pass for ${deploy_id}." >&2
+  head -c 1000 "$health_body" >&2; echo >&2
+  cat "$version_body" >&2
+  exit 1
+fi
 
 echo "Deployment complete: ${public_url} is healthy at ${deploy_id}."
