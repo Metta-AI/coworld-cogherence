@@ -38,3 +38,6 @@ test-results/
 
 # Raw nano-banana icon generations (1024px masters); committed assets live in public/icons/
 generated_imgs/
+
+# Coworld local build/cert artifacts
+tmp/

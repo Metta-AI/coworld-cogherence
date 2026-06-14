@@ -40,7 +40,6 @@ const DEFAULT_MODEL = "us.anthropic.claude-haiku-4-5-20251001-v1:0";
 const DEFAULT_REGION = "us-west-2";
 const DEFAULT_TIMEOUT_MS = 30000;
 const DEFAULT_MAX_TOKENS = 1024;
-const DEFAULT_TEMPERATURE = 0.7;
 
 export interface BedrockConfig {
   model: string;
@@ -97,7 +96,9 @@ export class BedrockToolUseClient implements ToolUseClient {
       system: [{ type: "text", text: req.system, cache_control: { type: "ephemeral" } }],
       messages: req.messages.map((m) => ({ role: m.role, content: m.content })),
       max_tokens: req.maxTokens ?? DEFAULT_MAX_TOKENS,
-      temperature: req.temperature ?? DEFAULT_TEMPERATURE,
+      // Newer Claude models (Opus 4.8+) REJECT `temperature` on Bedrock — only
+      // send it when a caller explicitly asks for one.
+      ...(req.temperature !== undefined ? { temperature: req.temperature } : {}),
     };
     if (req.tools.length > 0) {
       body.tools = req.tools.map((t) => ({ name: t.name, description: t.description, input_schema: t.inputSchema }));

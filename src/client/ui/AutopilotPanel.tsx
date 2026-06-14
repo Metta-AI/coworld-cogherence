@@ -8,8 +8,41 @@ import React, { useEffect, useState } from "react";
 import type { Order } from "../../shared/engine/orders";
 import { cogName } from "../colors";
 import { TilePill } from "../cg/atoms";
+import { BEDROCK_MODELS, DEFAULT_BEDROCK_MODEL } from "../../shared/models";
 
 type Saved = "idle" | "saving" | "saved";
+
+/** One act-prompt transcript: what this Cog's model saw and decided that turn. */
+export interface ReasoningEntry {
+  turn: number;
+  phase: string;
+  content: string;
+}
+
+/** "What the model saw & decided" — the autopilot's reasoning, newest first. */
+function Reasoning({ prompts }: { prompts: ReasoningEntry[] }): React.ReactElement | null {
+  const recent = [...prompts].slice(-12).reverse();
+  if (recent.length === 0) return null;
+  return (
+    <div data-testid="reasoning" style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 5 }}>
+      <div className="cg-label" style={{ fontSize: 8.5, letterSpacing: "0.12em", paddingBottom: 3, borderBottom: "1px solid var(--border)" }}>
+        What the model saw &amp; decided
+      </div>
+      <div className="cg-scroll" style={{ maxHeight: 240, overflowY: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
+        {recent.map((p, i) => (
+          <details key={`${p.turn}-${p.phase}-${i}`} style={{ background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 6, padding: "5px 8px" }}>
+            <summary style={{ cursor: "pointer", fontSize: 10.5, color: "var(--text-dim)" }}>
+              <span className="cg-mono" style={{ color: "var(--coherence)" }}>T{p.turn}</span> · {p.phase} decision
+            </summary>
+            <pre className="cg-mono" style={{ margin: "5px 0 0", whiteSpace: "pre-wrap", wordBreak: "break-word", fontSize: 9, lineHeight: 1.5, color: "var(--muted)", maxHeight: 220, overflow: "auto" }}>
+              {p.content}
+            </pre>
+          </details>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 /** One pending order rendered with a hoverable tile pill; `note` carries its
  *  energy effect (an align's bill, an abandon's refund, an exploit's windfall). */
@@ -122,6 +155,7 @@ export function AutopilotPanel({
   onReady,
   committed = null,
   energy,
+  prompts = [],
 }: {
   cogId: string;
   atLatest?: boolean;
@@ -138,26 +172,30 @@ export function AutopilotPanel({
   committed?: { orders: Order[]; notes: Array<string | undefined>; total: number } | null;
   /** The cog's stored energy (for the over-budget warning). */
   energy?: number;
+  /** This Cog's act-prompt transcripts (what the model saw & decided). */
+  prompts?: ReasoningEntry[];
 }): React.ReactElement {
   const [persona, setPersona] = useState("");
   const [paused, setPaused] = useState(false);
+  const [model, setModel] = useState(DEFAULT_BEDROCK_MODEL);
   const [saved, setSaved] = useState<Saved>("idle");
 
   useEffect(() => {
     let live = true;
     void fetch(`/cog/${cogId}/steering`)
       .then((r) => r.json())
-      .then((s: { persona: string; paused: boolean }) => {
+      .then((s: { persona: string; paused: boolean; model?: string }) => {
         if (!live) return;
         setPersona(s.persona);
         setPaused(s.paused);
+        setModel(s.model ?? DEFAULT_BEDROCK_MODEL);
       });
     return () => {
       live = false;
     };
   }, [cogId]);
 
-  const post = (patch: { persona?: string; paused?: boolean }): void => {
+  const post = (patch: { persona?: string; paused?: boolean; model?: string }): void => {
     setSaved("saving");
     void fetch(`/cog/${cogId}/steering`, {
       method: "POST",
@@ -165,9 +203,10 @@ export function AutopilotPanel({
       body: JSON.stringify(patch),
     })
       .then((r) => r.json())
-      .then((s: { persona: string; paused: boolean }) => {
+      .then((s: { persona: string; paused: boolean; model?: string }) => {
         setPersona(s.persona);
         setPaused(s.paused);
+        setModel(s.model ?? DEFAULT_BEDROCK_MODEL);
         setSaved("saved");
       });
   };
@@ -186,6 +225,7 @@ export function AutopilotPanel({
           viewing a past turn — jump to the latest to steer
         </div>
         <PendingActions pending={pending} notes={pendingNotes} committed={pendingCommitted} energy={energy} />
+        <Reasoning prompts={prompts} />
       </div>
     );
   }
@@ -201,6 +241,25 @@ export function AutopilotPanel({
             <span className="cg-knob" />
           </span>
         </label>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
+        <span className="cg-mono" style={{ fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--muted)" }}>
+          Model
+        </span>
+        <select
+          data-testid="steer-model"
+          value={model}
+          onChange={(e) => post({ model: e.target.value })}
+          title="Bedrock model that drives this Cog's autopilot"
+          className="cg-mono"
+          style={{ flex: 1, fontSize: 10, color: "var(--text-dim)", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 6, padding: "3px 6px", cursor: "pointer" }}
+        >
+          {BEDROCK_MODELS.map((m) => (
+            <option key={m.id} value={m.id} disabled={!m.enabled}>
+              {m.label}
+            </option>
+          ))}
+        </select>
       </div>
 
       {!paused ? (
@@ -244,6 +303,7 @@ export function AutopilotPanel({
           </div>
         </>
       )}
+      <Reasoning prompts={prompts} />
     </div>
   );
 }

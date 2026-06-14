@@ -1,0 +1,13 @@
+# `coworld build` reads this to resolve the manifest's image placeholders and
+# build the local image. Service name → placeholder is UPPERCASE + _IMAGE:
+#   cogherence   → {{COGHERENCE_IMAGE}}
+#   commissioner → {{COMMISSIONER_IMAGE}} (pulled, not built)
+services:
+  cogherence:
+    image: cogherence-coworld:latest
+    platform: linux/amd64
+    build:
+      context: .
+  commissioner:
+    image: ghcr.io/metta-ai/commissioners-baseline:latest
+    platform: linux/amd64

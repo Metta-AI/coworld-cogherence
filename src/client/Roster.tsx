@@ -31,8 +31,15 @@ export function Roster({
   waiting?: string[];
 }): React.ReactElement {
   const ranked = rankedByHearts(snapshot.cogs);
-  // right-click a card (live): the kick menu — a confirm-style destructive row
-  const [kick, setKick] = useState<{ id: string; index: number; x: number; y: number } | null>(null);
+  // right-click a card (live): the control menu — observe / take control /
+  // set-autopilot / kick for that Cog.
+  const [menu, setMenu] = useState<{ id: string; index: number; x: number; y: number } | null>(null);
+  const goCog = (id: string): void => {
+    window.location.href = `/cog/${id}?live`;
+  };
+  const setPaused = (id: string, paused: boolean): void => {
+    void fetch(`/cog/${id}/steering`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ paused }) });
+  };
   const terr = territory(snapshot);
   const upkeep = upkeepBy(snapshot);
   const income = events ? mintEnergyBy(events, snapshot) : null;
@@ -71,9 +78,9 @@ export function Roster({
               className="cg-roster-card"
               data-testid={`roster-${c.id}`}
               aria-pressed={active}
-              data-tip={live ? `Spotlight ${cogName(c.index)}’s territory · right-click to kick` : `Spotlight ${cogName(c.index)}’s territory`}
+              data-tip={live ? `Spotlight ${cogName(c.index)}’s territory · right-click for controls` : `Spotlight ${cogName(c.index)}’s territory`}
               onClick={() => onToggleFocus?.(c.id)}
-              onContextMenu={live ? (e) => { e.preventDefault(); setKick({ id: c.id, index: c.index, x: e.clientX, y: e.clientY }); } : undefined}
+              onContextMenu={live ? (e) => { e.preventDefault(); setMenu({ id: c.id, index: c.index, x: e.clientX, y: e.clientY }); } : undefined}
               style={{
                 appearance: "none",
                 font: "inherit",
@@ -126,30 +133,62 @@ export function Roster({
           );
         })}
       </div>
-      {kick && (
+      {menu && (
         <div
-          data-kick-menu
+          data-cog-menu
           className="cg-panel"
-          style={{ position: "fixed", left: Math.min(kick.x, window.innerWidth - 252), top: Math.min(kick.y, window.innerHeight - 120), width: 240, zIndex: 120, background: "rgba(14,14,24,0.97)", backdropFilter: "blur(8px)" }}
+          style={{ position: "fixed", left: Math.min(menu.x, window.innerWidth - 252), top: Math.min(menu.y, window.innerHeight - 200), width: 240, zIndex: 120, background: "rgba(14,14,24,0.97)", backdropFilter: "blur(8px)" }}
         >
           <div className="cg-panel-head" style={{ padding: "7px 11px" }}>
-            <span className="cg-panel-title" style={{ fontSize: 10 }}>{cogName(kick.index)}</span>
-            <button type="button" onClick={() => setKick(null)} className="cg-mono" style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: 11 }}>
+            <span className="cg-panel-title" style={{ fontSize: 10 }}>{cogName(menu.index)}</span>
+            <button type="button" onClick={() => setMenu(null)} className="cg-mono" style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: 11 }}>
               ✕
             </button>
           </div>
-          <div className="cg-panel-body" style={{ padding: "8px 10px" }}>
+          <div className="cg-panel-body" style={{ padding: "8px 10px", display: "flex", flexDirection: "column", gap: 2 }}>
+            <button
+              type="button"
+              className="cg-menu-row"
+              data-testid="observe-cog"
+              data-tip="open this cog's view — its fog-of-war board, channels, and what its model saw & decided"
+              onClick={() => { goCog(menu.id); setMenu(null); }}
+            >
+              Observe {cogName(menu.index)}
+            </button>
+            <button
+              type="button"
+              className="cg-menu-row"
+              data-testid="control-cog"
+              data-tip="take manual control — autopilot off; you queue orders and hit Ready in the cog view"
+              onClick={() => {
+                void fetch("/cogs/claim", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: cogName(menu.index) }) });
+                goCog(menu.id);
+                setMenu(null);
+              }}
+            >
+              Take control
+            </button>
+            <button
+              type="button"
+              className="cg-menu-row"
+              data-testid="autopilot-cog"
+              data-tip="hand this cog back to its LLM autopilot"
+              onClick={() => { setPaused(menu.id, false); setMenu(null); }}
+            >
+              <span style={{ color: "var(--coherence)" }}>Set autopilot</span>
+            </button>
+            <div style={{ height: 1, background: "var(--border)", margin: "4px 0" }} />
             <button
               type="button"
               className="cg-menu-row"
               data-testid="kick-cog"
               data-tip="remove this cog from the game — its ground goes neutral and the seat frees up"
               onClick={() => {
-                void fetch(`/cog/${kick.id}/kick`, { method: "POST" });
-                setKick(null);
+                void fetch(`/cog/${menu.id}/kick`, { method: "POST" });
+                setMenu(null);
               }}
             >
-              <span style={{ color: "var(--exploit)" }}>Kick {cogName(kick.index)} out of the game</span>
+              <span style={{ color: "var(--exploit)" }}>Kick {cogName(menu.index)} out of the game</span>
             </button>
           </div>
         </div>

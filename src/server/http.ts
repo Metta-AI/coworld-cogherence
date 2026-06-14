@@ -14,6 +14,7 @@ import type { ViteDevServer } from "vite";
 import { toSnapshot } from "../shared/snapshot";
 import { greedyAgent } from "../agents/stub";
 import { OrderSchema } from "../shared/engine/orders";
+import { DEFAULT_BEDROCK_MODEL } from "../shared/models";
 import { steerableAgent } from "./steering-store";
 import { buildCogSnapshot } from "./redact";
 import type { GameRunner } from "./game-runner";
@@ -30,6 +31,7 @@ const steeringPatchSchema = z
     pending: z.array(OrderSchema).optional(),
     standingBid: z.number().int().min(0).optional(),
     autoConvert: z.array(z.enum(["C", "O", "Ge", "S"])).optional(),
+    model: z.string().min(1).optional(),
   })
   .strict();
 
@@ -160,7 +162,7 @@ export function createApp(
   });
 
   // Operator steering (Phase D): read + edit a cog's persona / paused flag live.
-  app.get("/cog/:id/steering", (req, res) => res.json(steering?.get(req.params.id) ?? { persona: "", paused: false, pending: [], standingBid: 0, autoConvert: [] }));
+  app.get("/cog/:id/steering", (req, res) => res.json(steering?.get(req.params.id) ?? { persona: "", paused: false, pending: [], standingBid: 0, autoConvert: [], model: DEFAULT_BEDROCK_MODEL }));
   // Operator READY (manual mode): submit the queued orders for this Commit now.
   app.post("/cog/:id/ready", (req, res) => {
     if (!steering) return res.status(404).json({ error: "steering unavailable" });

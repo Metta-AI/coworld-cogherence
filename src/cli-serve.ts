@@ -43,6 +43,7 @@ async function main(): Promise<void> {
   const agents = buildAgents(specs, seed, {
     onActPrompt: (e) => hub.record(e),
     persona: (id) => steering.persona(id),
+    model: (id) => steering.model(id),
   }).map((a) => steerableAgent(a, steering));
   if (manual) for (let i = 0; i < specs.length; i++) steering.update(`cog${i}`, { paused: true });
   // Production (NODE_ENV=production, set by the systemd unit) serves the built

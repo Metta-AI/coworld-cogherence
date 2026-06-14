@@ -11,6 +11,7 @@
 import type { CogId, Mineral } from "../shared/engine/types";
 import type { Order } from "../shared/engine/orders";
 import type { Agent } from "../agents/types";
+import { DEFAULT_BEDROCK_MODEL } from "../shared/models";
 
 export interface CogSteering {
   persona: string;
@@ -22,9 +23,11 @@ export interface CogSteering {
   /** Elements to auto-convert (as singles) at the start of each turn — set by
    *  the right-click element menu. Autopilot cogs liquidate everything anyway. */
   autoConvert: Mineral[];
+  /** Bedrock model id the autopilot drives this cog with (operator-selectable). */
+  model: string;
 }
 
-const empty = (): CogSteering => ({ persona: "", paused: false, pending: [], standingBid: 0, autoConvert: [] });
+const empty = (): CogSteering => ({ persona: "", paused: false, pending: [], standingBid: 0, autoConvert: [], model: DEFAULT_BEDROCK_MODEL });
 
 /** A manual cog's parked commit: its resolver plus the autopilot thunk to run
  *  if the operator flips the cog back to autopilot mid-window. */
@@ -47,6 +50,10 @@ export class SteeringStore {
   /** The persona to prepend to this cog's prompt this turn ("" = none). */
   persona(cog: CogId): string {
     return this.get(cog).persona;
+  }
+  /** The Bedrock model this cog's autopilot uses this turn. */
+  model(cog: CogId): string {
+    return this.get(cog).model;
   }
   /** Whether this cog is under manual control (autopilot off). */
   paused(cog: CogId): boolean {

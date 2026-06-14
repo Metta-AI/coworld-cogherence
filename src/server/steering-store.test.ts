@@ -1,11 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { SteeringStore, steerableAgent } from "./steering-store";
+import { DEFAULT_BEDROCK_MODEL } from "../shared/models";
 import type { Agent } from "../agents/types";
 
 describe("SteeringStore", () => {
   it("defaults to no persona, not paused, no queue", () => {
     const s = new SteeringStore();
-    expect(s.get("cog0")).toEqual({ persona: "", paused: false, pending: [], standingBid: 0, autoConvert: [] });
+    expect(s.get("cog0")).toEqual({ persona: "", paused: false, pending: [], standingBid: 0, autoConvert: [], model: DEFAULT_BEDROCK_MODEL });
     expect(s.persona("cog0")).toBe("");
     expect(s.paused("cog0")).toBe(false);
   });
@@ -13,9 +14,9 @@ describe("SteeringStore", () => {
   it("merges partial updates, leaving untouched fields intact", () => {
     const s = new SteeringStore();
     s.update("cog0", { persona: "play aggressively" });
-    expect(s.get("cog0")).toEqual({ persona: "play aggressively", paused: false, pending: [], standingBid: 0, autoConvert: [] });
+    expect(s.get("cog0")).toEqual({ persona: "play aggressively", paused: false, pending: [], standingBid: 0, autoConvert: [], model: DEFAULT_BEDROCK_MODEL });
     s.update("cog0", { paused: true });
-    expect(s.get("cog0")).toEqual({ persona: "play aggressively", paused: true, pending: [], standingBid: 0, autoConvert: [] }); // persona kept
+    expect(s.get("cog0")).toEqual({ persona: "play aggressively", paused: true, pending: [], standingBid: 0, autoConvert: [], model: DEFAULT_BEDROCK_MODEL }); // persona kept
     s.update("cog0", { pending: [{ type: "bid", energy: 3 }] });
     expect(s.get("cog0").pending).toEqual([{ type: "bid", energy: 3 }]); // persona + paused kept
     expect(s.get("cog0").paused).toBe(true);
