@@ -94,11 +94,18 @@ headers). Account `0abc983728c4e6eab6f27f9d0c9fe23a`, `dbloom.in` zone
    - `systemctl daemon-reload && systemctl enable --now cogherence.service cloudflared-cogherence.service`
 4. Then `npm run deploy:prod` ships the app code.
 
-## The game loop
+## The game loop (empty lobby)
 
-The four seats default to the scripted rotation (`greedy, peaceful, random,
-greedy`) — a free, self-running demo. The live loop soft-stops after its turn
-limit; `POST /extend` adds turns and `POST /reset` restarts the game (both
-reachable on `127.0.0.1:8791` from the box over SSM). Seats are also switchable
-live per-panel in the UI. Running LLM seats would need `bedrock:InvokeModel` on
-the instance role and `--agents llm,...` on the unit's `ExecStart`.
+In production the server boots into an **empty lobby** (`NODE_ENV=production` →
+`cli-serve` defaults to `--lobby`: 0 cogs, not started). Visitors join by name or
+add bots, then hit **Start game**; once started, late arrivals observe. A game
+runs to its turn limit (**20** in prod) and then offers **Start new game**, which
+returns to an empty lobby. Controls map to endpoints (reachable on
+`127.0.0.1:8791` from the box over SSM, or driven by the UI): `POST /start`,
+`POST /cogs/add` (bot), `POST /cogs/claim` (join by name), `POST /reset` (→ empty
+lobby), `POST /extend` (+10 turns), `POST /pause` · `/resume`.
+
+Relevant `cli-serve` flags: `--lobby` (boot into the lobby; the prod default),
+`--start` (begin immediately), `--cogs N` / `--agents …` (pre-seat), `--limit N`
+(game length). Running LLM seats would need `bedrock:InvokeModel` on the instance
+role; seats are also switchable to autopilot live per-panel in the UI.
