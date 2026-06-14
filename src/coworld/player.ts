@@ -1,42 +1,31 @@
 // The reference player's decision logic, separate from the entrypoint so it is
-// importable in tests without opening a socket. There is no negotiate phase: on
-// each `commit` the player runs the shared robust decide loop (one model call
-// offering submit_orders + send_messages; retry on a missing/illegal submission;
-// scripted greedy fallback so the Cog always acts), then emits a commit_result
-// plus zero or more async `message` frames. Incoming message pushes need no
-// reply — the next commit view carries the visible chat.
+// importable in tests without opening a socket. There is no negotiate phase. On
+// each `commit` the player makes TWO focused, CONCURRENT model calls:
+//   - decideOrders: orders only (submit_orders), retry on a missing/illegal
+//     submission, scripted greedy fallback so the Cog always acts.
+//   - decideChat:   chat only (send_messages), fail-safe to silence.
+// Two focused calls reliably do BOTH (a single combined call tends to do one and
+// neglect the other), and the entrypoint sends each result independently — so
+// orders still meet the commit deadline while chat flows asynchronously.
 import type { Order } from "../shared/engine/orders";
 import type { Post } from "../agents/types";
-import { robustOrders } from "../agents/llm/llm-agent";
-import { SEND_MESSAGES_TOOL, parsePosts } from "../agents/llm/negotiate";
+import type { AgentView } from "../agents/types";
+import { robustOrders, llmNegotiate } from "../agents/llm/llm-agent";
 import { BedrockToolUseClient, bedrockConfigFromEnv, type ToolUseClient } from "../agents/llm/tool-client";
-import type { GameToPlayer, PlayerToGame, PlayerView } from "./protocol";
 
-const MESSAGE_SUFFIX =
-  "\n\nThis is a CHEAP-TALK game — talking is how you build alliances, broker mineral trades, and win. In the SAME response, ALSO call send_messages (public broadcasts to \"public\" and/or private DMs to a cog id) to coordinate, propose trades, bluff, or threaten. Nothing is binding — you can betray later. Send at least one message most turns; call both send_messages and submit_orders.";
-
-/** Decide this turn's orders (robustly) + any chat, in one model call. */
-export async function act(view: PlayerView, client: ToolUseClient, persona?: string): Promise<{ orders: Order[]; posts: Post[] }> {
-  const { orders, content } = await robustOrders(view, client, { persona, extraTools: [SEND_MESSAGES_TOOL], promptSuffix: MESSAGE_SUFFIX });
-  const msgCall = content.find((b) => b.type === "tool_use" && b.name === SEND_MESSAGES_TOOL.name);
-  const posts = msgCall && msgCall.type === "tool_use" ? parsePosts(msgCall.input) : [];
-  return { orders, posts };
+/** This turn's orders — robust (retry + scripted greedy fallback). */
+export async function decideOrders(view: AgentView, client: ToolUseClient, persona?: string): Promise<Order[]> {
+  return (await robustOrders(view, client, { persona })).orders;
 }
 
-/** The frames to send in response to one game→player frame. A `commit` yields a
- *  commit_result plus async message frames; hello/message/final yield nothing. */
-export async function reply(msg: GameToPlayer, client: ToolUseClient, persona?: string): Promise<PlayerToGame[]> {
-  if (msg.type !== "commit") return [];
-  const { orders, posts } = await act(msg.view, client, persona);
-  return [
-    { type: "commit_result", turn: msg.turn, orders },
-    ...posts.map((p): PlayerToGame => ({ type: "message", to: p.to, text: p.text })),
-  ];
+/** This turn's chat (public + DMs); fail-safe to no messages. */
+export async function decideChat(view: AgentView, client: ToolUseClient, persona?: string): Promise<Post[]> {
+  return llmNegotiate(view, client, { persona });
 }
 
-/** Surface (don't hide) Bedrock failures: the act() catch keeps play going on a
- *  model error, which makes a misconfigured model/region/credentials look like a
- *  silent no-op. This logs the real error before rethrowing so it's diagnosable. */
+/** Surface (don't hide) Bedrock failures: robustOrders/llmNegotiate catch and
+ *  degrade gracefully, which hides a misconfigured model/region/credentials.
+ *  This logs the real error to stderr (captured in policy-logs) before rethrowing. */
 export function loggingClient(inner: ToolUseClient): ToolUseClient {
   let logged = 0;
   return {
