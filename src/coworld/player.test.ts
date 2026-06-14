@@ -45,9 +45,13 @@ describe("reference player", () => {
     expect(frames).toEqual([{ type: "commit_result", turn: 1, orders: [{ type: "bid", energy: 1 }] }]);
   });
 
-  it("is fail-safe: a model error yields an empty commit_result (passive), never throws", async () => {
+  it("is fail-safe: a model error falls back to a scripted greedy move, never throws", async () => {
     const frames = await reply({ type: "commit", turn: 3, view: viewFor() }, broken);
-    expect(frames).toEqual([{ type: "commit_result", turn: 3, orders: [] }]);
+    expect(frames).toHaveLength(1);
+    const cr = frames[0]!;
+    expect(cr.type).toBe("commit_result");
+    expect(cr.type === "commit_result" && cr.turn).toBe(3);
+    expect(cr.type === "commit_result" && cr.orders.length).toBeGreaterThan(0); // greedy fallback, not passive
   });
 
   it("does not reply to hello, message pushes, or final", async () => {
