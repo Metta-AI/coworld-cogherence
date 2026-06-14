@@ -2,6 +2,27 @@
 
 Guidance for AI assistants working in the Cogherence repo.
 
+## Production deployment
+
+cogherence runs at **https://cogherence.dbloom.in** on a shared EC2 origin behind a
+Cloudflare Tunnel (same box as `polis.dbloom.in` and `agricogla.dbloom.in`, each on
+its own port + tunnel). Fast path:
+
+```bash
+npm run deploy:prod              # build main -> S3 -> SSM swap -> restart -> verify
+npm run deploy:prod -- --ref X   # deploy a specific git ref
+```
+
+[`scripts/deploy-prod.sh`](scripts/deploy-prod.sh) builds the ref in a throwaway
+worktree (`npm run build` = vite client + esbuild server bundle), ships the artifact
+to S3, swaps `/opt/cogherence/app` over **SSM** (no SSH key on the box), restarts the
+service with rollback-on-failure, and verifies `/health` + `/version` (the per-deploy
+`deployId`) locally and through the tunnel. Commit before deploying — it builds from
+committed git state. The prod server runs `cli-serve.js` with `NODE_ENV=production`,
+which serves the built `dist/` statically (no Vite) and defaults bare routes to the
+live view. Full topology, the one-time provisioning, and how to drive the box over
+SSM are in [`docs/DEPLOY.md`](docs/DEPLOY.md).
+
 ## Branding & art assets (nano-banana / Gemini image)
 
 Cogherence's game art — the neon-glass icon set in [`public/icons/`](public/icons/) and the

@@ -5,6 +5,8 @@ node_modules/
 
 # Build output
 dist/
+dist-server/
+.deploy-version.json
 build/
 out/
 *.tsbuildinfo

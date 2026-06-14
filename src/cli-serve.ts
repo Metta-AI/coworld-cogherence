@@ -1,6 +1,8 @@
 // `serve` entry: start the live server with scripted (or llm) agents and print
 // the URLs. Run via `npm run serve -- --seed 7 --cogs 4 --agents greedy,...`.
 import { execFile } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import { buildAgents } from "./cli";
 import { startServer } from "./server/runtime";
 import { ActPromptHub } from "./server/act-prompt-hub";
@@ -43,7 +45,11 @@ async function main(): Promise<void> {
     persona: (id) => steering.persona(id),
   }).map((a) => steerableAgent(a, steering));
   if (manual) for (let i = 0; i < specs.length; i++) steering.update(`cog${i}`, { paused: true });
-  const defaultLive = flag("default-live");
+  // Production (NODE_ENV=production, set by the systemd unit) serves the built
+  // client from dist/ instead of through Vite, and defaults the bare routes to
+  // the live view so visitors watch the running game.
+  const prod = process.env.NODE_ENV === "production";
+  const defaultLive = prod || flag("default-live");
   // The SHARE link must be reachable by other machines: prefer the Tailscale
   // MagicDNS name (the host usually browses via localhost, which is useless to
   // copy). No tailscale -> null -> the client falls back to its own origin.
@@ -55,7 +61,9 @@ async function main(): Promise<void> {
     });
   });
   const h = await startServer({
-    seed, agents, port, deadlineMs, minTurnMs, maxTurns, turnLimit: 10, hub, bus, steering, agentSpecs: specs, names, waitForReady, defaultLive, autorun: true, dev: true,
+    seed, agents, port, deadlineMs, minTurnMs, maxTurns, turnLimit: 10, hub, bus, steering, agentSpecs: specs, names, waitForReady, defaultLive, autorun: true,
+    dev: !prod,
+    distDir: prod ? join(dirname(fileURLToPath(import.meta.url)), "..", "dist") : undefined,
     shareOrigin: tailnetName ? `http://${tailnetName}:${port}` : null,
   });
   console.log(`Cogherence live — seed ${seed}, agents [${specs.join(", ")}]`);
