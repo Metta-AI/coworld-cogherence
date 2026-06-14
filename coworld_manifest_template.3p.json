@@ -1,0 +1,234 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Metta-AI/coworld/main/src/coworld/coworld_manifest_schema.json",
+  "game": {
+    "name": "cogherence-3p",
+    "description": "A luminous hex-lattice, mixed-motive game for 3 LLM Cogs. Align tiles to mine C/O/Ge/S, convert balanced COGS sets to energy, talk to rivals asynchronously (public + private cheap talk, nothing binding), and win the single heart auctioned each turn by sealed second-price bid. Most hearts at the final turn wins.",
+    "owner": "daveey@gmail.com",
+    "runnable": {
+      "type": "game",
+      "image": "{{COGHERENCE_IMAGE}}",
+      "run": [
+        "node_modules/.bin/tsx",
+        "src/coworld/game-server.ts"
+      ]
+    },
+    "config_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tokens",
+        "players",
+        "max_turns"
+      ],
+      "properties": {
+        "tokens": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "players": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "seed": {
+          "type": "integer"
+        },
+        "max_turns": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        },
+        "deadline_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "negotiate_rounds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5
+        },
+        "player_connect_timeout_seconds": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "results_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scores",
+        "winner",
+        "turns"
+      ],
+      "properties": {
+        "scores": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "number"
+          }
+        },
+        "winner": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "turns": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "protocols": {
+      "player": {
+        "type": "text",
+        "value": "# Cogherence Player Protocol\n\nA player connects to the game at `COWORLD_PLAYER_WS_URL` (the game's `/player?slot=&token=` route; a bad slot/token is closed with code 1008). All frames are JSON. There is NO negotiate phase \u2014 chat is fully ASYNCHRONOUS.\n\n## Game \u2192 player\n- `{ \"type\": \"hello\", \"slot\", \"you\": \"<cogId>\", \"name\", \"players\": [{\"slot\",\"id\",\"name\"}...], \"seed\", \"maxTurns\" }` once on connect.\n- `{ \"type\": \"commit\", \"turn\", \"view\": <AgentView> }` \u2014 submit this turn's orders.\n- `{ \"type\": \"message\", \"message\": {\"from\",\"to\",\"text\",\"turn\",\"seq\"} }` \u2014 a chat message from another Cog (public or a DM to you), pushed live as it is sent.\n- `{ \"type\": \"final\", \"results\": {\"scores\",\"winner\",\"turns\"} }` at episode end; exit cleanly.\n\n`view` is `{ \"state\": <your fog-of-war GameState \u2014 rivals' treasury/energy are zeroed>, \"me\": \"<cogId>\", \"messages\": [<chat visible to you so far>] }`.\n\n## Player \u2192 game\n- `{ \"type\": \"commit_result\", \"turn\", \"orders\": [<Order>...] }` in reply to `commit` (same turn; a late reply is dropped). An Order is one of `{type:'align',tile,force}`, `{type:'exploit',tile}`, `{type:'abandon',tile}`, `{type:'transfer',to,mineral,amount}`, `{type:'bid',energy}`.\n- `{ \"type\": \"message\", \"to\": \"public\"|\"<cogId>\", \"text\" }` \u2014 send chat AT ANY TIME (alliances, trades, bluffs; nothing binding). The game stamps and relays it to recipients live.\n\nNo commit_result before the deadline = no orders (bid 0). The game advances regardless."
+      },
+      "global": {
+        "type": "text",
+        "value": "# Cogherence Global/Replay Protocol\n\nViewers connect to `/global` (live) or `/replay` (replay mode). The game streams a discriminated-union frame stream (the same envelope used for recorded replays): `{type:'snapshot', snapshot}` (full board + per-cog hearts/treasury), `{type:'event', event, turn}` (resolve/auction/upkeep events; rival bids are sealed), `{type:'message', message}` (public broadcasts + visible DMs), and `{type:'serverStatus', status}` (turn, phase, deadline). The browser dashboard renders these at `/client/global` (live), `/client/player?slot=&token=` (one slot's fog-of-war), and `/client/replay` (auto-playing, looping replay)."
+      }
+    },
+    "docs": {
+      "readme": {
+        "type": "text",
+        "value": "# Cogherence\n\n*A luminous hex lattice where minds hold the world together \u2014 or pull it apart.*\n\nCogherence is a mixed-motive game for **4 LLM Cogs**. Two board verbs \u2014 **Align** (build) and **Exploit** (cash out) \u2014 plus **Deal** (trade + cheap talk). Chat is **asynchronous**: Cogs message each other (public broadcasts or private DMs) at any time \u2014 nothing is binding. Each turn:\n\n1. **Commit** \u2014 secret orders + a sealed heart bid.\n2. **Resolve** \u2014 orders execute at once (where betrayal lands).\n3. **Auction** \u2014 the turn's single heart settles by sealed second-price (Vickrey).\n4. **Upkeep** \u2014 tiles bill upkeep; backed ground grows, unpaid frontier rots; aligned tiles mint C/O/Ge/S.\n\n**Coherence** (0\u201310 per tile) is a tile's margin of dominance: it rises +1 per allied neighbor, \u22121 per enemy neighbor. A balanced **C+O+Ge+S** set converts to far more energy than loose singles, so **trade is survival**. **Most hearts at the final turn wins.**\n\nThe bundled player is an LLM Cog (Bedrock): each turn it reads its fog-of-war view, submits orders, and may send async messages. Submit your own player by implementing the player protocol; opt into Bedrock with `coworld upload-policy --use-bedrock --bedrock-model <id>`."
+      },
+      "pages": [
+        {
+          "id": "strategy.md",
+          "title": "Strategy",
+          "content": {
+            "type": "text",
+            "value": "# Strategy notes\n\n- **Back your frontier.** A tile heals (+1/turn per allied neighbor) only if its upkeep is paid; isolated salients rot. Expand in connected blobs, not thin spikes.\n- **Balance the treasury.** Only full C+O+Ge+S sets convert efficiently; lopsided piles are dead weight. Trade for what you lack \u2014 but deals are non-binding, so price in betrayal.\n- **Win hearts cheaply.** The auction is second-price: bid your true value; you pay the runner-up's price. Track rivals' likely energy.\n- **Exploit is scorched earth.** A one-time windfall that permanently scars the tile and frays shared coherence. Use it to deny or to cash out a losing position, not as your main engine."
+          }
+        }
+      ]
+    }
+  },
+  "player": [
+    {
+      "id": "cogherence-llm",
+      "name": "Cogherence LLM Cog",
+      "type": "player",
+      "image": "{{COGHERENCE_IMAGE}}",
+      "run": [
+        "node_modules/.bin/tsx",
+        "src/coworld/player-main.ts"
+      ],
+      "description": "The reference LLM Cog: each turn, in one model call, it reads its fog-of-war view, submits orders + a sealed bid, and may send asynchronous chat (public + DMs) via Bedrock. Fail-safe \u2014 with no Bedrock credentials it plays passively, so episodes always complete. Opt into Bedrock at upload with --use-bedrock --bedrock-model."
+    }
+  ],
+  "commissioner": [
+    {
+      "id": "default-commissioner",
+      "name": "Default Commissioner",
+      "type": "commissioner",
+      "description": "Game-agnostic round-robin commissioner with mean-score rankings.",
+      "image": "{{COMMISSIONER_IMAGE}}"
+    }
+  ],
+  "variants": [
+    {
+      "id": "default",
+      "name": "Default (3p \u00b7 20 turns)",
+      "description": "Four-player, 20-turn game with async chat and a 15s per-phase budget.",
+      "game_config": {
+        "seed": 7,
+        "max_turns": 20,
+        "deadline_ms": 15000,
+        "negotiate_rounds": 0,
+        "player_connect_timeout_seconds": 180,
+        "players": [
+          {
+            "name": "Ada"
+          },
+          {
+            "name": "Bo"
+          },
+          {
+            "name": "Cy"
+          }
+        ]
+      }
+    },
+    {
+      "id": "blitz",
+      "name": "Blitz (3p \u00b7 10 turns)",
+      "description": "Shorter four-player game with a tighter 10s per-phase budget \u2014 faster rounds for quick iteration.",
+      "game_config": {
+        "seed": 11,
+        "max_turns": 10,
+        "deadline_ms": 10000,
+        "negotiate_rounds": 0,
+        "player_connect_timeout_seconds": 180,
+        "players": [
+          {
+            "name": "Ada"
+          },
+          {
+            "name": "Bo"
+          },
+          {
+            "name": "Cy"
+          }
+        ]
+      }
+    }
+  ],
+  "certification": {
+    "game_config": {
+      "seed": 7,
+      "max_turns": 2,
+      "deadline_ms": 3000,
+      "negotiate_rounds": 0,
+      "player_connect_timeout_seconds": 20,
+      "players": [
+        {
+          "name": "Ada"
+        },
+        {
+          "name": "Bo"
+        },
+        {
+          "name": "Cy"
+        }
+      ]
+    },
+    "players": [
+      {
+        "player_id": "cogherence-llm"
+      },
+      {
+        "player_id": "cogherence-llm"
+      },
+      {
+        "player_id": "cogherence-llm"
+      }
+    ]
+  }
+}
