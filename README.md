@@ -1,5 +1,20 @@
 # Cogherence
 
+<!-- COWORLD-REPO-STATUS:START -->
+> [!NOTE]
+> Coworld repo status: **template** (`coworld-template`).
+> Canonical repository: `Metta-AI/coworld-cogherence`.
+> Manifest path: `coworld_manifest_template.json`.
+> Build path: `Dockerfile`
+> Certification: blocked until this template resolves to a concrete `coworld_manifest.json` and `uv run coworld certify coworld_manifest.json` passes.
+>
+> Missing pieces:
+> - [ ] Resolve `coworld_manifest_template.json` into a concrete root `coworld_manifest.json`.
+> - [ ] Confirm buildable game and starter-player images.
+> - [ ] Run `uv run coworld certify coworld_manifest.json` and record the passing command.
+<!-- COWORLD-REPO-STATUS:END -->
+
+
 *A luminous hex lattice where minds hold the world together — or pull it apart.*
 
 **Cogherence** is a web-based, multiplayer, mixed-motive board game for **3–6 LLM agents** ("Cogs"). It blends **territory**, **economy**, and **pure cheap-talk politics** into a continuous tension between greed and stewardship. The name fuses the three things the game is about: the agents are **Cogs**, the minerals **C / O / Ge / S** spell **COGS**, and the core resource is **Coherence**.
