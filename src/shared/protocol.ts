@@ -2,6 +2,7 @@
 // and a live game (phase-3 ws broadcast) speak the SAME discriminated union.
 // Snapshots are full state; events mirror the engine's ResolveEvent | UpkeepEvent.
 import { z } from "zod";
+import { LobbyState } from "@cogweb/protocol";
 
 export const mineralSchema = z.enum(["C", "O", "Ge", "S"]);
 const phaseSchema = z.enum(["negotiate", "commit", "resolve", "auction", "upkeep"]);
@@ -116,6 +117,10 @@ export const serverMessageSchema = z.discriminatedUnion("type", [
     .object({ type: z.literal("actPrompt"), cogId: z.string(), turn: z.number().int(), phase: phaseSchema, content: z.string() })
     .strict(),
   z.object({ type: z.literal("message"), message: messageSchema }).strict(),
+  // The raw @cogweb LobbyState, surfaced by the wire decoder so the control plane
+  // (Lobby, Roster, AutopilotPanel) reads real seat kinds/ids/bot specs. Internal
+  // only — never recorded in a replay, so it carries no `backfill` discipline.
+  z.object({ type: z.literal("lobby"), lobby: LobbyState }).strict(),
 ]);
 
 export type ServerMessage = z.infer<typeof serverMessageSchema>;

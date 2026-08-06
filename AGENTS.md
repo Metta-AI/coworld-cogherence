@@ -2,30 +2,31 @@
 
 Guidance for AI assistants working in the Cogherence repo.
 
-## Production deployment
+## Repo layout
 
-cogherence runs at **https://cogherence.dbloom.in** on a shared EC2 origin behind a
-Cloudflare Tunnel (same box as `polis.dbloom.in` and `agricogla.dbloom.in`, each on
-its own port + tunnel). Fast path:
+This is the **standalone home of Cogherence**, extracted from the Metta monorepo
+(`packages/cogweb/games/cogherence`). The game package lives at the **repo root**;
+the shared `@cogweb/*` libraries it depends on (`core`, `coworld`, `llm`,
+`protocol`, `ui`) are vendored under [`packages/`](packages/) as a pnpm workspace.
+`pnpm install` at the root wires the `workspace:*` deps.
 
-```bash
-npm run deploy:prod              # build main -> S3 -> SSM swap -> restart -> verify
-npm run deploy:prod -- --ref X   # deploy a specific git ref
-```
+## Production deployment (Coworld)
 
-[`scripts/deploy-prod.sh`](scripts/deploy-prod.sh) builds the ref in a throwaway
-worktree (`npm run build` = vite client + esbuild server bundle), ships the artifact
-to S3, swaps `/opt/cogherence/app` over **SSM** (no SSH key on the box), restarts the
-service with rollback-on-failure, and verifies `/health` + `/version` (the per-deploy
-`deployId`) locally and through the tunnel. Commit before deploying — it builds from
-committed git state. The prod server runs `cli-serve.js` with `NODE_ENV=production`,
-which serves the built `dist/` statically (no Vite) and defaults bare routes to the
-live view. Full topology, the one-time provisioning, and how to drive the box over
-SSM are in [`docs/DEPLOY.md`](docs/DEPLOY.md).
+Cogherence ships as a **Softmax Coworld**: one Docker image (the root
+[`Dockerfile`](Dockerfile), which copies the pre-built self-contained `dist/` +
+`dist-server/` bundles) plus a generated manifest. The full build → certify →
+upload runbook is [`docs/coworld/README.md`](docs/coworld/README.md). The manifest
+template is regenerated with `npm run emit-manifest` — its source of truth is
+`buildCogherenceManifest()` in [`src/game/coworld.ts`](src/game/coworld.ts)
+(`source_url` points at this repo).
+
+The old cogweb-hub (`cogweb.dbloom.in`) and standalone `cogherence.dbloom.in`
+deploys were metta-monorepo paths and are **retired** — see git history and
+[`docs/DEPLOY.md`](docs/DEPLOY.md) for the historical runbook.
 
 ## Branding & art assets (nano-banana / Gemini image)
 
-Cogherence's game art — the neon-glass icon set in [`public/icons/`](public/icons/) and the
+Cogherence's game art — the neon-glass icon set in [`src/client/icons/`](src/client/icons/) and the
 gear-as-**O** **COGHERENCE** wordmark — is generated with the **`nano-banana`** MCP server
 (Google Gemini image generation), then post-processed with Python (Pillow + numpy + scipy via
 `uv run --with`). Raw generations land in `generated_imgs/` (git-ignored, 1024px masters);
@@ -58,7 +59,7 @@ Then call `mcp__nano-banana__configure_gemini_token` with that value (check firs
 3. **Process** the chosen raws into committed assets:
    - Icons → [`scripts/process-icons.py`](scripts/process-icons.py): trim any near-white frame
      the generator adds, pad to a centered 256px square on pure black, emit both the black-bg
-     `public/icons/<name>.png` and the alpha-keyed `public/icons/transparent/<name>.png`, plus
+     `src/client/icons/<name>.png` and the alpha-keyed `src/client/icons/transparent/<name>.png`, plus
      the favicon / apple-touch-icon (from the `logo` raw) and a labeled contact sheet. The
      `SRC` map at the top pins each `<name>` to its raw filename — update it when regenerating.
    - To background-knock a one-off (like a wordmark): edge-seeded flood-fill from the corners
@@ -95,7 +96,7 @@ Practical notes from the runs that made it:
 
 ### The live wordmark
 
-The header wordmark is the generated raster: [`public/art/logo-wordmark.png`](public/art/),
+The header wordmark is the generated raster: [`src/client/art/logo-wordmark.png`](src/client/art/),
 produced by the process above and rendered as an `<img>` by [`Brand` / `Wordmark` in
 `src/client/cg/atoms.tsx`](src/client/cg/atoms.tsx). To change it, regenerate via nano-banana,
 re-run the luma-key/crop, and overwrite that file (raw masters stay in git-ignored

@@ -1,5 +1,7 @@
+# Build context is the game dir (coworld/compose.yaml sets `context: ..`). The image
+# copies the pre-built dist/ + dist-server/ (self-contained esbuild bundles), so
+# those must NOT be ignored — only keep node_modules and scratch out.
 node_modules
-dist
 .git
 .claude
 coverage

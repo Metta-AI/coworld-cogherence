@@ -12,6 +12,13 @@ export function makeWorldSocket(url: string): LiveSocket {
     onClose(fn) {
       ws.addEventListener("close", fn);
     },
+    send(data) {
+      // The control plane writes ClientMessages on the SAME socket the feed
+      // reads. A write before the socket is open (or after it dies) is dropped —
+      // the lobby/controls are user-driven and idempotent, and the live socket
+      // reconnects + backfills, so a lost click is simply re-clicked.
+      if (ws.readyState === ws.OPEN) ws.send(data);
+    },
     close() {
       ws.close();
     },

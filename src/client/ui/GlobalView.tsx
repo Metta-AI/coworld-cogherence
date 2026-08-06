@@ -2,6 +2,7 @@
 // left, the living lattice in the center, the resolve log + public/DM channels on
 // the right. The side panels are drag-resizable (widths persist to localStorage).
 import React, { useState } from "react";
+import type { ClientMessage } from "@cogweb/protocol";
 import type { GameSnapshot } from "../../shared/snapshot";
 import type { Message } from "../../shared/messages";
 import type { ServerStatus } from "../../shared/protocol";
@@ -18,6 +19,7 @@ export function GlobalView({
   onSeekTurn,
   live = false,
   status = null,
+  send,
 }: {
   snapshot: GameSnapshot;
   events: StampedEvent[];
@@ -26,6 +28,8 @@ export function GlobalView({
   live?: boolean;
   /** Live server status — drives the per-cog phase-ready indicators. */
   status?: ServerStatus | null;
+  /** Send a ClientMessage on the live socket (roster seat management). */
+  send?: (m: ClientMessage) => void;
 }): React.ReactElement {
   const [mode, setMode] = useState<LatticeMode>("coherence");
   // Clicking a roster cog spotlights its territory on the lattice (toggle).
@@ -47,6 +51,7 @@ export function GlobalView({
               live={live}
               ready={live ? status?.done : undefined}
               waiting={live ? status?.pending : undefined}
+              send={send}
             />
             <AuctionPanel snapshot={snapshot} events={events} />
           </div>

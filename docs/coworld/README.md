@@ -6,20 +6,22 @@ writes results + replay, and the React dashboard is served as the global / playe
 replay clients.
 
 - **Design + decisions:** [`docs/plans/2026-06-12-cogherence-coworld-design.md`](../plans/2026-06-12-cogherence-coworld-design.md)
-- **Manifest template:** [`coworld_manifest_template.json`](../../coworld_manifest_template.json) (repo root)
-- **Image:** one Docker image, two entrypoints — `src/coworld/game-server.ts` (game) and
-  `src/coworld/player-main.ts` (reference LLM player).
+- **Manifest template:** [`coworld/coworld_manifest_template.json`](../../coworld/coworld_manifest_template.json) —
+  **generated**, don't hand-edit: `npm run emit-manifest` regenerates it from
+  `buildCogherenceManifest()` in [`src/game/coworld.ts`](../../src/game/coworld.ts).
+- **Image:** one Docker image (root [`Dockerfile`](../../Dockerfile)), two entrypoints —
+  `dist-server/coworld/game-cli.js` (game host) and `dist-server/game/baseline-player.js`
+  (deterministic baseline player used for certification).
 
 ## Architecture
 
 | Coworld role | Cogherence module | Notes |
 |---|---|---|
-| Game container | `src/coworld/game-server.ts` | Reuses the engine, `GameRunner`, redaction, message bus, replay recorder, and dashboard unchanged. |
-| Player slot ↔ in-process agent | `src/coworld/remote-player.ts` | `RemotePlayerAgent` answers `GameRunner`'s `commit` over the slot's WebSocket. No negotiate phase. |
-| Async chat | `src/coworld/game-server.ts` | Players send `message` frames any time → posted to the bus → pushed live to other players + viewers. |
-| Wire protocol | `src/coworld/protocol.ts` | game→player trusted; player→game zod-validated. |
-| Fog-of-war | `src/coworld/redact-state.ts` | Per-slot `GameState` projection (rivals' treasury/energy zeroed). |
-| Reference player | `src/coworld/player.ts` + `player-main.ts` | One model call per turn → orders + async messages (fail-safe). |
+| Game container | `src/coworld/game-cli.ts` → `src/coworld/server.ts` | Thin wrapper over `@cogweb/coworld`'s `runCoworldHost` / `runCoworldGameCli`; supplies the `cogherenceModule` seam, results schema, and console. |
+| Episode config | `src/coworld/config.ts` | Zod schema for the manifest `game_config` (tokens, players, seed, num_agents). |
+| Results | `src/coworld/results.ts` | Results schema written at episode end. |
+| Baseline player | `src/game/baseline-player.ts` | Deterministic no-LLM baseline: always-legal holds, so it certifies the contract offline. |
+| Replay viewer | `coworld/tools/build_replay_viewer.sh` | Static replay bundle (`build/static-replay-viewer`) baked into the coworld build. |
 
 ## Slot count
 
@@ -30,43 +32,33 @@ with a manifest whose token/player/certification counts are 3 or 6.
 
 ## Build, certify, run locally
 
-The `coworld` CLI lives in the public `coworld[auth]` package (a standalone `uv` project avoids the
-metta workspace build):
+The `coworld` CLI lives in the public [Metta-AI/coworld](https://github.com/Metta-AI/coworld)
+repo (a standalone `uv` project). Clone it once, then from **this repo's root**:
 
 ```bash
-# one-time: a tooling venv with the CLI
-mkdir -p ~/coworld-tools && cd ~/coworld-tools && uv init --bare && uv add "coworld[auth]"
+COWORLD=~/code/coworld           # a checkout of Metta-AI/coworld
 
-# from the cogherence repo root:
-COGH=/path/to/cogame-cogherence
-uv --project ~/coworld-tools run coworld build \
-  "$COGH/compose.yaml" "$COGH/coworld_manifest_template.json" 0.1.0 \
-  "$COGH/tmp/coworld_manifest.json"          # builds the amd64 image + hydrates the manifest
+pnpm install
+pnpm build                       # dist/ (web) + dist-server/ (game + baseline bundles)
+uv run --project "$COWORLD" coworld build --project coworld --version <x.y.z>
 
-uv --project ~/coworld-tools run coworld run-episode "$COGH/tmp/coworld_manifest.json"   # headless smoke (passive without Bedrock)
-uv --project ~/coworld-tools run coworld certify     "$COGH/tmp/coworld_manifest.json"   # cert fixture (max_turns 2)
-uv --project ~/coworld-tools run coworld play        "$COGH/tmp/coworld_manifest.json"   # browser: global / player / replay links
+MANIFEST=coworld/dist/coworld_manifest.json
+uv run --project "$COWORLD" coworld run-episode "$MANIFEST"
+uv run --project "$COWORLD" coworld certify "$MANIFEST"
+uv run --project "$COWORLD" coworld play "$MANIFEST"
 ```
 
-Real LLM play locally (Bedrock via host creds; cert's 60s budget is too small for this, so use `play`
-or `run-episode --timeout-seconds`):
-
-```bash
-uv --project ~/coworld-tools run coworld run-episode "$COGH/tmp/coworld_manifest.json" \
-  cogherence-coworld:latest --run node_modules/.bin/tsx --run src/coworld/player-main.ts \
-  --use-bedrock --aws-profile softmax-org --aws-region us-west-2 --timeout-seconds 1200
-```
+`coworld build` builds the Docker image via [`coworld/compose.yaml`](../../coworld/compose.yaml)
+(context = repo root, root `Dockerfile`), bakes the static replay viewer, and stamps the
+manifest template with the image + version.
 
 ## Upload + submit (production)
 
 ```bash
-uv --project ~/coworld-tools run softmax login
-uv --project ~/coworld-tools run coworld upload-coworld "$COGH/tmp/coworld_manifest.json"
-
-# submit the LLM player to a league (Bedrock via the tournament IAM role):
-uv --project ~/coworld-tools run coworld upload-policy cogherence-coworld:latest \
-  --name "$USER-cogherence-llm" \
-  --run node_modules/.bin/tsx --run src/coworld/player-main.ts \
-  --use-bedrock --bedrock-model us.anthropic.claude-haiku-4-5-20251001-v1:0
-uv --project ~/coworld-tools run coworld submit "$USER-cogherence-llm" --league <league_id>
+uv run --project "$COWORLD" softmax login
+uv run --project "$COWORLD" coworld upload-coworld "$MANIFEST"
 ```
+
+Players are separate uploads (`coworld upload-policy … && coworld submit …`) — see the
+league's own tooling; the certification baseline above is the only player shipped with
+the game image.

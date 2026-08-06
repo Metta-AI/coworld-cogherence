@@ -3,9 +3,11 @@
 
 For each raw image: trim any uniform near-white frame the generator sometimes
 adds, pad to a centered square on pure black, and emit:
-  - public/icons/<name>.png            256px, black bg (drops onto the dark UI)
-  - public/icons/transparent/<name>.png 256px, RGBA (black keyed to alpha)
+  - src/client/icons/<name>.png            256px, black bg (drops onto the dark UI)
+  - src/client/icons/transparent/<name>.png 256px, RGBA (black keyed to alpha)
 Plus a favicon + apple-touch-icon from the logo, and a labeled contact sheet.
+The icons live under src/ (not public/) because the client IMPORTS them through
+vite and inlines them as data URIs — see src/client/assets.d.ts.
 """
 from pathlib import Path
 import numpy as np
@@ -13,7 +15,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parent.parent
 RAW = ROOT / "generated_imgs"
-OUT = ROOT / "public" / "icons"
+OUT = ROOT / "src" / "client" / "icons"
 OUT_T = OUT / "transparent"
 OUT.mkdir(parents=True, exist_ok=True)
 OUT_T.mkdir(parents=True, exist_ok=True)

@@ -5,6 +5,7 @@ import React, { useState } from "react";
 import { publishTileHighlight } from "./tile-highlight";
 import type { Treasury, Phase } from "../../shared/engine/types";
 import { Icon, type IconName } from "../Icon";
+import logoWordmark from "../art/logo-wordmark.png";
 import { cogColor, cogName } from "../colors";
 import { MINERALS, MINERAL_NAME, minClass, setsOf } from "./derive";
 
@@ -144,7 +145,7 @@ function copyText(text: string): void {
 export function Wordmark({ small = false }: { small?: boolean }): React.ReactElement {
   return (
     <img
-      src={`${import.meta.env.BASE_URL}art/logo-wordmark.png`}
+      src={logoWordmark}
       alt="COGHERENCE"
       draggable={false}
       style={{ height: small ? 21 : 27, width: "auto", display: "block" }}
@@ -152,21 +153,17 @@ export function Wordmark({ small = false }: { small?: boolean }): React.ReactEle
   );
 }
 
-/** The brand: the gear-as-O COGHERENCE wordmark. CLICK copies the current
- *  view's PLAY LINK on the externally-reachable origin (/share-info — the
- *  Tailscale name when the server knows one, so the host doesn't hand out
- *  localhost) and flashes a "✓ copied" confirmation under the wordmark. */
+/** The brand: the gear-as-O COGHERENCE wordmark. CLICK copies the current view's
+ *  PLAY LINK (this page's URL) and flashes a "✓ copied" confirmation under the
+ *  wordmark. The old /share-info host-origin lookup is gone with the bespoke
+ *  server; the browser's own origin is correct under both the hub and standalone. */
 export function Brand({ small = false }: { small?: boolean }): React.ReactElement {
   const [copied, setCopied] = useState<string | null>(null);
   const copyPlayLink = (): void => {
-    void fetch("/share-info")
-      .then((r) => r.json())
-      .then((j: { origin: string | null }) => {
-        const link = `${j.origin ?? window.location.origin}${window.location.pathname}`;
-        copyText(link);
-        setCopied(link);
-        window.setTimeout(() => setCopied(null), 2200);
-      });
+    const link = `${window.location.origin}${window.location.pathname}`;
+    copyText(link);
+    setCopied(link);
+    window.setTimeout(() => setCopied(null), 2200);
   };
   return (
     <div

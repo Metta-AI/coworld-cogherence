@@ -35,26 +35,7 @@ const cogIdx = (id: string): number => {
 };
 
 // ===== Heart auction ======================================================
-export function AuctionPanel({ snapshot, events, bidder }: { snapshot: GameSnapshot; events: StampedEvent[]; bidder?: string }): React.ReactElement {
-  // bidder (cog view, live): edit that cog's PERSISTENT standing bid here —
-  // auto-bid this amount at every auction while > 0 (steering-backed).
-  const [standingBid, setStandingBid] = useState<number | null>(null);
-  useEffect(() => {
-    if (!bidder) return;
-    let on = true;
-    void fetch(`/cog/${bidder}/steering`)
-      .then((r) => r.json())
-      .then((j: { standingBid?: number }) => {
-        if (on) setStandingBid(j.standingBid ?? 0);
-      });
-    return () => {
-      on = false;
-    };
-  }, [bidder]);
-  const postBid = (v: number): void => {
-    setStandingBid(v);
-    void fetch(`/cog/${bidder}/steering`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ standingBid: v }) });
-  };
+export function AuctionPanel({ snapshot, events }: { snapshot: GameSnapshot; events: StampedEvent[] }): React.ReactElement {
   const turn = lastResolvedTurn(snapshot);
   const a = auctionAt(events, turn);
   const winnerIdx = a?.winner != null ? cogIdx(a.winner) : null;
@@ -126,27 +107,6 @@ export function AuctionPanel({ snapshot, events, bidder }: { snapshot: GameSnaps
               );
             })}
           </div>
-          {bidder && standingBid != null && (
-            <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 9, paddingTop: 8, borderTop: "1px solid var(--border)" }}>
-              <span
-                className="cg-mono"
-                data-tip="standing heart bid — auto-bid this amount at every auction while > 0 (replaces the autopilot's own bid; 0 = let it decide)"
-                style={{ fontSize: 10, color: "var(--muted)" }}
-              >
-                Heart bid
-              </span>
-              <input
-                type="number"
-                min={0}
-                data-testid="bid-input"
-                value={standingBid}
-                onChange={(e) => postBid(Math.max(0, Number(e.target.value) || 0))}
-                className="cg-mono"
-                style={{ width: 64, background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 6, color: "var(--text)", padding: "3px 6px", fontSize: 11 }}
-              />
-              <span className="cg-mono" style={{ fontSize: 10, color: "var(--muted)" }}>e</span>
-            </div>
-          )}
           {spend.total > 0 && (
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 9, paddingTop: 8, borderTop: "1px solid var(--border)" }} data-testid="heart-spend">
               <EnergyChip />

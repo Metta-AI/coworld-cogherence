@@ -1,14 +1,17 @@
 // A single Cog's HUD: its identity (treasury → derived energy, territory shape),
 // the full Turn Log, what its model saw + decided, and the channels it can
-// read — beside the public lattice with its own territory in focus.
-import React, { useCallback, useEffect, useState } from "react";
+// read — beside the public lattice with its own territory in focus. When live and
+// the seat's autopilot is off, the human composes an Order[] and submits it as the
+// turn's @cogweb `decision`.
+import React, { useEffect, useState } from "react";
+import type { ClientMessage, LobbyState } from "@cogweb/protocol";
 import type { GameSnapshot } from "../../shared/snapshot";
 import type { Message } from "../../shared/messages";
 import type { StampedEvent } from "../net/feed";
 import type { LatticeMode } from "../HexBoard";
 import type { Order } from "../../shared/engine/orders";
 import { distance } from "../../shared/engine/hex";
-import { ALIGN_MAX_ENERGY, ALIGN_REPEAT_SURCHARGE, COHERENCE_MAX, SINGLE_ENERGY, alignEnergyCost, exploitYield } from "../../shared/engine/constants";
+import { ALIGN_MAX_ENERGY, ALIGN_REPEAT_SURCHARGE, COHERENCE_MAX, alignEnergyCost, exploitYield } from "../../shared/engine/constants";
 import { cogColor, cogName } from "../colors";
 import { EnergyChip, CGIcon, Mineral } from "../cg/atoms";
 import { AuctionPanel, LatticePanel, ChannelMessage, TurnLog } from "../cg/panels";
@@ -18,75 +21,7 @@ import { AutopilotPanel, type ReasoningEntry } from "./AutopilotPanel";
 
 const cogIdx = (id: string): number => Number(id.replace(/\D/g, "")) || 0;
 
-/** Right-click menu on ONE treasury element: convert 1/5/10 of it (singles,
- *  +1⚡ each — sets stay the better rate), plus a checkable per-element
- *  AUTO-convert (burned every turn, server-side). */
-function ConvertMenu({ cogId, mineral, have, at, onClose }: { cogId: string; mineral: string; have: number; at: { x: number; y: number }; onClose: () => void }): React.ReactElement {
-  const [auto, setAuto] = useState<string[] | null>(null);
-  useEffect(() => {
-    void fetch(`/cog/${cogId}/steering`).then((r) => r.json()).then((j) => setAuto((j.autoConvert as string[]) ?? []));
-  }, [cogId]);
-  const isAuto = auto?.includes(mineral) ?? false;
-  const W = 240;
-  const x = Math.min(at.x, window.innerWidth - W - 12);
-  const y = Math.min(at.y, window.innerHeight - 220);
-  const row = { display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" } as const;
-  const convert = (n: number): void => {
-    void fetch(`/cog/${cogId}/convert`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mineral, count: n }) });
-    onClose();
-  };
-  return (
-    <div
-      data-convert-menu
-      className="cg-panel"
-      style={{ position: "fixed", left: x, top: y, width: W, zIndex: 120, background: "rgba(14,14,24,0.97)", backdropFilter: "blur(8px)" }}
-    >
-      <div className="cg-panel-head" style={{ padding: "7px 11px" }}>
-        <span className="cg-panel-title" style={{ fontSize: 10 }}>convert {MINERAL_NAME[mineral]} · hold {have}</span>
-        <button type="button" onClick={onClose} className="cg-mono" style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: 11 }}>
-          ✕
-        </button>
-      </div>
-      <div className="cg-panel-body" style={{ padding: "8px 10px", display: "flex", flexDirection: "column", gap: 3 }}>
-        {[1, 5, 10].map((n) => (
-          <button
-            key={n}
-            type="button"
-            className="cg-menu-row"
-            disabled={have < n}
-            data-tip={have < n ? `you hold ${have}` : `burn ${n} ${MINERAL_NAME[mineral]} as singles — full sets convert at 2.5× the rate`}
-            onClick={() => convert(n)}
-            style={have < n ? { opacity: 0.35, cursor: "default" } : undefined}
-          >
-            <span style={row}>
-              <span>Convert {n}</span>
-              <span className="cg-mono" style={{ fontSize: 10, color: "var(--energy)" }}>+{n * SINGLE_ENERGY}⚡</span>
-            </span>
-          </button>
-        ))}
-        <button
-          type="button"
-          className="cg-menu-row"
-          disabled={auto == null}
-          data-tip={`burn ALL ${MINERAL_NAME[mineral]} automatically at the start of each turn`}
-          onClick={() => {
-            if (auto == null) return;
-            const next = isAuto ? auto.filter((m) => m !== mineral) : [...auto, mineral];
-            setAuto(next);
-            void fetch(`/cog/${cogId}/steering`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ autoConvert: next }) });
-          }}
-        >
-          <span style={row}>
-            <span>{isAuto ? "☑" : "☐"} Auto-convert each turn</span>
-            <span className="cg-mono" style={{ fontSize: 9, color: isAuto ? "var(--coherence)" : "var(--muted)" }}>{isAuto ? "on" : "off"}</span>
-          </span>
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function Identity({ snapshot, cogId, live }: { snapshot: GameSnapshot; cogId: string; live?: boolean }): React.ReactElement | null {
+function Identity({ snapshot, cogId }: { snapshot: GameSnapshot; cogId: string }): React.ReactElement | null {
   const me = snapshot.cogs.find((c) => c.id === cogId);
   if (!me) return null;
   const color = cogColor(me.index);
@@ -95,7 +30,6 @@ function Identity({ snapshot, cogId, live }: { snapshot: GameSnapshot; cogId: st
   const sets = setsOf(me.treasury);
   const mint = expectedMintBy(snapshot).get(cogId) ?? { C: 0, O: 0, Ge: 0, S: 0 };
   const bills = upkeepBy(snapshot).get(cogId) ?? 0;
-  const [convertMenu, setConvertMenu] = useState<{ mineral: string; x: number; y: number } | null>(null);
   return (
     <div className="cg-panel" style={{ borderTop: `3px solid ${color}` }} data-testid="identity">
       <div className="cg-panel-body" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -121,8 +55,6 @@ function Identity({ snapshot, cogId, live }: { snapshot: GameSnapshot; cogId: st
               {MINERALS.map((m) => (
                 <div
                   key={m}
-                  onContextMenu={live ? (e) => { e.preventDefault(); setConvertMenu({ mineral: m, x: e.clientX, y: e.clientY }); } : undefined}
-                  data-tip={live ? `right-click to convert ${MINERAL_NAME[m]}` : undefined}
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -160,44 +92,12 @@ function Identity({ snapshot, cogId, live }: { snapshot: GameSnapshot; cogId: st
                 <span className="cg-mono" style={{ fontSize: 9, color: "var(--muted)" }}>energy</span>
               </div>
               <div style={{ flex: 1 }} />
-              {live ? (
-                <button
-                  type="button"
-                  data-testid="convert-set"
-                  disabled={sets < 1}
-                  data-tip={sets < 1 ? "needs one of EACH mineral — trade for what you lack" : `burn 1×C O Ge S → +10 energy (${sets} set${sets > 1 ? "s" : ""} ready)`}
-                  onClick={() => void fetch(`/cog/${cogId}/convert`, { method: "POST" })}
-                  className="cg-mono"
-                  style={{
-                    background: "none",
-                    border: `1px solid ${sets ? "var(--coherence)" : "var(--border)"}`,
-                    borderRadius: 6,
-                    padding: "3px 9px",
-                    cursor: sets ? "pointer" : "default",
-                    fontSize: 10,
-                    letterSpacing: "0.06em",
-                    color: sets ? "var(--coherence)" : "var(--muted-2)",
-                  }}
-                >
-                  Convert Set → +10⚡
-                </button>
-              ) : (
-                <div className="cg-mono" style={{ fontSize: 10, color: sets ? "var(--coherence)" : "var(--muted)" }}>
-                  {sets ? `${sets} set${sets > 1 ? "s" : ""} convertible` : "no full set"}
-                </div>
-              )}
+              <div className="cg-mono" style={{ fontSize: 10, color: sets ? "var(--coherence)" : "var(--muted)" }}>
+                {sets ? `${sets} set${sets > 1 ? "s" : ""} convertible` : "no full set"}
+              </div>
             </div>
           </div>
         </div>
-        {convertMenu && (
-          <ConvertMenu
-            cogId={cogId}
-            mineral={convertMenu.mineral}
-            have={me.treasury[convertMenu.mineral as keyof typeof me.treasury]}
-            at={convertMenu}
-            onClose={() => setConvertMenu(null)}
-          />
-        )}
         <div style={{ display: "flex", gap: 8 }}>
           {([["tiles", terr.tiles, "var(--text)"], ["fortresses", terr.fortresses, color], ["salients", terr.salients, "var(--exploit)"]] as const).map(([l, v, col]) => (
             <div key={l} style={{ flex: 1, padding: "8px 10px", background: "var(--panel-2)", borderRadius: 8, border: "1px solid var(--border)" }}>
@@ -398,6 +298,8 @@ export function CogView({
   atLatest = true,
   onSeekTurn,
   prompts = [],
+  lobby = null,
+  send,
 }: {
   snapshot: GameSnapshot;
   cogId: string;
@@ -409,9 +311,17 @@ export function CogView({
   onSeekTurn?: (turn: number) => void;
   /** This Cog's act-prompt transcripts (what the model saw & decided). */
   prompts?: ReasoningEntry[];
+  /** The @cogweb lobby — supplies this seat's bot spec (guidance/model/autopilot). */
+  lobby?: LobbyState | null;
+  /** Send a ClientMessage on the live socket (the seat's decision + autopilot config). */
+  send?: (m: ClientMessage) => void;
 }): React.ReactElement {
+  const seat = cogIdx(cogId);
+  const bot = lobby?.seats.find((s) => s.seat === seat)?.bot ?? null;
   const [mode, setMode] = useState<LatticeMode>("coherence");
   const [menu, setMenu] = useState<{ tileKey: string; at: { x: number; y: number } } | null>(null);
+  // The human's locally-composed order queue for this turn — submitted whole as
+  // the @cogweb `decision` on Ready (the engine buffers it as the seat's Order[]).
   const [pending, setPending] = useState<Order[]>([]);
   // The queue as submitted via Ready — shown frozen ("Committed") until the
   // turn resolves (the snapshot advancing past it clears the marker).
@@ -419,19 +329,10 @@ export function CogView({
   useEffect(() => {
     if (committed && snapshot.turn > committed.turn) setCommitted(null);
   }, [snapshot.turn, committed]);
-
-  // The operator's queued orders live server-side (they submit at the next
-  // Commit even if this page closes); refresh per turn — a commit consumes them.
+  // A new turn clears the locally-composed queue (the last turn's decision shipped).
   useEffect(() => {
-    if (!live) return;
-    let on = true;
-    void fetch(`/cog/${cogId}/steering`)
-      .then((r) => r.json())
-      .then((st: { pending?: Order[] }) => on && setPending(st.pending ?? []));
-    return () => {
-      on = false;
-    };
-  }, [live, cogId, snapshot.turn]);
+    setPending([]);
+  }, [snapshot.turn]);
   // per-order energy effect: an align's bill (force² + distance² + repeat
   // surcharge), an abandon's refund, an exploit's mineral windfall — plus the
   // total energy the queue will spend at Commit.
@@ -497,18 +398,6 @@ export function CogView({
           .map(expectedCoh)
           .filter((p): p is NonNullable<typeof p> => p !== null)
       : [];
-  const postPending = useCallback(
-    (next: Order[]): void => {
-      setPending(next);
-      void fetch(`/cog/${cogId}/steering`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ pending: next }),
-      });
-    },
-    [cogId],
-  );
-
   return (
     <div className="cg-view cg-cog" data-testid="cog-view">
       <ResizableColumns
@@ -517,21 +406,25 @@ export function CogView({
         defaultRight={320}
         left={
           <div className="cg-col cg-scroll" style={{ overflowY: "auto" }}>
-            <Identity snapshot={snapshot} cogId={cogId} live={live} />
-            {live && (
+            <Identity snapshot={snapshot} cogId={cogId} />
+            {live && send && (
               <AutopilotPanel
-                cogId={cogId}
+                seat={seat}
+                bot={bot}
+                send={send}
                 atLatest={atLatest}
                 prompts={prompts}
                 pending={pending}
                 pendingNotes={pendingNotes}
                 pendingCommitted={pendingCommitted}
                 energy={snapshot.cogs.find((c) => c.id === cogId)?.energy}
-                onCancelPending={(i) => postPending(pending.filter((_, j) => j !== i))}
+                onCancelPending={(i) => setPending(pending.filter((_, j) => j !== i))}
                 onReady={() => {
-                  void fetch(`/cog/${cogId}/ready`, { method: "POST" });
+                  // The decision IS the submission: ship the composed Order[] as this
+                  // turn's @cogweb decision; the engine buffers it as the seat's move.
+                  send({ type: "decision", decision: { orders: pending } });
                   setCommitted({ turn: snapshot.turn, orders: pending, notes: pendingNotes, total: pendingCommitted });
-                  setPending([]); // the server consumes the queue as it submits
+                  setPending([]);
                 }}
                 committed={committed}
               />
@@ -580,7 +473,7 @@ export function CogView({
           ) : (
             <div className="cg-col cg-scroll" style={{ overflowY: "auto", display: "flex", flexDirection: "column", gap: 12, minHeight: 0 }}>
               <div style={{ flex: "0 0 auto" }}>
-                <AuctionPanel snapshot={snapshot} events={events} bidder={live ? cogId : undefined} />
+                <AuctionPanel snapshot={snapshot} events={events} />
               </div>
               <CogChannels snapshot={snapshot} cogId={cogId} messages={messages} onSeekTurn={onSeekTurn} onCollapse={toggleSide} />
             </div>
@@ -596,7 +489,7 @@ export function CogView({
           at={menu.at}
           queuedAligns={pending.filter((o) => o.type === "align").length}
           onPick={(o) => {
-            postPending([...pending, o]);
+            setPending([...pending, o]);
             setMenu(null);
           }}
           onClose={() => setMenu(null)}

@@ -2,7 +2,7 @@
 // view, opening a menu of Global · Feed · one row per Cog (accent-dotted). Picking
 // a row navigates (full reload → reconnect to that view's ws), preserving ?live.
 import React, { useEffect, useRef, useState } from "react";
-import { viewHref, type View } from "./nav";
+import { navUrl, type View } from "./nav";
 import { cogColor, cogName } from "../colors";
 
 export function ViewSwitcher({
@@ -35,10 +35,11 @@ export function ViewSwitcher({
   const row = (active: boolean, accent: string, name: string, href: string): React.ReactElement => (
     <a
       key={name}
-      // Absolute same-origin URL: embedded previews (e.g. Claude Code's pane)
-      // validate the raw href attribute and block ones they can't parse as
-      // absolute localhost URLs, so a root-relative "/feed" never navigates.
-      href={new URL(href, window.location.href).href}
+      // href is the absolute same-origin URL from navUrl: it both hangs off the
+      // instance prefix (so the link stays on this instance under the cogweb hub
+      // instead of 404ing at the router root) and is absolute because embedded
+      // previews (e.g. Claude Code's pane) block root-relative hrefs from navigating.
+      href={href}
       className={`vs-row ${active ? "is-active" : ""}`}
       style={{ borderLeftColor: active ? accent : "transparent", ...(active ? { color: accent } : {}) }}
     >
@@ -63,11 +64,11 @@ export function ViewSwitcher({
       </button>
       {open && (
         <div className="vs-menu" role="menu">
-          {row(view === "global", "var(--text)", "Global", viewHref("global", null, live))}
-          {row(view === "feed", "var(--accent)", "Feed", viewHref("feed", null, live))}
+          {row(view === "global", "var(--text)", "Global", navUrl(window.location, "global", null, live))}
+          {row(view === "feed", "var(--accent)", "Feed", navUrl(window.location, "feed", null, live))}
           <div className="vs-divider" />
           {cogs.map((c) =>
-            row(view === "cog" && cogId === c.id, cogColor(c.index), cogName(c.index), viewHref("cog", c.id, live)),
+            row(view === "cog" && cogId === c.id, cogColor(c.index), cogName(c.index), navUrl(window.location, "cog", c.id, live)),
           )}
         </div>
       )}

@@ -1,16 +1,15 @@
 // Autopilot control for one Cog (live mode only): an enable toggle (off =
-// benched, commits nothing) and a guidance/persona textarea prepended to the
-// Cog's prompt next turn. Reads the current state on mount and POSTs edits to
-// the live server. When the board is scrubbed off the latest turn the panel is
-// read-only: it shows the CURRENT configuration (steering history isn't
-// recorded per turn) without allowing edits.
+// benched, the human drives the seat by hand) and a guidance/persona textarea
+// prepended to the Cog's prompt next turn. The current config is read off the
+// @cogweb lobby seat's bot spec; edits send ClientMessages on the live socket.
+// When the board is scrubbed off the latest turn the panel is read-only: it
+// shows the CURRENT configuration without allowing edits.
 import React, { useEffect, useState } from "react";
+import type { BotSpec, ClientMessage } from "@cogweb/protocol";
 import type { Order } from "../../shared/engine/orders";
 import { cogName } from "../colors";
 import { TilePill } from "../cg/atoms";
 import { BEDROCK_MODELS, DEFAULT_BEDROCK_MODEL } from "../../shared/models";
-
-type Saved = "idle" | "saving" | "saved";
 
 /** One act-prompt transcript: what this Cog's model saw and decided that turn. */
 export interface ReasoningEntry {
@@ -146,7 +145,9 @@ function PendingActions({
 }
 
 export function AutopilotPanel({
-  cogId,
+  seat,
+  bot,
+  send,
   atLatest = true,
   pending = [],
   pendingNotes,
@@ -157,16 +158,22 @@ export function AutopilotPanel({
   energy,
   prompts = [],
 }: {
-  cogId: string;
+  /** This cog's seat index (= cog index; cogId = `cog${seat}`). */
+  seat: number;
+  /** The @cogweb lobby seat's bot spec — the live guidance/model/autopilot state,
+   *  or null when the seat carries no pilot config yet (edits then drive it). */
+  bot: BotSpec | null;
+  /** Send a ClientMessage on the live socket (setGuidance / setModel / setAutopilot). */
+  send: (m: ClientMessage) => void;
   atLatest?: boolean;
-  /** Operator orders queued for the next Commit (server-side state). */
+  /** Orders the human queued (locally) for the next Commit. */
   pending?: Order[];
   /** Energy-effect note per queue index — see PendingActions. */
   pendingNotes?: Array<string | undefined>;
   /** Total energy the queue spends at Commit. */
   pendingCommitted?: number;
   onCancelPending?: (i: number) => void;
-  /** Manual mode: submit the queue for this Commit and mark the cog ready. */
+  /** Manual mode: submit the queue as this turn's decision. */
   onReady?: () => void;
   /** The orders submitted via Ready this turn — displayed frozen until Resolve. */
   committed?: { orders: Order[]; notes: Array<string | undefined>; total: number } | null;
@@ -175,41 +182,19 @@ export function AutopilotPanel({
   /** This Cog's act-prompt transcripts (what the model saw & decided). */
   prompts?: ReasoningEntry[];
 }): React.ReactElement {
-  const [persona, setPersona] = useState("");
-  const [paused, setPaused] = useState(false);
-  const [model, setModel] = useState(DEFAULT_BEDROCK_MODEL);
-  const [saved, setSaved] = useState<Saved>("idle");
-
+  // The live config rides the lobby seat's bot spec; the textarea is a local
+  // draft so typing doesn't fight the wire until "Send Guidance" commits it.
+  const autopilot = bot?.autopilot ?? true;
+  const paused = !autopilot;
+  const model = bot?.model ?? DEFAULT_BEDROCK_MODEL;
+  const guidance = bot?.guidance ?? "";
+  const [persona, setPersona] = useState(guidance);
+  const [saved, setSaved] = useState(false);
+  // Reset the draft when the wire's guidance changes (a fresh seat / external edit).
   useEffect(() => {
-    let live = true;
-    void fetch(`/cog/${cogId}/steering`)
-      .then((r) => r.json())
-      .then((s: { persona: string; paused: boolean; model?: string }) => {
-        if (!live) return;
-        setPersona(s.persona);
-        setPaused(s.paused);
-        setModel(s.model ?? DEFAULT_BEDROCK_MODEL);
-      });
-    return () => {
-      live = false;
-    };
-  }, [cogId]);
-
-  const post = (patch: { persona?: string; paused?: boolean; model?: string }): void => {
-    setSaved("saving");
-    void fetch(`/cog/${cogId}/steering`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(patch),
-    })
-      .then((r) => r.json())
-      .then((s: { persona: string; paused: boolean; model?: string }) => {
-        setPersona(s.persona);
-        setPaused(s.paused);
-        setModel(s.model ?? DEFAULT_BEDROCK_MODEL);
-        setSaved("saved");
-      });
-  };
+    setPersona(guidance);
+    setSaved(false);
+  }, [guidance]);
 
   if (!atLatest) {
     return (
@@ -237,9 +222,10 @@ export function AutopilotPanel({
         <label className={`steer-toggle ${paused ? "is-paused" : ""}`} style={{ margin: 0 }}>
           <span>Auto Pilot</span>
           <span className={`cg-switch ${!paused ? "on" : ""}`}>
-            <input type="checkbox" checked={!paused} onChange={(e) => post({ paused: !e.target.checked })} />
+            <input type="checkbox" checked={!paused} onChange={(e) => send({ type: "setAutopilot", seat, on: e.target.checked })} />
             <span className="cg-knob" />
           </span>
+          <span className="steer-state">{paused ? "OFF" : "ON"}</span>
         </label>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
@@ -249,7 +235,7 @@ export function AutopilotPanel({
         <select
           data-testid="steer-model"
           value={model}
-          onChange={(e) => post({ model: e.target.value })}
+          onChange={(e) => send({ type: "setModel", seat, model: e.target.value })}
           title="Bedrock model that drives this Cog's autopilot"
           className="cg-mono"
           style={{ flex: 1, fontSize: 10, color: "var(--text-dim)", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 6, padding: "3px 6px", cursor: "pointer" }}
@@ -273,10 +259,16 @@ export function AutopilotPanel({
             rows={3}
           />
           <div className="steer-actions">
-            <button type="button" onClick={() => post({ persona })}>
+            <button
+              type="button"
+              onClick={() => {
+                send({ type: "setGuidance", seat, guidance: persona });
+                setSaved(true);
+              }}
+            >
               Send Guidance
             </button>
-            <span className="steer-status">{saved === "saved" ? "✓ sent" : saved === "saving" ? "sending…" : ""}</span>
+            <span className="steer-status">{saved ? "✓ sent" : ""}</span>
           </div>
         </>
       ) : committed ? (

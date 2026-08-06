@@ -1,27 +1,5 @@
 # Cogherence
 
-> The Coworld build contract is owned by [Metta Cogweb](https://github.com/Metta-AI/metta/tree/main/packages/cogweb/games/cogherence/coworld). This historical repository no longer owns a compose file or manifest template.
-
-<!-- COWORLD-VERIFY-BADGE:START -->
-![Coworld verify: not ready](https://img.shields.io/badge/coworld%20verify-not%20ready-lightgrey)
-<!-- COWORLD-VERIFY-BADGE:END -->
-
-
-<!-- COWORLD-REPO-STATUS:START -->
-> [!NOTE]
-> Coworld repo status: **template** (`coworld-template`).
-> Canonical repository: `Metta-AI/coworld-cogherence`.
-> Manifest path: `coworld_manifest_template.json`.
-> Build path: `Dockerfile`
-> Certification: blocked until this template resolves to a concrete `coworld_manifest.json` and `uv run coworld certify coworld_manifest.json` passes.
->
-> Missing pieces:
-> - [ ] Resolve `coworld_manifest_template.json` into a concrete root `coworld_manifest.json`.
-> - [ ] Confirm buildable game and starter-player images.
-> - [ ] Run `uv run coworld certify coworld_manifest.json` and record the passing command.
-<!-- COWORLD-REPO-STATUS:END -->
-
-
 *A luminous hex lattice where minds hold the world together — or pull it apart.*
 
 **Cogherence** is a web-based, multiplayer, mixed-motive board game for **3–6 LLM agents** ("Cogs"). It blends **territory**, **economy**, and **pure cheap-talk politics** into a continuous tension between greed and stewardship. The name fuses the three things the game is about: the agents are **Cogs**, the minerals **C / O / Ge / S** spell **COGS**, and the core resource is **Coherence**.
@@ -39,13 +17,18 @@ Cogs *Align* tiles on a hex lattice — a tug-of-war where **Coherence = margin 
 
 ## Status
 
-**Playable end to end** — a deterministic engine, LLM-driven Cogs that negotiate and play live, and a multi-view spectator dashboard.
+**Playable end to end** — a deterministic engine, a Coworld game host that seats
+external LLM players, and a multi-view spectator dashboard. This repo is the
+standalone home of the game (extracted from the Metta monorepo); it ships to the
+Softmax platform as a **Coworld** — see
+**[docs/coworld/README.md](docs/coworld/README.md)** for the build → certify →
+upload runbook.
 
 ```bash
-npm run serve:llm -- --agents llm,llm,greedy,greedy --turns 12 --pace 2000   # live LLM game
-#   → open http://localhost:8080/?live
-
-npm run play -- --seed 7 --out public/replay.json && npm run dev             # record + watch a replay
+pnpm install
+pnpm test          # engine + client + coworld unit tests
+pnpm build         # dist/ (web) + dist-server/ (game host + baseline bundles)
+pnpm dev           # vite dev server for the dashboard
 ```
 
 The **live dashboard** (served at `/?live`) has three views, switchable in the nav:
@@ -54,7 +37,7 @@ The **live dashboard** (served at `/?live`) has three views, switchable in the n
 - **Feed** — the negotiation chat: public broadcasts + (visible) DMs, the cheap-talk politics live.
 - **Cog** (`/cog/:id`) — one Cog's fog-of-war board, its private inbox, and exactly what its model saw and decided.
 
-LLM agents talk first (public + private `send_messages`) and then commit orders, all over Bedrock. Architecture: a pure engine in `src/shared`, an async live server in `src/server` (HTTP + ws, per-cog redaction, a message bus, an act-prompt hub), Bedrock agents in `src/agents/llm`, and the React dashboard in `src/client`.
+LLM agents talk first (public + private `send_messages`) and then commit orders, all over Bedrock. Architecture: a pure engine in `src/shared`, the Coworld game host in `src/coworld` (WebSocket player bridge, per-cog redaction, message bus, replay artifacts — built on the vendored `@cogweb/coworld` in [`packages/`](packages/)), Bedrock agents in `src/agents/llm`, and the React dashboard in `src/client`.
 
 See **[src/shared/engine/README.md](src/shared/engine/README.md)** (engine) and **[src/client/README.md](src/client/README.md)** (client) for module maps, the **[live-dashboard design](docs/plans/2026-06-05-cogherence-live-dashboard-design.md)**, and **[docs/design.md](docs/design.md)** for the full game design.
 

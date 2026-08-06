@@ -1,8 +1,11 @@
 // Live feed: connect a ServerMessage socket and apply frames to a mutable store,
 // notifying on each change. The store's snapshots feed the SAME renderers the
 // replay viewer uses, so live and replay share one render path. Invalid inbound
-// frames are dropped (validated at this boundary).
-import { serverMessageSchema, type ServerMessage, type ServerStatus } from "../../shared/protocol";
+// frames are dropped (validated at this boundary). The same socket carries the
+// CONTROL plane outbound: connectLiveFeed returns a `send` that writes @cogweb
+// ClientMessages back to the live server.
+import type { ClientMessage, LobbyState } from "@cogweb/protocol";
+import type { ServerMessage, ServerStatus } from "../../shared/protocol";
 import type { GameSnapshot } from "../../shared/snapshot";
 import { setCogNames } from "../colors";
 import type { TurnEvent } from "../../shared/engine/log";
@@ -24,6 +27,10 @@ export interface FeedStore {
   status: ServerStatus | null;
   actPrompts: Record<string, ActPromptFrame[]>;
   messages: Message[];
+  /** The raw @cogweb LobbyState (seat kinds/ids, bot specs, join tokens) the
+   *  control plane reads to add bots, fill seats, and steer. Null until the first
+   *  lobby frame lands (and on a replay, which has no lobby). */
+  lobby: LobbyState | null;
 }
 
 /** Minimal socket surface (a fake is injected in tests; real one wraps WebSocket). */
@@ -32,6 +39,10 @@ export interface LiveSocket {
   /** Fires when the underlying connection dies (or never opened). Optional so
    *  test fakes without lifecycle stay valid. */
   onClose?(fn: () => void): void;
+  /** Write a raw frame back to the server (the control plane's outbound path).
+   *  A write before open / after close is a no-op (the real socket guards on
+   *  readyState). */
+  send(data: string): void;
   close(): void;
 }
 
@@ -60,6 +71,7 @@ export function applyFrame(store: FeedStore, m: ServerMessage): void {
     setCogNames(names);
   } else if (m.type === "event") store.events.push({ turn: m.turn, event: m.event });
   else if (m.type === "serverStatus") store.status = m.status;
+  else if (m.type === "lobby") store.lobby = m.lobby;
   else if (m.type === "actPrompt") {
     const list = (store.actPrompts[m.cogId] ??= []);
     list.push(m);
@@ -67,11 +79,33 @@ export function applyFrame(store: FeedStore, m: ServerMessage): void {
   } else if (m.type === "message") store.messages.push(m.message);
 }
 
+/** Decode one inbound @cogweb/protocol wire frame into zero or more cogherence
+ *  ServerMessages (the client's internal model). Every server cogherence talks to
+ *  — the hub and the Coworld host — speaks the
+ *  @cogweb wire; `makeCogwebDecoder` is the translator. A decoder is stateful per
+ *  connection, so {@link connectLiveFeed} builds a fresh one per socket. */
+export type FeedDecoder = (raw: unknown) => ServerMessage[];
+
+/** The live connection handle: a `stop` teardown and a `send` that writes an
+ *  @cogweb ClientMessage to the CURRENT socket (the control plane). */
+export interface LiveConnection {
+  stop: () => void;
+  send: (m: ClientMessage) => void;
+}
+
 /** Connect (and KEEP connected) a live feed: when the socket dies — server
  *  restarting, page loaded before the server was up — retry with capped
  *  backoff, wiping the store right before each reconnect so the server's
- *  backfill repopulates it cleanly (no duplicated events). */
-export function connectLiveFeed(store: FeedStore, makeSocket: () => LiveSocket, onChange: () => void): () => void {
+ *  backfill repopulates it cleanly (no duplicated events). `makeDecoder` builds the
+ *  per-connection wire translator (`makeCogwebDecoder`). The returned `send`
+ *  serializes a ClientMessage onto whichever socket is currently live (dropped if
+ *  none is open — the controls are user-driven and idempotent). */
+export function connectLiveFeed(
+  store: FeedStore,
+  makeSocket: () => LiveSocket,
+  onChange: () => void,
+  makeDecoder: () => FeedDecoder,
+): LiveConnection {
   let stopped = false;
   let sock: LiveSocket | null = null;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -79,6 +113,7 @@ export function connectLiveFeed(store: FeedStore, makeSocket: () => LiveSocket, 
   const open = (): void => {
     if (stopped) return;
     sock = makeSocket();
+    const decode = makeDecoder(); // fresh per connection — a decoder may carry state
     sock.onMessage((data) => {
       let raw: unknown;
       try {
@@ -86,10 +121,8 @@ export function connectLiveFeed(store: FeedStore, makeSocket: () => LiveSocket, 
       } catch {
         return; // drop unparseable inbound
       }
-      const parsed = serverMessageSchema.safeParse(raw);
-      if (!parsed.success) return; // drop invalid inbound
       attempt = 0; // inbound traffic proves the link is healthy
-      applyFrame(store, parsed.data);
+      for (const msg of decode(raw)) applyFrame(store, msg);
       onChange();
     });
     sock.onClose?.(() => {
@@ -101,15 +134,19 @@ export function connectLiveFeed(store: FeedStore, makeSocket: () => LiveSocket, 
         store.messages = [];
         store.actPrompts = {};
         store.status = null;
+        store.lobby = null;
         onChange();
         open();
       }, delay);
     });
   };
   open();
-  return () => {
-    stopped = true;
-    clearTimeout(timer);
-    sock?.close();
+  return {
+    stop: () => {
+      stopped = true;
+      clearTimeout(timer);
+      sock?.close();
+    },
+    send: (m) => sock?.send(JSON.stringify(m)),
   };
 }

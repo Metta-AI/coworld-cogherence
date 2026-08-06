@@ -1,23 +1,16 @@
-# Cogherence Coworld image — one image, two entrypoints:
-#   game   → src/coworld/game-server.ts (the long-running game container; CMD)
-#   player → src/coworld/player-main.ts  (the per-slot reference LLM player; manifest `run`)
-# Always build for the cluster: docker build --platform=linux/amd64 ...
-FROM node:22-slim AS build
+# Coworld image for cogherence. `coworld/compose.yaml` builds this with
+# `context: ..` (the repo root), so `COPY dist-server` / `COPY dist` pick up the
+# pre-built, fully self-contained esbuild bundles: `npm run build:coworld`
+# inlines the @cogweb/* workspace source AND third-party deps, and
+# `npm run build:web` emits dist/. Build both on the host first, then run
+# `coworld build`. No `node_modules` is needed at runtime.
+#
+# There is no CMD on purpose: the coworld dispatcher always launches the
+# container with the manifest's per-runnable `run` (e.g.
+# `node dist-server/coworld/game-cli.js` for the host, or a player entrypoint),
+# so an image default would be dead code.
+FROM node:20-slim
 WORKDIR /app
-COPY package.json package-lock.json ./
-RUN npm ci
-COPY . .
-RUN npx vite build            # bundles the React dashboard into dist/ (served statically)
-
-FROM node:22-slim
-WORKDIR /app
-ENV NODE_ENV=production \
-    COGAME_HOST=0.0.0.0 \
-    COGAME_PORT=8080
-# Carry the (amd64) install + built client + TS sources; the entrypoints run via tsx.
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/dist ./dist
-COPY --from=build /app/src ./src
-COPY --from=build /app/package.json /app/tsconfig.json ./
-EXPOSE 8080
-CMD ["node_modules/.bin/tsx", "src/coworld/game-server.ts"]
+COPY dist-server ./dist-server
+COPY dist ./dist
+ENV NODE_ENV=production

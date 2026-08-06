@@ -2,11 +2,16 @@
 // held, hearts (glowing), and the COGS wallet with derived energy. Each card is a
 // button: clicking it spotlights that Cog's territory on the lattice (toggle).
 import React, { useState } from "react";
+import type { ClientMessage } from "@cogweb/protocol";
+import { NamePrompt, loadViewerName, saveViewerName } from "@cogweb/ui";
 import type { GameSnapshot } from "../shared/snapshot";
 import type { StampedEvent } from "./net/feed";
 import { cogColor, cogName } from "./colors";
 import { CGIcon, Wallet } from "./cg/atoms";
 import { expectedMintBy, mintEnergyBy, rankedByHearts, territory, upkeepBy } from "./cg/derive";
+import { navUrl } from "./ui/nav";
+
+const cogIdx = (id: string): number => Number(id.replace(/\D/g, "")) || 0;
 
 export function Roster({
   snapshot,
@@ -16,6 +21,7 @@ export function Roster({
   live = false,
   ready,
   waiting,
+  send,
 }: {
   snapshot: GameSnapshot;
   /** Event stream (for last-mint income in the energy math); omit to hide it. */
@@ -29,16 +35,22 @@ export function Roster({
   ready?: string[];
   /** Cogs still deciding (server status `pending`). */
   waiting?: string[];
+  /** Send a ClientMessage on the live socket (seat management + autopilot). */
+  send?: (m: ClientMessage) => void;
 }): React.ReactElement {
   const ranked = rankedByHearts(snapshot.cogs);
   // right-click a card (live): the control menu — observe / take control /
   // set-autopilot / kick for that Cog.
   const [menu, setMenu] = useState<{ id: string; index: number; x: number; y: number } | null>(null);
+  // The cog awaiting a name before take-control; the NamePrompt below resolves it.
+  const [pendingId, setPendingId] = useState<string | null>(null);
   const goCog = (id: string): void => {
-    window.location.href = `/cog/${id}?live`;
+    window.location.href = navUrl(window.location, "cog", id, true);
   };
-  const setPaused = (id: string, paused: boolean): void => {
-    void fetch(`/cog/${id}/steering`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ paused }) });
+  // Take manual control of a cog under your persisted name, then jump to its view.
+  const takeControl = (id: string, name: string): void => {
+    send?.({ type: "takeControl", seat: cogIdx(id), name });
+    goCog(id);
   };
   const terr = territory(snapshot);
   const upkeep = upkeepBy(snapshot);
@@ -48,13 +60,13 @@ export function Roster({
     <div className="cg-panel" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }} data-testid="roster">
       <div className="cg-panel-head">
         <span className="cg-panel-title">Cogs</span>
-        {live ? (
+        {live && send ? (
           <button
             type="button"
             className="cg-addcog"
             data-testid="add-cog"
-            data-tip="Add a new cog — seats at a free corner"
-            onClick={() => void fetch("/cogs/add", { method: "POST" })}
+            data-tip="Add a new cog — opens a new seat"
+            onClick={() => send({ type: "addSeat" })}
           >
             +
           </button>
@@ -78,9 +90,9 @@ export function Roster({
               className="cg-roster-card"
               data-testid={`roster-${c.id}`}
               aria-pressed={active}
-              data-tip={live ? `Spotlight ${cogName(c.index)}’s territory · right-click for controls` : `Spotlight ${cogName(c.index)}’s territory`}
+              data-tip={live && send ? `Spotlight ${cogName(c.index)}’s territory · right-click for controls` : `Spotlight ${cogName(c.index)}’s territory`}
               onClick={() => onToggleFocus?.(c.id)}
-              onContextMenu={live ? (e) => { e.preventDefault(); setMenu({ id: c.id, index: c.index, x: e.clientX, y: e.clientY }); } : undefined}
+              onContextMenu={live && send ? (e) => { e.preventDefault(); setMenu({ id: c.id, index: c.index, x: e.clientX, y: e.clientY }); } : undefined}
               style={{
                 appearance: "none",
                 font: "inherit",
@@ -161,9 +173,11 @@ export function Roster({
               data-testid="control-cog"
               data-tip="take manual control — autopilot off; you queue orders and hit Ready in the cog view"
               onClick={() => {
-                void fetch("/cogs/claim", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: cogName(menu.index) }) });
-                goCog(menu.id);
+                const id = menu.id;
                 setMenu(null);
+                const viewer = loadViewerName();
+                if (viewer) takeControl(id, viewer);
+                else setPendingId(id);
               }}
             >
               Take control
@@ -173,7 +187,7 @@ export function Roster({
               className="cg-menu-row"
               data-testid="autopilot-cog"
               data-tip="hand this cog back to its LLM autopilot"
-              onClick={() => { setPaused(menu.id, false); setMenu(null); }}
+              onClick={() => { send?.({ type: "setAutopilot", seat: cogIdx(menu.id), on: true }); setMenu(null); }}
             >
               <span style={{ color: "var(--coherence)" }}>Set autopilot</span>
             </button>
@@ -184,7 +198,7 @@ export function Roster({
               data-testid="kick-cog"
               data-tip="remove this cog from the game — its ground goes neutral and the seat frees up"
               onClick={() => {
-                void fetch(`/cog/${menu.id}/kick`, { method: "POST" });
+                send?.({ type: "clearSeat", seat: cogIdx(menu.id) });
                 setMenu(null);
               }}
             >
@@ -192,6 +206,18 @@ export function Roster({
             </button>
           </div>
         </div>
+      )}
+      {pendingId !== null && (
+        <NamePrompt
+          title="Name your cog"
+          subtitle="You're taking control — pick a name to play under."
+          onPick={(nm) => {
+            saveViewerName(nm);
+            takeControl(pendingId, nm);
+            setPendingId(null);
+          }}
+          onCancel={() => setPendingId(null)}
+        />
       )}
     </div>
   );

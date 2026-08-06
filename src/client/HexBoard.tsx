@@ -12,6 +12,7 @@ import type { GameSnapshot, TileSnapshot } from "../shared/snapshot";
 import { axialToPixel, hexCorners, polygonPoints } from "./hex-layout";
 import { cogColor } from "./colors";
 import { MINERAL_COLOR, tileKey } from "./cg/derive";
+import { iconSrc, type IconName } from "./Icon";
 
 /** A viewBox rectangle in SVG user units. */
 interface Box {
@@ -38,11 +39,10 @@ const EDGE_DIRS: ReadonlyArray<[number, number]> = [
 export type LatticeMode = "coherence" | "mineral" | "ownership";
 
 const SIZE = 26;
-const BASE = import.meta.env.BASE_URL;
 // Each tile carries a luminous neon-glass mineral gem (its deposit), sized by
 // density — the at-a-glance resource indicator. In mineral mode the fill already
 // encodes the mineral, so the gem is omitted there.
-const mineralIcon = (m: string): string => `${BASE}icons/transparent/mineral-${m.toLowerCase()}.png`;
+const mineralIcon = (m: string): string => iconSrc[`mineral-${m.toLowerCase()}` as IconName];
 const gemSize = (density: number): number => SIZE * 1.25 * (Math.min(10, density) / 10); // proportional to the deposit
 const corners = (cx: number, cy: number): string => polygonPoints(hexCorners(cx, cy, SIZE));
 /** A hex's corners pulled `f` of the way toward its center — the inner fortress sheen. */

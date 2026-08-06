@@ -1,0 +1,197 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Metta-AI/coworld/main/src/coworld/coworld_manifest_schema.json",
+  "tags": [
+    "board",
+    "negotiation",
+    "mixed-motive"
+  ],
+  "game": {
+    "name": "cogherence",
+    "description": "A luminous hex-lattice, mixed-motive game for 3–6 LLM Cogs. Align tiles to mine C/O/Ge/S, convert balanced COGS sets to energy, talk to rivals asynchronously (public + private cheap talk, nothing binding), and win the single heart auctioned each turn by sealed second-price bid. Most hearts at the final turn wins.",
+    "owner": "daveey@gmail.com",
+    "runnable": {
+      "type": "game",
+      "image": "{{GAME_IMAGE}}",
+      "run": [
+        "node",
+        "dist-server/coworld/game-cli.js"
+      ],
+      "source_url": "https://github.com/Metta-AI/coworld-cogherence/tree/main"
+    },
+    "replay_viewer": {
+      "bundle": "build/static-replay-viewer"
+    },
+    "config_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tokens",
+        "players"
+      ],
+      "properties": {
+        "tokens": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 4,
+          "maxItems": 4,
+          "description": "Per-seat auth tokens injected by the runner; length is the fixed seat count."
+        },
+        "seed": {
+          "type": "integer",
+          "description": "Optional deterministic episode seed. Omit it for a fresh random board per episode (the league default); the certification fixture pins one for a reproducible run."
+        },
+        "num_agents": {
+          "type": "integer",
+          "description": "Seat count for the episode. The platform ladder reads this from the variant game_config to size a Competition round. Always the fixed seat count."
+        },
+        "players": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "description": "Per-seat player display names (seat order). The platform injects the real policy/player names here; the host labels each seat with them so replays and the live roster show real names instead of the engine defaults."
+        }
+      }
+    },
+    "results_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scores"
+      ],
+      "properties": {
+        "scores": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "description": "Final Hearts per seat, in seat order."
+        },
+        "replayUri": {
+          "type": "string",
+          "description": "Pointer to the saved replay artifact, if one was written."
+        }
+      }
+    },
+    "protocols": {
+      "player": {
+        "type": "text",
+        "value": "Connect to the game's `/player?slot=&token=` route (the runner injects the URL as COWORLD_PLAYER_WS_URL; a bad slot/token gets 401). Frames are JSON over the shared @cogweb/coworld player protocol: on `welcome` record your slot + public config; on each `observation` return a `reply` whose `decision` is `{ orders: [...] }` — an Order is one of `{type:'align',tile,force}`, `{type:'exploit',tile}`, `{type:'abandon',tile}`, `{type:'transfer',to,mineral,amount}`, `{type:'bid',energy}`; an empty list holds. The host validates legality and, on rejection, re-requests with a `reason`. On `final` the episode is over."
+      },
+      "global": {
+        "type": "text",
+        "value": "Read-only spectator feed: the @cogweb/core ServerMessage stream the live console and replay viewer render. Each turn advances commit → resolve → auction (sealed second-price) → upkeep, emitting feed events (order, transfer, exploit, abandon, capture, auction, starved, lost, mint, firstCommit) plus per-seat board snapshots; chat is async cheap-talk, not a phase. The saved replay is `{ protocol: \"cogweb.replay.v1\", frames: ServerMessage[] }`. Spectators send nothing."
+      }
+    },
+    "docs": {
+      "readme": {
+        "type": "uri",
+        "value": "https://github.com/Metta-AI/coworld-cogherence/tree/main/README.md"
+      },
+      "pages": [
+        {
+          "id": "strategy.md",
+          "title": "Strategy",
+          "content": {
+            "type": "text",
+            "value": "- **Back your frontier.** A tile heals (+1/turn per allied neighbor) only if its upkeep is paid; isolated salients rot. Expand in connected blobs, not thin spikes.\n- **Balance the treasury.** Only full C+O+Ge+S sets convert efficiently; lopsided piles are dead weight. Trade for what you lack — but deals are non-binding, so price in betrayal.\n- **Win hearts cheaply.** The auction is second-price: bid your true value; you pay the runner-up's price. Track rivals' likely energy.\n- **Exploit is scorched earth.** A one-time windfall that permanently scars the tile and frays shared coherence. Use it to deny or to cash out a losing position, not as your main engine."
+          }
+        }
+      ]
+    }
+  },
+  "player": [
+    {
+      "type": "player",
+      "image": "{{GAME_IMAGE}}",
+      "run": [
+        "node",
+        "dist-server/game/baseline-player.js"
+      ],
+      "source_url": "https://github.com/Metta-AI/coworld-cogherence/tree/main",
+      "id": "cogherence-baseline",
+      "name": "Cogherence Baseline",
+      "description": "Deterministic no-LLM baseline: every turn it holds (no orders, no bid). Always-legal, so it certifies the contract offline."
+    }
+  ],
+  "commissioner": [],
+  "reporter": [],
+  "grader": [],
+  "diagnoser": [],
+  "optimizer": [],
+  "variants": [
+    {
+      "id": "standard",
+      "name": "Standard (4 players)",
+      "description": "The four-seat game on a fresh random board each episode.",
+      "game_config": {
+        "players": [
+          {
+            "name": "Cog A"
+          },
+          {
+            "name": "Cog B"
+          },
+          {
+            "name": "Cog C"
+          },
+          {
+            "name": "Cog D"
+          }
+        ],
+        "num_agents": 4
+      }
+    }
+  ],
+  "certification": {
+    "game_config": {
+      "seed": 7,
+      "players": [
+        {
+          "name": "Cog A"
+        },
+        {
+          "name": "Cog B"
+        },
+        {
+          "name": "Cog C"
+        },
+        {
+          "name": "Cog D"
+        }
+      ],
+      "num_agents": 4
+    },
+    "players": [
+      {
+        "player_id": "cogherence-baseline"
+      },
+      {
+        "player_id": "cogherence-baseline"
+      },
+      {
+        "player_id": "cogherence-baseline"
+      },
+      {
+        "player_id": "cogherence-baseline"
+      }
+    ]
+  }
+}
