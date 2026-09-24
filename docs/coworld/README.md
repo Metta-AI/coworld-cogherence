@@ -51,7 +51,9 @@ The exporter requires one validated host decision for every game turn, matching
 Jev orders, matching public talk events, a finished replay, and result scores
 matching the final host status. It rejects episodes with missing model calls,
 rejected decisions, or host fallback. The output is a mode-0600
-`CompleteEpisode` JSONL row for the shared training contract.
+`CompleteEpisode` JSONL row for the shared training contract. Typed decisions
+retain semantic requests and typed orders; public speech retains chat messages
+and the generated text for native-tokenizer post-training.
 
 ## Slot count
 
