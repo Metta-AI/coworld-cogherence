@@ -20,8 +20,8 @@ const answerSchema = z.object({
 });
 const responseSchema = z.object({
   answers: z.object({ decision: answerSchema }),
-  usage: z.object({ cost: z.number().nonnegative() }),
-});
+  usage: z.object({ cost: z.number().nonnegative().optional() }).passthrough().optional(),
+}).passthrough();
 const chatResponseSchema = z.object({
   choices: z.array(z.object({ message: z.object({ content: z.string() }) })).min(1),
 });
@@ -36,7 +36,7 @@ function recordModelCall(row: object): void {
 function provider(seat: number): { endpoint: string; headers: Record<string, string> } {
   const sidecar = process.env.AWS_ENDPOINT_URL_BEDROCK_RUNTIME;
   const capture = process.env.METTA_CAPTURE_URL;
-  const endpoint = sidecar?.replace(/\/$/, "") ?? capture?.replace(/\/$/, "") ?? "https://openrouter.ai/api";
+  const endpoint = sidecar ? sidecar.replace(/\/$/, "") : capture ? capture.replace(/\/$/, "") : "https://openrouter.ai/api";
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (sidecar) headers["X-Coworld-Player-Slot"] = String(seat);
   else if (capture) {
@@ -130,7 +130,7 @@ export async function decide(ctx: PlayerDecideContext<CoghereSeamState, CoghereD
   recordModelCall({ kind: "typed_decision", seat: ctx.seat, turn: ctx.turn, model: body.model,
     request: body, response: payload, reported_choice: answer.choice, choice: selected.key,
     decision: { orders: selected.orders }, latency_ms: latencyMs });
-  console.error(JSON.stringify({ kind: "cogherence_jev", seat: ctx.seat, turn: ctx.turn, choice: selected.key, reported_choice: answer.choice, cost: payload.usage.cost, latency_ms: latencyMs }));
+  console.error(JSON.stringify({ kind: "cogherence_jev", seat: ctx.seat, turn: ctx.turn, choice: selected.key, reported_choice: answer.choice, cost: payload.usage?.cost, latency_ms: latencyMs }));
   return { orders: selected.orders };
 }
 
