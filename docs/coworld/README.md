@@ -22,6 +22,7 @@ replay clients.
 | Results | `src/coworld/results.ts` | Results schema written at episode end. |
 | Baseline player | `src/game/baseline-player.ts` | Deterministic no-LLM baseline: always-legal holds, so it certifies the contract offline. |
 | Hybrid model player | `src/game/jev-player.ts` | Jev chooses typed board orders; an ordinary chat model writes public negotiation text through the same player reply. |
+| Replay viewer | `coworld/tools/build_replay_viewer.sh` | Static replay bundle (`build/static-replay-viewer`) baked into the coworld build. |
 
 The hybrid player's board decisions use System One model `typesafe/jev-1.13`.
 Every fifth turn it also calls `/v1/chat/completions` with model
@@ -51,7 +52,6 @@ Jev orders, matching public talk events, a finished replay, and result scores
 matching the final host status. It rejects episodes with missing model calls,
 rejected decisions, or host fallback. The output is a mode-0600
 `CompleteEpisode` JSONL row for the shared training contract.
-| Replay viewer | `coworld/tools/build_replay_viewer.sh` | Static replay bundle (`build/static-replay-viewer`) baked into the coworld build. |
 
 ## Slot count
 
