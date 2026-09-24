@@ -42,4 +42,7 @@ and every reported Jev choice matched the applied probability maximum.
 `linux/amd64` image built, and the full local Coworld episode completed with
 the image's `jev-player.js` entrypoint. The result is against passive opponents;
 it is not evidence of negotiation skill or performance against active players.
-A hosted policy upload remains to be run.
+
+## Private production canary
+
+The relh-owned `relh-cogherence-jev-20260923:v1` player completed private Experience Request `xreq_ec863877-767e-4ea8-b9e0-62e67b2ed8cf` against three active league policies. Jev earned one heart; the other seats earned 99, 0, and 0. Seat 0 logged 100 Jev judgments with no player error. Provider cost was $0.004786824, mean client latency was 222 ms, and maximum latency was 480 ms. The total episode cost was $0.043358 under a $0.05 combined player LLM cap. The result confirms hosted integration and exposes poor auction play against the active opponent. No ladder submission or game-version change occurred.
