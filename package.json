@@ -9,6 +9,7 @@
     "build:web": "vite build",
     "coworld-game": "tsx src/coworld/game-cli.ts",
     "build:coworld": "esbuild src/coworld/game-cli.ts src/game/baseline-player.ts src/game/jev-player.ts --bundle --platform=node --format=esm --target=node22 --banner:js=\"import{createRequire as __cr}from'node:module';const require=__cr(import.meta.url);\" --outdir=dist-server --outbase=src",
+    "build:training": "esbuild src/game/training-bridge.ts --bundle --platform=node --format=esm --target=node22 --banner:js=\"import{createRequire as __cr}from'node:module';const require=__cr(import.meta.url);\" --outfile=dist-server/game/training-bridge.js",
     "emit-manifest": "tsx scripts/emit-manifest.ts > coworld/coworld_manifest_template.json",
     "preview": "vite preview",
     "test": "vitest run --passWithNoTests",

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { cogherenceGame } from "./game.js";
-import { candidates } from "./jev-player.js";
+import { candidates } from "./choices.js";
 
 describe("Cogherence Jev candidates", () => {
   it("does not sacrifice the only owned tile", () => {
