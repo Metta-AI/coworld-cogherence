@@ -57,6 +57,8 @@ for (const row of trace) {
   let executedAction;
   let visibility;
   let observation;
+  let prompt = row.request;
+  let response = row.response;
   if (row.kind === "typed_decision") {
     const accepted = attempts.filter((attempt) => attempt.seat === seat && attempt.turn === row.turn &&
       !attempt.usedFallback && attempt.attempts.some((candidate) => candidate.error === null &&
@@ -72,6 +74,8 @@ for (const row of trace) {
     executedAction = { to: "public", text: row.text };
     visibility = "mixed";
     observation = JSON.parse(row.request.messages[1].content);
+    prompt = row.request.messages;
+    response = row.text;
   } else {
     throw new Error(`unknown model trace kind ${row.kind}`);
   }
@@ -79,9 +83,9 @@ for (const row of trace) {
     schema_version: "1", event_type: "decision", event_id: randomUUID(), episode_id: episodeId,
     decision_id: decisionId, decision_index: 0, game: "coworld-cogherence",
     game_version: gameVersion, source_revision: source, seat: String(seat), visibility,
-    observation, prompt: row.request,
+    observation, prompt,
     attempts: [{ attempt_id: `${decisionId}:model`, policy: row.model, origin: "model",
-      response: row.response, parsed_action: executedAction, accepted: true,
+      response, parsed_action: executedAction, accepted: true,
       ...(row.latency_ms === undefined ? {} : { latency_ms: row.latency_ms }) }],
     selected_attempt_id: `${decisionId}:model`, executed_action: executedAction,
     action_status: "accepted", terminal: false,
