@@ -10,20 +10,21 @@ version does not change.
 
 With an approved `OPENROUTER_API_KEY`, run `npx tsx tools/evaluate-jev.ts`.
 The script plays ten turns for seeds 0, 1, and 2. Seat 0 alternates between
-Jev and the bundled hold baseline; all other seats hold. These are partial
-games, since a full Cogherence game lasts 100 turns.
+Jev and a matched baseline. Opponents either hold or bid two energy every
+turn. These are partial games, since a full Cogherence game lasts 100 turns.
 
-| Seat 0 | Hearts after ten turns, seeds 0–2 | Jev calls | Provider cost | Mean/max call latency |
-| --- | --- | ---: | ---: | ---: |
-| Hold baseline | 0, 0, 0 | 0 | $0 | — |
-| Jev | 6, 6, 6 | 30 | $0.001391922 | 206/286 ms |
+| Opponents | Jev hearts, seeds 0–2 | Matched baseline hearts | Jev calls | Provider cost |
+| --- | --- | --- | ---: | ---: |
+| Hold | 10, 10, 6 | 0, 0, 0 | 30 | $0.001629474 |
+| Bid two | 0, 0, 0 | 10, 10, 10 | 30 | $0.001621620 |
 
 The first prompt omitted the auction payoff. Jev held on 27 of 30 turns and
 earned zero hearts. After the prompt stated that a no-bid turn cannot earn a
-heart, Jev chose a bid on 27 of 30 turns. The three seeds produced the same
-score against opponents who never bid. This shows protocol integration and
-prompt sensitivity. It does not measure negotiation, table talk, or a gain
-against active opponents.
+heart, an initial run earned six hearts in each seed. A repeat with the
+same seeds earned 10, 10, and 6 hearts, showing model variability. Against
+active bidders, Jev bid one on all 30 turns and lost every heart. A general
+instruction to raise bids when losing did not improve that result. This
+shows protocol integration and a strategy failure against active opponents.
 
 ## Complete local episode
 
