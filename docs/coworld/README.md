@@ -31,6 +31,26 @@ rejected-order retry. In hosted runs, both calls use
 `AWS_ENDPOINT_URL_BEDROCK_RUNTIME`; upload the player with `--use-bedrock` and
 `--bedrock-model typesafe/jev-1.13`, and allow the chat model for that league.
 For local direct calls, set `OPENROUTER_API_KEY` in the player process.
+Set `COWORLD_TRAJECTORY_FILE` to a private new path to capture the typed Jev
+request/response and the ordinary chat request/response as JSONL. This player
+trace needs the host replay's validated decisions before training export; the
+trace alone does not establish an executed action or completed episode.
+
+After a finished local episode, join that private player trace to the host's
+result and replay with:
+
+```sh
+node scripts/export-complete-episode.mjs \
+  --replay /private/replay.json --result /private/results.json \
+  --trace /private/model-calls.jsonl --source-revision <40-character-git-sha> \
+  --episode-id <unique-id> --output /private/complete.jsonl
+```
+
+The exporter requires one validated host decision for every game turn, matching
+Jev orders, matching public talk events, a finished replay, and result scores
+matching the final host status. It rejects episodes with missing model calls,
+rejected decisions, or host fallback. The output is a mode-0600
+`CompleteEpisode` JSONL row for the shared training contract.
 | Replay viewer | `coworld/tools/build_replay_viewer.sh` | Static replay bundle (`build/static-replay-viewer`) baked into the coworld build. |
 
 ## Slot count

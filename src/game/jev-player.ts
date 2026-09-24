@@ -1,5 +1,6 @@
 import { argv } from "node:process";
 import { fileURLToPath } from "node:url";
+import { appendFileSync } from "node:fs";
 
 import { runCoworldPlayer } from "@cogweb/coworld";
 import type { PlayerDecideContext } from "@cogweb/coworld";
@@ -26,6 +27,11 @@ const chatResponseSchema = z.object({
 });
 
 type Candidate = { key: string; description: string; orders: Order[] };
+
+function recordModelCall(row: object): void {
+  const path = process.env.COWORLD_TRAJECTORY_FILE;
+  if (path) appendFileSync(path, `${JSON.stringify(row)}\n`, { mode: 0o600 });
+}
 
 function provider(seat: number): { endpoint: string; headers: Record<string, string> } {
   const sidecar = process.env.AWS_ENDPOINT_URL_BEDROCK_RUNTIME;
@@ -120,7 +126,11 @@ export async function decide(ctx: PlayerDecideContext<CoghereSeamState, CoghereD
   if (answer.probabilities[answer.choice] === answer.probabilities[selected.key]) {
     selected = choices.find((candidate) => candidate.key === answer.choice)!;
   }
-  console.error(JSON.stringify({ kind: "cogherence_jev", seat: ctx.seat, turn: ctx.turn, choice: selected.key, reported_choice: answer.choice, cost: payload.usage.cost, latency_ms: Math.round(performance.now() - started) }));
+  const latencyMs = Math.round(performance.now() - started);
+  recordModelCall({ kind: "typed_decision", seat: ctx.seat, turn: ctx.turn, model: body.model,
+    request: body, response: payload, reported_choice: answer.choice, choice: selected.key,
+    decision: { orders: selected.orders }, latency_ms: latencyMs });
+  console.error(JSON.stringify({ kind: "cogherence_jev", seat: ctx.seat, turn: ctx.turn, choice: selected.key, reported_choice: answer.choice, cost: payload.usage.cost, latency_ms: latencyMs }));
   return { orders: selected.orders };
 }
 
@@ -146,7 +156,10 @@ export async function talk(ctx: PlayerDecideContext<CoghereSeamState, CoghereDec
     method: "POST", headers, body: JSON.stringify(body), signal: AbortSignal.timeout(20_000),
   });
   if (!http.ok) throw new Error(`Language model HTTP ${http.status}: ${await http.text()}`);
-  const text = chatResponseSchema.parse(await http.json()).choices[0]!.message.content.trim();
+  const response = chatResponseSchema.parse(await http.json());
+  const text = response.choices[0]!.message.content.trim();
+  recordModelCall({ kind: "language_message", seat: ctx.seat, turn: ctx.turn, model,
+    request: body, response, text });
   return text ? [{ to: null, text }] : [];
 }
 
