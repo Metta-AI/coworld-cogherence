@@ -24,6 +24,9 @@ Softmax platform as a **Coworld** — see
 **[docs/coworld/README.md](docs/coworld/README.md)** for the build → certify →
 upload runbook.
 
+An optional [Jev player pilot](docs/jev-pilot.md) ranks legal orders through
+the existing player protocol.
+
 ```bash
 pnpm install
 pnpm test          # engine + client + coworld unit tests
