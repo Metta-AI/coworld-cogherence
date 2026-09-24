@@ -21,6 +21,16 @@ replay clients.
 | Episode config | `src/coworld/config.ts` | Zod schema for the manifest `game_config` (tokens, players, seed, num_agents). |
 | Results | `src/coworld/results.ts` | Results schema written at episode end. |
 | Baseline player | `src/game/baseline-player.ts` | Deterministic no-LLM baseline: always-legal holds, so it certifies the contract offline. |
+| Hybrid model player | `src/game/jev-player.ts` | Jev chooses typed board orders; an ordinary chat model writes public negotiation text through the same player reply. |
+
+The hybrid player's board decisions use System One model `typesafe/jev-1.13`.
+Every fifth turn it also calls `/v1/chat/completions` with model
+`COGHERENCE_LANGUAGE_MODEL` (default `anthropic/claude-haiku-4.5`). The chat
+reply is plain text sent on the existing public talk bus. It skips talk on a
+rejected-order retry. In hosted runs, both calls use
+`AWS_ENDPOINT_URL_BEDROCK_RUNTIME`; upload the player with `--use-bedrock` and
+`--bedrock-model typesafe/jev-1.13`, and allow the chat model for that league.
+For local direct calls, set `OPENROUTER_API_KEY` in the player process.
 | Replay viewer | `coworld/tools/build_replay_viewer.sh` | Static replay bundle (`build/static-replay-viewer`) baked into the coworld build. |
 
 ## Slot count
