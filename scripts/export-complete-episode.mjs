@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { open, readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual } from "node:util";
 
 const args = Object.fromEntries(process.argv.slice(2).reduce((pairs, value, index, values) => {
@@ -12,6 +14,8 @@ for (const name of ["--replay", "--result", "--trace", "--source-revision", "--e
   if (!args[name]) throw new Error(`missing ${name}`);
 }
 if (!/^[0-9a-f]{40}$/.test(args["--source-revision"])) throw new Error("source revision must be a full Git SHA");
+execFileSync("git", ["cat-file", "-e", `${args["--source-revision"]}^{commit}`],
+  { cwd: fileURLToPath(new URL("..", import.meta.url)), stdio: "ignore" });
 
 const [replay, result, traceText, packageJson] = await Promise.all([
   readFile(args["--replay"], "utf8").then(JSON.parse),
