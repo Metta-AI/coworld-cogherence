@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { candidates } from "./choices.js";
 import { cogherenceGame, cogherenceModule } from "./game.js";
-import { candidates, decide, talk } from "./jev-player.js";
+import { decide, talk } from "./jev-player.js";
 
 afterEach(() => {
   vi.restoreAllMocks();
