@@ -39,4 +39,3 @@ export function candidates(view: CoghereView, seat: number): Candidate[] {
   }
   return choices;
 }
-
