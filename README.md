@@ -24,15 +24,12 @@ Softmax platform as a **Coworld** — see
 **[docs/coworld/README.md](docs/coworld/README.md)** for the build → certify →
 upload runbook.
 
-An optional [Jev player pilot](docs/jev-pilot.md) ranks legal orders through
-the existing player protocol.
-
 The certified four-seat game also has a local training bridge. Run
 `pnpm build:training`, then use `node dist-server/game/training-bridge.js`
 as a Metta JSONL game command. It drives the same redacted game seam as the
 Coworld host. Its 1,308 numeric values encode the board, public hearts, and
-the acting seat's private resources. The 30 fixed action slots reuse the Jev
-player's legal choice catalog. Set `players=4` and `max_decisions>=400` in
+the acting seat's private resources. The 30 fixed action slots encode legal
+board orders. Set `players=4` and `max_decisions>=400` in
 Metta RL or PufferLib for complete 100-turn games. The text path supports
 Metta post-training. This local bridge trains board orders; hosted speech
 trajectories use the separate replay-verified exporter.
