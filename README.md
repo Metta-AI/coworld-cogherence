@@ -24,15 +24,39 @@ Softmax platform as a **Coworld** — see
 **[docs/coworld/README.md](docs/coworld/README.md)** for the build → certify →
 upload runbook.
 
-The certified four-seat game also has a local training bridge. Run
-`pnpm build:training`, then use `node dist-server/game/training-bridge.js`
-as a Metta JSONL game command. It drives the same redacted game seam as the
-Coworld host. Its 1,308 numeric values encode the board, public hearts, and
-the acting seat's private resources. The 30 fixed action slots encode legal
-board orders. Set `players=4` and `max_decisions>=400` in
-Metta RL or PufferLib for complete 100-turn games. The text path supports
-Metta post-training. This local bridge trains board orders; hosted speech
-trajectories use the separate replay-verified exporter.
+The certified four-seat game has a local training bridge and an ordinary numeric player.
+Run `pnpm build:training` and `pnpm build:coworld` first.
+The bridge drives the same redacted game seam as the Coworld host.
+Its 1,308 values encode the board, public hearts, and the acting seat's private resources.
+The 30 masked action slots select the current finite board-order catalog.
+This curriculum omits unrestricted trades, combined order sets, and speech.
+Hosted speech trajectories use the separate replay-verified exporter.
+
+From the Metta checkout, declare the standalone bridge bundle as an asset:
+
+```bash
+uv run ./tools/run.py train recipes.external.coworld \
+  'command=["node","/absolute/coworld-cogherence/dist-server/game/training-bridge.js"]' \
+  'assets=["/absolute/coworld-cogherence/dist-server/game/training-bridge.js"]' \
+  players=4 seat=0 max_decisions=400 total_timesteps=512 environments=2
+```
+
+The bridge and ordinary player share `src/game/numeric-codec.ts`.
+After exporting a frozen Metta policy, run one policy server for each numeric player episode:
+
+```bash
+metta-choice-serve /absolute/frozen-policy --port 18888
+PLAYER_NUMERIC_URL=http://127.0.0.1:18888/choice \
+PLAYER_POLICY_SESSION=cogherence-seat-0 \
+COWORLD_PLAYER_WS_URL='ws://127.0.0.1:8080/player?slot=0&token=TOKEN' \
+node dist-server/game/numeric-player.js
+```
+
+The player sends only its private numeric encoding and legal mask to the policy server.
+It converts the selected catalog entry into complete ordinary orders.
+Invalid or unavailable policy replies fail visibly; the game retains validation and fallback.
+Game processes need no policy endpoint or model credential.
+The normal certification roster remains the four ordinary baseline players.
 
 ```bash
 pnpm install
