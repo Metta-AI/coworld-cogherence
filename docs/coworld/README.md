@@ -21,21 +21,13 @@ replay clients.
 | Episode config | `src/coworld/config.ts` | Zod schema for the manifest `game_config` (tokens, players, seed, num_agents). |
 | Results | `src/coworld/results.ts` | Results schema written at episode end. |
 | Baseline player | `src/game/baseline-player.ts` | Deterministic no-LLM baseline: always-legal holds, so it certifies the contract offline. |
-| Hybrid model player | `src/game/jev-player.ts` | Jev chooses typed board orders; an ordinary chat model writes public negotiation text through the same player reply. |
 | Replay viewer | `coworld/tools/build_replay_viewer.sh` | Static replay bundle (`build/static-replay-viewer`) baked into the coworld build. |
 
-The hybrid player's board decisions use System One model `typesafe/jev-1.13`.
-Every fifth turn it also calls `/v1/chat/completions` with model
-`COGHERENCE_LANGUAGE_MODEL` (default `anthropic/claude-haiku-4.5`). The chat
-reply is plain text sent on the existing public talk bus. It skips talk on a
-rejected-order retry. In hosted runs, both calls use
-`AWS_ENDPOINT_URL_BEDROCK_RUNTIME`; upload the player with `--use-bedrock` and
-`--bedrock-model typesafe/jev-1.13`, and allow the chat model for that league.
-For local direct calls, set `OPENROUTER_API_KEY` in the player process.
-Set `COWORLD_TRAJECTORY_FILE` to a private new path to capture the typed Jev
-request/response and the ordinary chat request/response as JSONL. This player
-trace needs the host replay's validated decisions before training export; the
-trace alone does not establish an executed action or completed episode.
+External policies receive the ordinary seat observation and return board orders
+through the player protocol. A policy that records typed decisions and public
+talk can keep a private JSONL trace. That trace needs the host replay's
+validated decisions before training export; it alone does not establish an
+executed action or completed episode.
 
 After a finished local episode, join that private player trace to the host's
 result and replay with:
@@ -48,7 +40,7 @@ node scripts/export-complete-episode.mjs \
 ```
 
 The exporter requires one validated host decision for every game turn, matching
-Jev orders, matching public talk events, a finished replay, and result scores
+typed orders, matching public talk events, a finished replay, and result scores
 matching the final host status. It rejects episodes with missing model calls,
 rejected decisions, or host fallback. The output is a mode-0600
 `CompleteEpisode` JSONL row for the shared training contract. Typed decisions
