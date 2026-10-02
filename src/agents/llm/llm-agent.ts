@@ -52,7 +52,7 @@ export async function robustOrders(
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     let reply;
     try {
-      reply = await client.converse({ system, messages: [{ role: "user", content: userText }], tools });
+      reply = await client.complete({ system, slot: view.state.cogs[view.me]!.index, messages: [{ role: "user", content: userText }], tools });
     } catch (e) {
       transcript.push(`bedrock error: ${e instanceof Error ? e.message : String(e)}`);
       continue;
@@ -104,7 +104,7 @@ export async function llmNegotiate(
   const { system, user } = renderNegotiate(view, opts?.persona);
   let reply;
   try {
-    reply = await client.converse({ system, messages: [{ role: "user", content: user }], tools: [SEND_MESSAGES_TOOL] });
+    reply = await client.complete({ system, slot: view.state.cogs[view.me]!.index, messages: [{ role: "user", content: user }], tools: [SEND_MESSAGES_TOOL] });
   } catch {
     opts?.report?.(view.state.turn, `${user}\n\n→ (negotiation error) no messages`);
     return [];

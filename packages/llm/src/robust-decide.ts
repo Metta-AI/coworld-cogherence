@@ -11,8 +11,8 @@
 // terminal no-credentials transport error as an immediate baseline (re-prompting
 // is futile — there is no model to reach). Other transport errors still surface.
 import type { ActAttempt } from "@cogweb/protocol";
-import { isCredentialsUnavailable } from "./bedrock.js";
-import type { BedrockLlmClient, ConverseMessage, ToolSpec } from "./bedrock.js";
+import { isCredentialsUnavailable } from "./openrouter.js";
+import type { OpenRouterLlmClient, LlmMessage, ToolSpec } from "./openrouter.js";
 
 /**
  * Pull the first JSON object out of a model reply (handles ```json fences and
@@ -38,9 +38,10 @@ export function extractJson(text: string): unknown {
 }
 
 export interface RobustDecideOpts<Decision> {
-  client: BedrockLlmClient;
+  client: OpenRouterLlmClient;
   /** System prompt: rules, strategy, output-format contract. */
   system: string;
+  slot?: number;
   /** Render the user turn. Re-rendered each attempt with the prior rejection
    *  reason (null on the first try) so the retry re-states the error. */
   renderUser: (rejection: string | null) => string;
@@ -65,10 +66,10 @@ export async function robustDecide<Decision>(opts: RobustDecideOpts<Decision>): 
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const prompt = opts.renderUser(rejection);
-    const messages: ConverseMessage[] = [{ role: "user", text: prompt }];
+    const messages: LlmMessage[] = [{ role: "user", text: prompt }];
     let reply;
     try {
-      reply = await opts.client.converse({ system: opts.system, messages, tool: opts.tool });
+      reply = await opts.client.complete({ system: opts.system, messages, tool: opts.tool, slot: opts.slot });
     } catch (err) {
       // No credentials (offline cert): terminal and unrecoverable — retrying just
       // re-fails. Record it and play baseline now so the turn resolves instantly.

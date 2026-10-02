@@ -23,7 +23,7 @@ import type { ZodType } from "zod";
 
 import { GameRunner } from "@cogweb/core";
 import type { GameModule, ObservedMessage, SeatPilot } from "@cogweb/core";
-import { bedrockUsageTotals, MessageBus } from "@cogweb/llm";
+import { llmUsageTotals, MessageBus } from "@cogweb/llm";
 import type { Audience, FeedEvent, ServerMessage } from "@cogweb/protocol";
 
 import { RemotePlayerPilot } from "./remote-pilot";
@@ -412,7 +412,7 @@ export async function runCoworldHost<State, Decision, Results>(
     const results = opts.results.build(scores, runner!.state);
 
     // Resolve players FIRST — send `final` before writing the artifacts the hosted
-    // worker waits on. Each player emits its bedrock_usage log line on `final`, and
+    // worker waits on. Each player emits its llm_usage log line on `final`, and
     // the worker collects player logs + tears down pods as soon as results.json and
     // the replay exist; writing those first would race (and usually lose) that line.
     const finalFrame = JSON.stringify({ type: "final", scores });
@@ -424,7 +424,7 @@ export async function runCoworldHost<State, Decision, Results>(
     // so per-episode cost is readable without enabling account-level invocation
     // logging. Remote player policies tally their own usage in their player logs.
     if (hasReplayUri())
-      await writeReplay({ protocol: "cogweb.replay.v1", frames: replayFrames, usage: bedrockUsageTotals() });
+      await writeReplay({ protocol: "cogweb.replay.v1", frames: replayFrames, usage: llmUsageTotals() });
 
     return results;
   })();

@@ -5,7 +5,7 @@
  * called ONCE PER INSTANCE, so every concurrent cogherence game gets its own
  * `MessageBus` and talk cursor instead of sharing one.
  *
- * LLM seats are driven by `LlmPilot` over Bedrock; the cross-seat negotiation
+ * LLM seats are driven by `LlmPilot` over native Messages; the cross-seat negotiation
  * substrate is a per-instance `MessageBus` fed from the live "talk" event stream
  * via `onServerMessage`. cogherence's turn decision is the simultaneous Order[]
  * Commit (the runner's job); chat is DECOUPLED cheap-talk (the coworld runs
@@ -19,18 +19,17 @@
  */
 import { fileURLToPath } from "node:url";
 import { type GameDescriptor, type ObservedMessage } from "@cogweb/core";
-import { BedrockLlmClient, LlmPilot, MessageBus } from "@cogweb/llm";
+import { OpenRouterLlmClient, LlmPilot, MessageBus } from "@cogweb/llm";
 import type { Audience, BotSpec, ServerMessage } from "@cogweb/protocol";
 import { cogherenceModule, cogherenceAutopilot, cogherenceGame, type CoghereView } from "./game/game.js";
 import { SEND_MESSAGES_TOOL, parsePosts } from "./agents/llm/negotiate.js";
 import { MAX_TURNS } from "./shared/engine/constants.js";
 import type { Post } from "./agents/types.js";
 
-// One Bedrock client for every LLM seat. `prefix: "COGHERENCE"` reads
-// COGHERENCE_BEDROCK_MODEL / _REGION / _TIMEOUT_MS, falling back to the
-// unprefixed BEDROCK_* / AWS_REGION so a plain Bedrock shell works out of the
-// box. No per-instance state, so it stays module-level and is shared.
-const client = new BedrockLlmClient({ prefix: "COGHERENCE" });
+// One native Messages client shared by every LLM seat.
+// COGHERENCE_LLM_MODEL and COGHERENCE_LLM_TIMEOUT_MS configure local play.
+// Hosted COWORLD_LLM_MODEL overrides local model selection.
+const client = new OpenRouterLlmClient({ prefix: "COGHERENCE" });
 
 // Resolve a cogherence Post's audience ("public" | a cog id) to a wire
 // `Audience`: a public broadcast, or the seat list for a DM (the recipient cog
@@ -97,8 +96,9 @@ export const cogherenceDescriptor: GameDescriptor = {
       const user = renderTalk(view, seat, bus.visibleTo(seat));
       let toolInput: unknown;
       try {
-        const reply = await client.converse({
+        const reply = await client.complete({
           system,
+          slot: seat,
           messages: [{ role: "user", text: user }],
           tool: SEND_MESSAGES_TOOL,
         });
