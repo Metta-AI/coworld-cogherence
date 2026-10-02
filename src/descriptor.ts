@@ -20,54 +20,20 @@
 import { fileURLToPath } from "node:url";
 import { type GameDescriptor, type ObservedMessage } from "@cogweb/core";
 import { OpenRouterLlmClient, LlmPilot, MessageBus } from "@cogweb/llm";
-import type { Audience, BotSpec, ServerMessage } from "@cogweb/protocol";
-import { cogherenceModule, cogherenceAutopilot, cogherenceGame, type CoghereView } from "./game/game.js";
-import { SEND_MESSAGES_TOOL, parsePosts } from "./agents/llm/negotiate.js";
+import type { Audience, BotSpec, ServerMessage, TextGeneration } from "@cogweb/protocol";
+import {
+  cogherenceModule,
+  cogherenceAutopilot,
+  cogherenceGame,
+  type CoghereView,
+} from "./game/game.js";
+import { renderSpeechMessages, parseSpeechResponse } from "./game/speech.js";
 import { MAX_TURNS } from "./shared/engine/constants.js";
-import type { Post } from "./agents/types.js";
 
 // One native Messages client shared by every LLM seat.
 // COGHERENCE_LLM_MODEL and COGHERENCE_LLM_TIMEOUT_MS configure local play.
 // Hosted COWORLD_LLM_MODEL overrides local model selection.
 const client = new OpenRouterLlmClient({ prefix: "COGHERENCE" });
-
-// Resolve a cogherence Post's audience ("public" | a cog id) to a wire
-// `Audience`: a public broadcast, or the seat list for a DM (the recipient cog
-// id mapped to its seat). An unknown recipient falls back to public. Pure, so it
-// stays module-level (no per-instance state).
-const audienceOf = (view: CoghereView, post: Post): Audience => {
-  if (post.to === "public") return "public";
-  const recipient = view.cogs.findIndex((c) => c.id === post.to);
-  return recipient >= 0 ? [recipient] : "public";
-};
-
-// The talk-pass observation for one seat: cogherence's negotiate framing rendered
-// off the REDACTED public snapshot (only the seat's own treasury + the public
-// hearts board) plus the seat's visible inbox. Pure; the descriptor renders the
-// system prompt from the autopilot and this for the user turn.
-const renderTalk = (view: CoghereView, seat: number, messages: ObservedMessage[]): string => {
-  const me = view.cogs[seat];
-  const lines: string[] = [
-    `Turn ${view.turn}/${MAX_TURNS}. You are ${me?.id ?? `seat ${seat}`}. NEGOTIATION (free-flowing cheap talk — it is not a turn phase).`,
-  ];
-  if (me) lines.push(`Your treasury: C${me.treasury.C} O${me.treasury.O} Ge${me.treasury.Ge} S${me.treasury.S} (${me.energy} energy stored).`);
-  lines.push("Hearts — " + view.cogs.map((c) => `${c.id}:${c.hearts}`).join(" "));
-  if (messages.length > 0) {
-    lines.push("Recent messages you can see:");
-    for (const m of messages.slice(-12)) {
-      const fromId = view.cogs[m.from]?.id ?? `seat ${m.from}`;
-      const scope = m.to === "public" ? "(public)" : "(to you)";
-      lines.push(`  ${fromId} ${scope}: ${m.text}`);
-    }
-  } else {
-    lines.push("(no messages yet)");
-  }
-  const others = view.cogs.filter((_, i) => i !== seat).map((c) => c.id).join(", ");
-  lines.push(
-    `\nSend public messages (to "public") or private DMs (to a cog id like "${others.split(", ")[0] ?? "cog1"}") to form alliances, propose mineral trades, bluff, or threaten — nothing is binding, and you can betray later. Others: ${others}. Call send_messages with your messages (empty list to stay silent). One or two sentences each.`,
-  );
-  return lines.join("\n");
-};
 
 export const cogherenceDescriptor: GameDescriptor = {
   id: "cogherence",
@@ -92,23 +58,57 @@ export const cogherenceDescriptor: GameDescriptor = {
     // this seat silent for the turn (the talk analog of the runner's baseline
     // fallback) — the seat's real Commit turns still go through the runner.
     const talkForSeat = async (view: CoghereView, seat: number): Promise<void> => {
-      const system = cogherenceAutopilot.systemPrompt({ game: cogherenceGame, seat });
-      const user = renderTalk(view, seat, bus.visibleTo(seat));
-      let toolInput: unknown;
+      const messages = renderSpeechMessages(view, seat, bus.visibleTo(seat));
+      const user = messages[1]!.content;
+      let generation: TextGeneration | undefined;
+      let posts: import("@cogweb/coworld").TalkLine[];
       try {
         const reply = await client.complete({
-          system,
+          system: messages[0]!.content,
           slot: seat,
           messages: [{ role: "user", text: user }],
-          tool: SEND_MESSAGES_TOOL,
+          recordGeneration: (evidence) => {
+            generation = evidence;
+          },
         });
-        toolInput = reply.toolInput;
+        posts = parseSpeechResponse(reply.text, view, seat);
       } catch (err) {
-        console.warn(`[cogherence] talk pass failed for seat ${seat}: ${err instanceof Error ? err.message : String(err)}`);
+        getWs().recordSpeech({
+          seat,
+          turn: view.turn,
+          observation: { phase: "talk", view, inbox: bus.visibleTo(seat) },
+          decision: [],
+          status: "fallback",
+          pilotKind: "llm",
+          policy: client.model,
+          attempts: [
+            { prompt: user, response: generation?.response ?? "", error: String(err), generation },
+          ],
+        });
+        console.warn(`[cogherence] talk pass failed for seat ${seat}`);
         return;
       }
-      for (const post of parsePosts(toolInput).slice(0, 2)) {
-        if (post.text.trim()) getWs().say(seat, post.text, audienceOf(view, post));
+      const spoken = { messages: posts };
+      getWs().recordSpeech({
+        seat,
+        turn: view.turn,
+        observation: { phase: "talk", view, inbox: bus.visibleTo(seat) },
+        decision: spoken,
+        status: "accepted",
+        pilotKind: "llm",
+        policy: client.model,
+        attempts: [
+          {
+            prompt: user,
+            response: generation!.response,
+            error: null,
+            generation,
+            parsedAction: spoken,
+          },
+        ],
+      });
+      for (const post of posts) {
+        if (post.text.trim()) getWs().say(seat, post.text, post.to === null ? "public" : [post.to]);
       }
     };
 
@@ -142,7 +142,7 @@ export const cogherenceDescriptor: GameDescriptor = {
       bus.post({ from: event.seat ?? -1, to: event.to, text: event.text, turn: event.turn });
     };
 
-    // Each bot/autopilot seat gets an LlmPilot: it builds the prompt + tool from
+    // Each bot/autopilot seat gets an LlmPilot: it builds the prompt + JSON action schema from
     // `cogherenceAutopilot`, folds in this seat's visible messages, and runs the
     // robust decide loop. The seat's operator-chosen model wins; else the client's.
     const makeBotPilot = (_seat: number, spec: BotSpec): LlmPilot<unknown, unknown> =>

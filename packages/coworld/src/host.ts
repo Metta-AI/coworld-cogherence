@@ -10,6 +10,8 @@
 // serves the runner-health-checked HTTP surfaces (`/healthz`, the React console)
 // and a read-only `/global` spectator feed, captures that frame stream as the
 // replay, and writes results + replay through artifact IO.
+import { randomUUID } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -27,7 +29,7 @@ import { llmUsageTotals, MessageBus } from "@cogweb/llm";
 import type { Audience, FeedEvent, ServerMessage } from "@cogweb/protocol";
 
 import { RemotePlayerPilot } from "./remote-pilot";
-import { readConfig, writeResults, writeReplay, hasReplayUri } from "./artifacts";
+import { readConfig, writeResults, writeReplay, writeTrajectory, hasReplayUri } from "./artifacts";
 import { PROTOCOL, type TalkLine } from "./protocol";
 
 const PLAYER_PATH = "/player";
@@ -100,7 +102,9 @@ function mountClient(app: express.Express, client: CoworldClient): void {
         // drops the last path segment unless the URL ends in "/".
         const segments = req.path.split("/").filter(Boolean).length;
         const ups = req.path.endsWith("/") ? segments : Math.max(0, segments - 1);
-        res.type("html").send(html.replace("<head>", `<head><base href="${"../".repeat(ups) || "./"}">`));
+        res
+          .type("html")
+          .send(html.replace("<head>", `<head><base href="${"../".repeat(ups) || "./"}">`));
       } else
         res
           .status(200)
@@ -160,7 +164,9 @@ export interface CoworldHostOpts<State, Decision, Results> {
   /** Build the full seat→pilot map. `makeRemotePilot(slot)` binds external slot N
    *  to the bridge; the game maps slots to seats and adds any internal pilots.
    *  Default: slot i → seat i, every slot external. */
-  buildPilots?: (makeRemotePilot: MakeRemotePilot<State, Decision>) => Map<number, SeatPilot<State, Decision>>;
+  buildPilots?: (
+    makeRemotePilot: MakeRemotePilot<State, Decision>,
+  ) => Map<number, SeatPilot<State, Decision>>;
   /** The non-secret config sent to a player in `welcome` (the game closes over
    *  seed / any extra fields). */
   welcomeConfig: (slots: number) => unknown;
@@ -240,9 +246,15 @@ export async function runCoworldHost<State, Decision, Results>(
       // (self / out-of-range / absent) is a public broadcast. `visibleToSeat` folds
       // the sender into its own DM, so it always sees its own line.
       const to: Audience =
-        line.to == null || line.to === seat || line.to < 0 || line.to >= slots ? "public" : [line.to];
+        line.to == null || line.to === seat || line.to < 0 || line.to >= slots
+          ? "public"
+          : [line.to];
       bus.post({ from: seat, to, text, turn });
-      if (to === "public") emitFrame({ type: "event", event: { turn, seat, kind: "talk", text, to } satisfies FeedEvent });
+      if (to === "public")
+        emitFrame({
+          type: "event",
+          event: { turn, seat, kind: "talk", text, to } satisfies FeedEvent,
+        });
     }
   };
 
@@ -268,7 +280,14 @@ export async function runCoworldHost<State, Decision, Results>(
       e.pilot = ws;
     } else {
       e.player = ws;
-      ws.send(JSON.stringify({ type: "welcome", protocol: PROTOCOL, slot, config: opts.welcomeConfig(slots) }));
+      ws.send(
+        JSON.stringify({
+          type: "welcome",
+          protocol: PROTOCOL,
+          slot,
+          config: opts.welcomeConfig(slots),
+        }),
+      );
       connectedPlayers.add(slot);
       if (connectedPlayers.size === slots) markAllConnected();
     }
@@ -326,7 +345,9 @@ export async function runCoworldHost<State, Decision, Results>(
       inboxFor,
       onTalk,
       chessClockMs: opts.chessClockMs,
-      chessClockCreditFor: opts.chessClockCreditFor as ((state: unknown, seat: number) => number) | undefined,
+      chessClockCreditFor: opts.chessClockCreditFor as
+        | ((state: unknown, seat: number) => number)
+        | undefined,
     });
     remotePilots.push(pilot);
     return pilot;
@@ -334,16 +355,95 @@ export async function runCoworldHost<State, Decision, Results>(
   const defaultBuildPilots: NonNullable<typeof opts.buildPilots> = (mk) => {
     const pilots = new Map<number, SeatPilot<State, Decision>>();
     for (let slot = 0; slot < slots; slot++) {
-      pilots.set(slot, { pilot: mk(slot), guidance: "", model: null, name: opts.playerNames?.[slot] ?? "" });
+      pilots.set(slot, {
+        pilot: mk(slot),
+        guidance: "",
+        model: null,
+        name: opts.playerNames?.[slot] ?? "",
+      });
     }
     return pilots;
   };
   const pilots = (opts.buildPilots ?? defaultBuildPilots)(makeRemotePilot);
 
+  const episodeId = process.env.COWORLD_EPISODE_ID ?? randomUUID();
+  const decisions: unknown[] = [];
+  const provenance = {
+    game: opts.module.game.id,
+    game_version: process.env.COWORLD_GAME_VERSION ?? null,
+    source_revision: process.env.COWORLD_SOURCE_REVISION ?? null,
+    image_digest: process.env.COWORLD_GAME_IMAGE_DIGEST ?? null,
+  };
   runner = new GameRunner<State, Decision>(opts.module, pilots, {
     // Pass undefined through (NOT String(undefined) === "undefined") so an unpinned
     // seed lets the runner mint a fresh random board per episode.
     seed: opts.seed === undefined ? undefined : String(opts.seed),
+    onDecision: (event) => {
+      const decisionIndex = decisions.length;
+      const attemptIds = event.attempts.map(() => randomUUID());
+      const selectedIndex =
+        event.status === "accepted"
+          ? event.attempts.reduce(
+              (found, attempt, index) =>
+                attempt.error === null && isDeepStrictEqual(attempt.parsedAction, event.decision)
+                  ? index
+                  : found,
+              -1,
+            )
+          : -1;
+      const selectedAttempt = selectedIndex >= 0 ? event.attempts[selectedIndex] : undefined;
+      const generation = selectedAttempt?.generation;
+      decisions.push({
+        schema_version: "1",
+        event_type: "decision",
+        event_id: randomUUID(),
+        recorded_at: new Date().toISOString(),
+        episode_id: episodeId,
+        decision_id: `${episodeId}:${decisionIndex}`,
+        decision_index: decisionIndex,
+        ...provenance,
+        seat: String(event.seat),
+        visibility: "private",
+        observation: event.observation,
+        prompt: generation?.messages ?? null,
+        attempts: event.attempts.map((attempt, index) => ({
+          attempt_id: attemptIds[index],
+          generation_id: attempt.generationId ?? null,
+          platform_call_id: attempt.generation?.platformCallId ?? attempt.platformCallId ?? null,
+          prompt: attempt.generation?.messages ?? attempt.prompt,
+          request: attempt.generation?.request ?? null,
+          raw_response: attempt.generation?.rawResponse ?? null,
+          model: attempt.generation?.model ?? null,
+          inference_mode: attempt.generation?.inferenceMode ?? null,
+          decoder: attempt.generation?.decoder ?? null,
+          model_identity: attempt.generation?.modelIdentity ?? null,
+          tokenizer_identity: attempt.generation?.tokenizerIdentity ?? null,
+          chat_template_sha256: attempt.generation?.chatTemplateSha256 ?? null,
+          stop_reason:
+            attempt.generation?.samplingEvidence?.stop_reason ??
+            attempt.generation?.stopReason ??
+            null,
+          prompt_token_ids: attempt.generation?.samplingEvidence?.prompt_token_ids ?? null,
+          sampled_token_ids: attempt.generation?.samplingEvidence?.completion_token_ids ?? null,
+          behavior_logprobs: attempt.generation?.samplingEvidence?.behavior_log_probs ?? null,
+          policy: event.policy,
+          origin: attempt.generation ? "model" : event.pilotKind === "human" ? "human" : "unknown",
+          response: attempt.generation?.response ?? attempt.response,
+          parsed_action: attempt.parsedAction ?? null,
+          accepted: index === selectedIndex,
+          rejection_reason: attempt.error,
+          latency_ms: attempt.generation?.latencyMs ?? null,
+          input_tokens: attempt.generation?.inputTokens ?? null,
+          output_tokens: attempt.generation?.outputTokens ?? null,
+        })),
+        selected_attempt_id: selectedIndex >= 0 ? attemptIds[selectedIndex] : null,
+        executed_action: event.decision,
+        terminal: opts.module.game.isFinished(runner!.state),
+        action_status: event.status,
+        fallback_origin: event.status === "fallback" ? "game.baselineDecision" : null,
+      });
+    },
+
     stepDelayMs: opts.runner?.stepDelayMs,
     autoAdvance: opts.runner?.autoAdvance,
     // Coworld episodes must be deterministic + reproducible, so any free-form timed
@@ -399,7 +499,8 @@ export async function runCoworldHost<State, Decision, Results>(
   // same spectator/replay fan-out, so chat lands in the live feed AND the replay.
   emitFrame = broadcast;
 
-  const scoresFor = opts.scoresFor ?? ((score, n) => Array.from({ length: n }, (_, seat) => score[seat] ?? 0));
+  const scoresFor =
+    opts.scoresFor ?? ((score, n) => Array.from({ length: n }, (_, seat) => score[seat] ?? 0));
 
   const finished = (async (): Promise<Results> => {
     // Wait for every external player to connect before driving; a straggler past
@@ -418,13 +519,33 @@ export async function runCoworldHost<State, Decision, Results>(
     const finalFrame = JSON.stringify({ type: "final", scores });
     for (let slot = 0; slot < slots; slot++) endsFor(slot).player?.send(finalFrame);
 
+    await writeTrajectory({
+      schema_version: "1",
+      episode: {
+        schema_version: "1",
+        event_type: "episode",
+        event_id: randomUUID(),
+        recorded_at: new Date().toISOString(),
+        episode_id: episodeId,
+        seed_family: runner!.evidenceSeed,
+        ...provenance,
+        status: opts.module.game.isFinished(runner!.state) ? "completed" : "truncated",
+        outcome: results,
+        participant_outcomes: scores,
+      },
+      decisions,
+    });
     await writeResults(opts.results.schema, results);
     // Stamp the host's own Bedrock token usage (autopilot/LlmPilot seats this
     // process drove) onto the replay envelope — the one game-agnostic artifact —
     // so per-episode cost is readable without enabling account-level invocation
     // logging. Remote player policies tally their own usage in their player logs.
     if (hasReplayUri())
-      await writeReplay({ protocol: "cogweb.replay.v1", frames: replayFrames, usage: llmUsageTotals() });
+      await writeReplay({
+        protocol: "cogweb.replay.v1",
+        frames: replayFrames,
+        usage: llmUsageTotals(),
+      });
 
     return results;
   })();
@@ -532,8 +653,16 @@ export interface CoworldGameCliOpts<Config, Results> {
   /** App name, used as the log prefix (e.g. "cogsul"). */
   name: string;
   configSchema: ZodType<Config>;
-  runGame: (opts: { config: Config; host: string; port: number }) => Promise<CoworldHostHandle<Results>>;
-  runReplay: (opts: { loadReplayUri: string; host: string; port: number }) => Promise<ReplayServerHandle>;
+  runGame: (opts: {
+    config: Config;
+    host: string;
+    port: number;
+  }) => Promise<CoworldHostHandle<Results>>;
+  runReplay: (opts: {
+    loadReplayUri: string;
+    host: string;
+    port: number;
+  }) => Promise<ReplayServerHandle>;
 }
 
 /**

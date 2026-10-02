@@ -44,14 +44,17 @@ describe("cogherence descriptor + autopilot on the seam", () => {
     const system = cogherenceAutopilot.systemPrompt({ game: cogherenceGame, seat: 0 });
     expect(system).toContain("Cogherence");
 
-    const tool = cogherenceAutopilot.tool!(s, 0);
+    const tool = cogherenceAutopilot.actionSchema!(s, 0);
     expect(tool.name).toBe("submit_orders");
     expect(tool.inputSchema).toBeTruthy();
 
     // The observation renders the seat's own snapshot + the submit ask, and folds
     // in operator guidance.
-    const obs = cogherenceAutopilot.renderObservation(s, 0, { guidance: "play aggressively", messages: [] });
-    expect(obs).toContain("submit_orders");
+    const obs = cogherenceAutopilot.renderObservation(s, 0, {
+      guidance: "play aggressively",
+      messages: [],
+    });
+    expect(obs).toContain("Return JSON");
     expect(obs.toLowerCase()).toContain("aggressively");
   });
 
