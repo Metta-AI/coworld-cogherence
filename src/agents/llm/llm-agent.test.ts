@@ -1,16 +1,16 @@
 import { describe, it, expect } from "vitest";
 import { llmDecide } from "./llm-agent";
-import type { ToolUseClient, ConverseResult } from "./tool-client";
+import type { ToolUseClient, LlmResult } from "./tool-client";
 import { newGame } from "../../shared/engine/game";
 
 const view = { state: newGame(7, 4), me: "cog0" };
-const fake = (r: ConverseResult | Error): ToolUseClient => ({
-  converse: async () => {
+const fake = (r: LlmResult | Error): ToolUseClient => ({
+  complete: async () => {
     if (r instanceof Error) throw r;
     return r;
   },
 });
-const toolUse = (input: unknown): ConverseResult => ({
+const toolUse = (input: unknown): LlmResult => ({
   stopReason: "tool_use",
   content: [{ type: "tool_use", id: "t1", name: "submit_orders", input }],
 });

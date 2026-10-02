@@ -46,7 +46,7 @@ export default defineConfig(() => ({
       ...sharedDep("react-dom"),
       ...sharedDep("express"),
       ...sharedDep("ws"),
-      ...sharedDep("@aws-sdk/client-bedrock-runtime"),
+      ...sharedDep("@anthropic-ai/sdk"),
     ],
   },
   // Two SPA shells: the global broadcast console (index.html) and the per-agent

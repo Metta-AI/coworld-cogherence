@@ -1,8 +1,7 @@
-// A tool-use seam over Bedrock's Anthropic messages API. `converse` does one
-// request/response with tool definitions; the model may answer with tool_use
-// blocks. Tests inject a fake `send`, so they make NO real AWS calls. Mirrors
-// cogame-polis's controllers/tool-client.ts.
-import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
+// Native Anthropic Messages tool calls through Coworld or local OpenRouter.
+import Anthropic from "@anthropic-ai/sdk";
+import type { MessageCreateParamsNonStreaming, MessageParam } from "@anthropic-ai/sdk/resources/messages";
+import type { MessagesClient } from "@cogweb/llm";
 
 /** A tool the model may call. `inputSchema` is a JSON Schema object. */
 export type ToolDef = { name: string; description: string; inputSchema: object };
@@ -15,112 +14,71 @@ export type ContentBlock =
 /** One message in the conversation transcript. */
 export type ConvMessage = { role: "user" | "assistant"; content: string | ContentBlock[] };
 
-export interface ConverseResult {
+export interface LlmResult {
   stopReason: "tool_use" | "end_turn" | "max_tokens" | string;
   content: ContentBlock[];
   usage?: { inputTokens: number; outputTokens: number };
 }
 
 export interface ToolUseClient {
-  converse(req: {
+  complete(req: {
     system: string;
+    slot: number;
     messages: ConvMessage[];
     tools: ToolDef[];
     maxTokens?: number;
     temperature?: number;
-  }): Promise<ConverseResult>;
+  }): Promise<LlmResult>;
 }
 
-/** Minimal Bedrock surface used here (only `send`) — lets tests inject a fake. */
-export interface BedrockSend {
-  send(cmd: InvokeModelCommand, opts: { abortSignal: AbortSignal }): Promise<{ body: Uint8Array }>;
-}
-
-const DEFAULT_MODEL = "us.anthropic.claude-haiku-4-5-20251001-v1:0";
-const DEFAULT_REGION = "us-west-2";
-const DEFAULT_TIMEOUT_MS = 30000;
-const DEFAULT_MAX_TOKENS = 1024;
-
-export interface BedrockConfig {
-  model: string;
-  region: string;
-  timeoutMs: number;
-}
-/** Resolve model/region/timeout from env (never read env deep inside libraries). */
-export function bedrockConfigFromEnv(env: NodeJS.ProcessEnv = process.env): BedrockConfig {
-  return {
-    model: env.COGHERENCE_COG_MODEL ?? DEFAULT_MODEL,
-    region: env.COGHERENCE_BEDROCK_REGION ?? env.AWS_REGION ?? DEFAULT_REGION,
-    timeoutMs: Number(env.COGHERENCE_BEDROCK_TIMEOUT_MS ?? DEFAULT_TIMEOUT_MS),
-  };
-}
-
-interface AnthropicResponse {
-  stop_reason?: string;
-  content?: Array<{ type?: string; text?: string; id?: string; name?: string; input?: unknown }>;
-  usage?: { input_tokens?: number; output_tokens?: number };
-}
-
-function fromWire(content: AnthropicResponse["content"]): ContentBlock[] {
-  const blocks: ContentBlock[] = [];
-  for (const b of content ?? []) {
-    if (b.type === "text" && typeof b.text === "string") blocks.push({ type: "text", text: b.text });
-    else if (b.type === "tool_use" && typeof b.id === "string" && typeof b.name === "string")
-      blocks.push({ type: "tool_use", id: b.id, name: b.name, input: b.input });
-  }
-  return blocks;
-}
-
-export class BedrockToolUseClient implements ToolUseClient {
-  private readonly client: BedrockSend;
+export class NativeToolUseClient implements ToolUseClient {
+  private readonly client: MessagesClient;
   private readonly model: string;
   private readonly timeoutMs: number;
+  private readonly hosted: boolean;
 
-  constructor(opts: { client?: BedrockSend; model?: string; region?: string; timeoutMs?: number } = {}) {
-    const cfg = bedrockConfigFromEnv();
-    const region = opts.region ?? cfg.region;
-    this.client = opts.client ?? (new BedrockRuntimeClient({ region }) as unknown as BedrockSend);
-    this.model = opts.model ?? cfg.model;
-    this.timeoutMs = opts.timeoutMs ?? cfg.timeoutMs;
+  constructor(opts: { client?: MessagesClient; model?: string; timeoutMs?: number } = {}) {
+    const endpoint = process.env.COWORLD_LLM_ENDPOINT;
+    this.hosted = Boolean(endpoint);
+    this.model = (endpoint ? process.env.COWORLD_LLM_MODEL : undefined)
+      ?? opts.model ?? process.env.COGHERENCE_COG_MODEL ?? "anthropic/claude-haiku-4.5";
+    this.timeoutMs = opts.timeoutMs ?? Number(process.env.COGHERENCE_LLM_TIMEOUT_MS ?? 30000);
+    this.client = opts.client ?? new Anthropic({
+      baseURL: endpoint ?? "https://openrouter.ai/api",
+      apiKey: null,
+      authToken: endpoint ? "hosted-gateway" : process.env.OPENROUTER_API_KEY,
+      maxRetries: 0,
+      timeout: this.timeoutMs,
+    }).messages;
   }
 
-  async converse(req: {
-    system: string;
-    messages: ConvMessage[];
-    tools: ToolDef[];
-    maxTokens?: number;
-    temperature?: number;
-  }): Promise<ConverseResult> {
-    const body: Record<string, unknown> = {
-      anthropic_version: "bedrock-2023-05-31",
-      system: [{ type: "text", text: req.system, cache_control: { type: "ephemeral" } }],
-      messages: req.messages.map((m) => ({ role: m.role, content: m.content })),
-      max_tokens: req.maxTokens ?? DEFAULT_MAX_TOKENS,
-      // Newer Claude models (Opus 4.8+) REJECT `temperature` on Bedrock — only
-      // send it when a caller explicitly asks for one.
+  async complete(req: Parameters<ToolUseClient["complete"]>[0]): Promise<LlmResult> {
+    const body: MessageCreateParamsNonStreaming = {
+      model: this.model,
+      system: req.system,
+      messages: req.messages as MessageParam[],
+      max_tokens: req.maxTokens ?? 1024,
       ...(req.temperature !== undefined ? { temperature: req.temperature } : {}),
+      ...(req.tools.length ? { tools: req.tools.map((tool) => ({
+        name: tool.name, description: tool.description,
+        input_schema: tool.inputSchema as Anthropic.Messages.Tool["input_schema"],
+      })) } : {}),
     };
-    if (req.tools.length > 0) {
-      body.tools = req.tools.map((t) => ({ name: t.name, description: t.description, input_schema: t.inputSchema }));
-    }
-
-    const command = new InvokeModelCommand({
-      modelId: this.model,
-      contentType: "application/json",
-      accept: "application/json",
-      body: new TextEncoder().encode(JSON.stringify(body)),
-    });
-
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
-      const response = await this.client.send(command, { abortSignal: controller.signal });
-      const parsed = JSON.parse(new TextDecoder().decode(response.body)) as AnthropicResponse;
-      const result: ConverseResult = { stopReason: parsed.stop_reason ?? "end_turn", content: fromWire(parsed.content) };
-      if (parsed.usage) {
-        result.usage = { inputTokens: parsed.usage.input_tokens ?? 0, outputTokens: parsed.usage.output_tokens ?? 0 };
-      }
-      return result;
+      const response = await this.client.create(body, {
+        signal: controller.signal,
+        headers: this.hosted ? { "X-Coworld-Player-Slot": String(req.slot) } : {},
+      });
+      return {
+        stopReason: response.stop_reason ?? "end_turn",
+        content: response.content.flatMap((block): ContentBlock[] =>
+          block.type === "text" ? [{ type: "text", text: block.text }]
+          : block.type === "tool_use" ? [{ type: "tool_use", id: block.id, name: block.name, input: block.input }]
+          : []),
+        usage: { inputTokens: response.usage.input_tokens, outputTokens: response.usage.output_tokens },
+      };
     } finally {
       clearTimeout(timer);
     }
