@@ -1,17 +1,17 @@
-// The send_messages tool the model fills during the Negotiate phase, a zod
+// The grouped JSON speech action accepted during negotiation, a zod
 // validator, and a parser to Post[]. Malformed input -> [] (stay silent): the
 // agent never throws.
 import { z } from "zod";
 import type { Post } from "../types";
-import type { ToolDef } from "./tool-client";
 
 export const sendMessagesSchema = z.object({
   messages: z.array(z.object({ to: z.string(), text: z.string().min(1) })).optional(),
 });
 
-export const SEND_MESSAGES_TOOL: ToolDef = {
+export const SEND_MESSAGES_FORMAT = {
   name: "send_messages",
-  description: "Send negotiation messages this turn. Call exactly once. Use an empty list to stay silent.",
+  description:
+    "Send negotiation messages this turn. Call exactly once. Use an empty list to stay silent.",
   inputSchema: {
     type: "object",
     properties: {
@@ -20,7 +20,11 @@ export const SEND_MESSAGES_TOOL: ToolDef = {
         items: {
           type: "object",
           properties: {
-            to: { type: "string", description: "'public' to broadcast to everyone, or a cog id like 'cog1' for a private DM" },
+            to: {
+              type: "string",
+              description:
+                "'public' to broadcast to everyone, or a cog id like 'cog1' for a private DM",
+            },
             text: { type: "string", description: "one or two sentences" },
           },
           required: ["to", "text"],

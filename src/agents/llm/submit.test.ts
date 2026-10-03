@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseSubmit, SUBMIT_ORDERS_TOOL } from "./submit";
+import { parseSubmit, SUBMIT_ORDERS_FORMAT } from "./submit";
 import { OrderSchema } from "../../shared/engine/orders";
 
 describe("submit_orders", () => {
@@ -29,7 +29,7 @@ describe("submit_orders", () => {
   });
 
   it("exposes a JSON-Schema tool definition", () => {
-    expect(SUBMIT_ORDERS_TOOL.name).toBe("submit_orders");
-    expect((SUBMIT_ORDERS_TOOL.inputSchema as { type: string }).type).toBe("object");
+    expect(SUBMIT_ORDERS_FORMAT.name).toBe("submit_orders");
+    expect((SUBMIT_ORDERS_FORMAT.inputSchema as { type: string }).type).toBe("object");
   });
 });

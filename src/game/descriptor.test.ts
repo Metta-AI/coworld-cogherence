@@ -22,7 +22,13 @@ const COGS = 4;
 function baselinePilots(n: number): Map<number, SeatPilot<CoghereSeamState, CoghereDecision>> {
   const pilots = new Map<number, SeatPilot<CoghereSeamState, CoghereDecision>>();
   for (let seat = 0; seat < n; seat++) {
-    pilots.set(seat, { pilot: new ScriptedPilot(), guidance: "", model: null, name: "" });
+    pilots.set(seat, {
+      purpose: "learner",
+      pilot: new ScriptedPilot(),
+      guidance: "",
+      model: null,
+      name: "",
+    });
   }
   return pilots;
 }
@@ -44,14 +50,17 @@ describe("cogherence descriptor + autopilot on the seam", () => {
     const system = cogherenceAutopilot.systemPrompt({ game: cogherenceGame, seat: 0 });
     expect(system).toContain("Cogherence");
 
-    const tool = cogherenceAutopilot.tool!(s, 0);
+    const tool = cogherenceAutopilot.actionSchema!(s, 0);
     expect(tool.name).toBe("submit_orders");
     expect(tool.inputSchema).toBeTruthy();
 
     // The observation renders the seat's own snapshot + the submit ask, and folds
     // in operator guidance.
-    const obs = cogherenceAutopilot.renderObservation(s, 0, { guidance: "play aggressively", messages: [] });
-    expect(obs).toContain("submit_orders");
+    const obs = cogherenceAutopilot.renderObservation(s, 0, {
+      guidance: "play aggressively",
+      messages: [],
+    });
+    expect(obs).toContain("Return JSON");
     expect(obs.toLowerCase()).toContain("aggressively");
   });
 

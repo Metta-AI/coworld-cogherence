@@ -13,7 +13,7 @@ const uiStyles = fileURLToPath(new URL("packages/ui/src/styles.css", import.meta
 export default defineConfig({
   test: {
     globals: true,
-    include: ["src/**/*.test.{ts,tsx}", "packages/llm/tests/**/*.test.ts"],
+    include: ["src/**/*.test.{ts,tsx}", "packages/**/tests/**/*.test.ts"],
     environmentMatchGlobs: [["src/client/**", "jsdom"]],
   },
   resolve: {
