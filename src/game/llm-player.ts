@@ -20,7 +20,9 @@ export function makeLlmDecide(client = new OpenRouterLlmClient({ prefix: "COGHER
     const messages = renderPlayerMessages(ctx.view, ctx.seat, ctx.reason, "", ctx.messages);
     return robustDecide({
       client,
-      slot: ctx.seat,
+      purpose: { kind: "learner" },
+      signal: AbortSignal.any([ctx.signal, AbortSignal.timeout(client.timeoutMs)]),
+      slot: ctx.playerSlot,
       system: messages[0]!.content,
       renderUser: (rejection) => messages[1]!.content + (rejection ? `\n\n${rejection}` : ""),
       validate: (candidate) => cogherenceGame.decisionSchema(state, ctx.seat).parse(candidate),
@@ -38,7 +40,9 @@ export function makeLlmTalk(client = new OpenRouterLlmClient({ prefix: "COGHEREN
     const messages = renderSpeechMessages(ctx.view, ctx.seat, ctx.messages);
     const result = await robustDecide({
       client,
-      slot: ctx.seat,
+      purpose: { kind: "learner" },
+      signal: AbortSignal.any([ctx.signal, AbortSignal.timeout(client.timeoutMs)]),
+      slot: ctx.playerSlot,
       system: messages[0]!.content,
       renderUser: () => messages[1]!.content,
       validate: (candidate) => ({ messages: normalizePosts(candidate, ctx.view, ctx.seat) }),

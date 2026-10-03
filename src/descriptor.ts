@@ -20,13 +20,8 @@
 import { fileURLToPath } from "node:url";
 import { type GameDescriptor, type ObservedMessage } from "@cogweb/core";
 import { OpenRouterLlmClient, LlmPilot, MessageBus } from "@cogweb/llm";
-import type { Audience, BotSpec, ServerMessage, TextGeneration } from "@cogweb/protocol";
-import {
-  cogherenceModule,
-  cogherenceAutopilot,
-  cogherenceGame,
-  type CoghereView,
-} from "./game/game.js";
+import type { BotSpec, ServerMessage, TextGeneration } from "@cogweb/protocol";
+import { cogherenceModule, cogherenceAutopilot, type CoghereView } from "./game/game.js";
 import { renderSpeechMessages, parseSpeechResponse } from "./game/speech.js";
 import { MAX_TURNS } from "./shared/engine/constants.js";
 
@@ -51,48 +46,89 @@ export const cogherenceDescriptor: GameDescriptor = {
     // highest turn we've already talked through, so repeated snapshots in the same
     // turn don't re-fire it. Reset to 0 on a new game.
     let talkedThroughTurn = 0;
+    let talkController = new AbortController();
 
     // One LLM seat's async talk turn: ask the model (via send_messages) for chat
     // given this seat's visible inbox, and post each on the platform `say` channel.
-    // Cheap talk is decoupled from the run loop, so a Bedrock hiccup just leaves
+    // Cheap talk is decoupled from the run loop, so a native transport failure just leaves
     // this seat silent for the turn (the talk analog of the runner's baseline
     // fallback) — the seat's real Commit turns still go through the runner.
-    const talkForSeat = async (view: CoghereView, seat: number): Promise<void> => {
-      const messages = renderSpeechMessages(view, seat, bus.visibleTo(seat));
+    const talkForSeat = async (
+      view: CoghereView,
+      seat: number,
+      pass: AbortController,
+    ): Promise<void> => {
+      const signal = AbortSignal.any([pass.signal, AbortSignal.timeout(client.timeoutMs)]);
+      const inbox = structuredClone(bus.visibleTo(seat));
+      const observation = { phase: "talk", view: structuredClone(view), inbox };
+      const messages = renderSpeechMessages(view, seat, inbox);
       const user = messages[1]!.content;
       let generation: TextGeneration | undefined;
       let posts: import("@cogweb/coworld").TalkLine[];
-      try {
-        const reply = await client.complete({
-          system: messages[0]!.content,
-          slot: seat,
-          messages: [{ role: "user", text: user }],
-          recordGeneration: (evidence) => {
-            generation = evidence;
-          },
-        });
-        posts = parseSpeechResponse(reply.text, view, seat);
-      } catch (err) {
+      let captured = false;
+      const captureFailure = (error: unknown): void => {
+        if (captured) return;
+        captured = true;
         getWs().recordSpeech({
+          purpose: "learner",
           seat,
           turn: view.turn,
-          observation: { phase: "talk", view, inbox: bus.visibleTo(seat) },
+          observation,
           decision: [],
           status: "fallback",
           pilotKind: "llm",
           policy: client.model,
           attempts: [
-            { prompt: user, response: generation?.response ?? "", error: String(err), generation },
+            {
+              prompt: user,
+              response: generation?.response ?? "",
+              error: String(error),
+              generation,
+            },
           ],
         });
+      };
+      let rejectCancellation!: (reason: unknown) => void;
+      const cancelled = new Promise<never>((_resolve, reject) => {
+        rejectCancellation = reject;
+      });
+      const onAbort = (): void => {
+        captureFailure(signal.reason);
+        rejectCancellation(signal.reason);
+      };
+      signal.addEventListener("abort", onAbort, { once: true });
+      try {
+        signal.throwIfAborted();
+        const reply = await Promise.race([
+          client.complete({
+            signal,
+            purpose: { kind: "learner" },
+            system: messages[0]!.content,
+            slot: seat,
+            messages: [{ role: "user", text: user }],
+            recordGeneration: (evidence) => {
+              if (!captured) generation = structuredClone(evidence);
+            },
+          }),
+          cancelled,
+        ]);
+        signal.throwIfAborted();
+        posts = parseSpeechResponse(reply.text, view, seat);
+      } catch (err) {
+        captureFailure(err);
         console.warn(`[cogherence] talk pass failed for seat ${seat}`);
         return;
+      } finally {
+        signal.removeEventListener("abort", onAbort);
       }
+      signal.throwIfAborted();
+      captured = true;
       const spoken = { messages: posts };
       getWs().recordSpeech({
+        purpose: "learner",
         seat,
         turn: view.turn,
-        observation: { phase: "talk", view, inbox: bus.visibleTo(seat) },
+        observation,
         decision: spoken,
         status: "accepted",
         pilotKind: "llm",
@@ -116,7 +152,10 @@ export const cogherenceDescriptor: GameDescriptor = {
     // a turn opens. Humans don't talk here — they compose in the UI.
     const botTalkPass = (view: CoghereView): void => {
       const seats = [...lobby.botSeats().keys()];
-      void Promise.all(seats.map((seat) => talkForSeat(view, seat)));
+      talkController.abort(new Error("Talk turn superseded"));
+      talkController = new AbortController();
+      const pass = talkController;
+      void Promise.all(seats.map((seat) => talkForSeat(view, seat, pass)));
     };
 
     // Server-side tap on every outbound frame. "talk" events become bus messages
@@ -124,12 +163,18 @@ export const cogherenceDescriptor: GameDescriptor = {
     // "reset" frame clears the log + talk cursor for the next game.
     const onServerMessage = (m: ServerMessage): void => {
       if (m.type === "reset") {
+        talkController.abort(new Error("Game reset"));
         bus = new MessageBus<ObservedMessage>();
         talkedThroughTurn = 0;
         return;
       }
+      if (m.type === "status" && m.status.phase === "finished") {
+        talkController.abort(new Error("Game finished"));
+        return;
+      }
       if (m.type === "snapshot") {
         const view = m.snapshot.state as CoghereView | null;
+        if (view && view.turn > MAX_TURNS) talkController.abort(new Error("Game finished"));
         if (view && view.turn <= MAX_TURNS && view.turn > talkedThroughTurn) {
           talkedThroughTurn = view.turn;
           botTalkPass(view);
@@ -147,6 +192,7 @@ export const cogherenceDescriptor: GameDescriptor = {
     // robust decide loop. The seat's operator-chosen model wins; else the client's.
     const makeBotPilot = (_seat: number, spec: BotSpec): LlmPilot<unknown, unknown> =>
       new LlmPilot({
+        purposeFor: () => ({ kind: "learner" as const }),
         client,
         autopilot: cogherenceAutopilot as never,
         modelFor: () => spec.model ?? client.model,
@@ -157,7 +203,7 @@ export const cogherenceDescriptor: GameDescriptor = {
   },
 
   // Pace the live game so spectators can watch, and set the auto-advance cap so a
-  // stalled LLM seat (e.g. a missing Bedrock credential) falls back to the
+  // stalled LLM seat (e.g. a missing native credential) falls back to the
   // baseline. cogherence's old runner gave each Commit a generous deadline; 30s
   // matches that spirit (and agricogla's cap).
   runnerOptions: { stepDelayMs: 300, maxTimeMs: 30_000 },

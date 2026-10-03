@@ -18,7 +18,12 @@ import type {
 } from "@cogweb/protocol";
 import { GameError } from "./game";
 import type { Game, GameModule, ApplyResult } from "./game";
-import type { Pilot, DecideContext, DecisionTelemetryEvent } from "./pilot";
+import {
+  recordAttemptSnapshot,
+  type Pilot,
+  type DecideContext,
+  type DecisionTelemetryEvent,
+} from "./pilot";
 
 export type RunMessageListener = (m: ServerMessage) => void;
 
@@ -71,6 +76,7 @@ export interface GameRunnerOptions {
 
 /** The runner's view of one seat's pilot plus its operator guidance. */
 export interface SeatPilot<State, Decision> {
+  purpose: "learner" | "environment";
   pilot: Pilot<State, Decision>;
   guidance: string;
   /** Surfaced in the autopilot transcript (actPrompt) so the UI shows the model. */
@@ -118,6 +124,7 @@ export class GameRunner<State, Decision> {
   #paused = false;
   /** Bumped on reset; a running loop exits once its captured generation is stale. */
   #generation = 0;
+  readonly #activeDecisions = new Set<AbortController>();
   /** The generation whose pilot intros have already been emitted, so a paused/
    *  resumed or restarted loop announces each seat exactly once per game. */
   #introducedGen = -1;
@@ -359,6 +366,7 @@ export class GameRunner<State, Decision> {
    *  in-flight loop exit at its next guard; a fresh "reset" frame tells clients to
    *  drop stale snapshots. */
   reset(): void {
+    for (const controller of this.#activeDecisions) controller.abort(new Error("Runner reset"));
     this.#generation += 1;
     this.#paused = false;
     this.#thinking.clear();
@@ -577,10 +585,23 @@ export class GameRunner<State, Decision> {
       if (!seatPilot) throw new Error(`no pilot registered for pending seat ${seat}`);
 
       const attempts: ActAttempt[] = [];
+      const controller = new AbortController();
+      this.#activeDecisions.add(controller);
+      let sealed = false;
       let usedFallback = false;
-      const ctx = this.#makeContext(seat, stateAtTurn, seatPilot.guidance, attempts, () => {
-        usedFallback = true;
-      });
+      const ctx = this.#makeContext(
+        seat,
+        stateAtTurn,
+        seatPilot.guidance,
+        attempts,
+        () => {
+          usedFallback = true;
+        },
+        controller.signal,
+        () => {
+          if (sealed) throw new Error("Decision evidence is sealed");
+        },
+      );
 
       // A human pilot is parked awaiting the player's input (it's their turn), not
       // composing a move — keep it OUT of #thinking so the roster shows "acting"
@@ -608,7 +629,16 @@ export class GameRunner<State, Decision> {
         if (outcome === "advance") {
           // The clock won: abandon the seat's in-flight decision and play baseline.
           usedFallback = true;
+          controller.abort(new Error("Decision deadline expired"));
           seatPilot.pilot.abort?.(seat);
+          const joinTimer: { id: ReturnType<typeof setTimeout> | null } = { id: null };
+          await Promise.race([
+            decided,
+            new Promise<void>((resolve) => {
+              joinTimer.id = setTimeout(resolve, Math.min(this.#maxTimeMs, 1000));
+            }),
+          ]);
+          if (joinTimer.id !== null) clearTimeout(joinTimer.id);
           decision = this.#game.baselineDecision(stateAtTurn, seat);
         } else if (outcome.ok) {
           decision = outcome.d;
@@ -623,6 +653,9 @@ export class GameRunner<State, Decision> {
           decision = this.#game.baselineDecision(stateAtTurn, seat);
         }
       } finally {
+        sealed = true;
+        controller.abort();
+        this.#activeDecisions.delete(controller);
         this.#disarmAdvance();
         this.#fireAdvance = null;
         this.#thinking.delete(seat);
@@ -652,6 +685,7 @@ export class GameRunner<State, Decision> {
         decision,
         attempts,
         status: usedFallback ? "fallback" : "accepted",
+        purpose: seatPilot.purpose,
         pilotKind: seatPilot.pilot.kind,
         policy: seatPilot.name || seatPilot.model,
       });
@@ -686,14 +720,20 @@ export class GameRunner<State, Decision> {
     guidance: string,
     attempts: ActAttempt[],
     markFallback: () => void,
+    signal: AbortSignal,
+    assertOpen: () => void,
   ): DecideContext<State, Decision> {
     const game = this.#game;
+    const seatPilot = this.#pilots.get(seat)!;
     return {
+      signal,
       game,
       state,
       seat,
       guidance,
       validate(candidate: unknown): Decision {
+        assertOpen();
+        signal.throwIfAborted();
         // Schema first (throws ZodError on shape mismatch), then a dry-run apply
         // so an illegal-but-well-typed move surfaces its GameError reason. Both
         // are re-promptable: the pilot may catch and retry.
@@ -706,8 +746,13 @@ export class GameRunner<State, Decision> {
         }
         return parsed;
       },
-      markFallback,
+      markFallback: () => {
+        assertOpen();
+        markFallback();
+      },
       recordSpeech: (speechAttempts, executed, failed, observation) => {
+        assertOpen();
+        signal.throwIfAborted();
         if (speechAttempts.length === 0) return;
         this.#onDecision?.({
           seat,
@@ -716,12 +761,14 @@ export class GameRunner<State, Decision> {
           decision: { messages: executed },
           attempts: speechAttempts,
           status: failed ? "fallback" : "accepted",
-          pilotKind: this.#pilots.get(seat)!.pilot.kind,
-          policy: this.#pilots.get(seat)!.name || this.#pilots.get(seat)!.model,
+          purpose: seatPilot.purpose,
+          pilotKind: seatPilot.pilot.kind,
+          policy: seatPilot.name || seatPilot.model,
         });
       },
       recordAttempt(attempt: ActAttempt): void {
-        attempts.push(structuredClone(attempt));
+        assertOpen();
+        recordAttemptSnapshot(attempts, attempt);
       },
     };
   }

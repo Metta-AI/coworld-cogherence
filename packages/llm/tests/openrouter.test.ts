@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { recordAttemptSnapshot } from "@cogweb/core";
 import type { ActAttempt, TextGeneration } from "@cogweb/protocol";
 import { OpenRouterLlmClient, llmUsageTotals, resetLlmUsage } from "../src/openrouter.js";
 import { robustDecide } from "../src/robust-decide.js";
@@ -30,6 +31,8 @@ describe("native direct text action", () => {
     );
     let generation: TextGeneration | undefined;
     const result = await new OpenRouterLlmClient({ fetch }).complete({
+      purpose: { kind: "learner" },
+      signal: AbortSignal.timeout(30_000),
       ...ping,
       slot: 8,
       recordGeneration: (g) => {
@@ -54,7 +57,7 @@ describe("native direct text action", () => {
     expect(result.text).toBe('{"take":2}');
     expect(generation).toMatchObject({
       request,
-      rawResponse: response,
+      rawResponse: JSON.stringify(response),
       platformCallId: callId,
       modelIdentity: "weights-sha",
       inferenceMode: "text_action",
@@ -79,12 +82,14 @@ describe("native direct text action", () => {
       const markFallback = vi.fn();
       await expect(
         robustDecide({
+          purpose: { kind: "learner" },
+          signal: AbortSignal.timeout(30_000),
           client: new OpenRouterLlmClient({ fetch, apiKey: "local-test-key" }),
           system: ping.system,
           renderUser: () => ping.messages[0]!.text,
           validate: () => ({ take: 2 }),
           baseline: () => ({ take: 0 }),
-          recordAttempt: (a) => attempts.push(a),
+          recordAttempt: (a) => recordAttemptSnapshot(attempts, a),
           markFallback,
           maxAttempts: 1,
         }),
@@ -101,9 +106,7 @@ describe("native direct text action", () => {
       expect(attempts[0]!.generation!.rawResponse).toBe(
         kind === "network" ? undefined : kind === "http" ? "provider rejected" : "not JSON",
       );
-      expect(attempts[0]!.generation!.latencyMs).toEqual(
-        kind === "network" ? null : expect.any(Number),
-      );
+      expect(attempts[0]!.generation!.latencyMs).toEqual(expect.any(Number));
     },
   );
 
@@ -119,6 +122,8 @@ describe("native direct text action", () => {
     const attempts: ActAttempt[] = [];
     const markFallback = vi.fn();
     const result = await robustDecide({
+      purpose: { kind: "learner" },
+      signal: AbortSignal.timeout(30_000),
       client: new OpenRouterLlmClient({ fetch, apiKey: "fixture" }),
       system: "rules",
       renderUser: (reason) => (reason ? `view\n${reason}` : "view"),
@@ -128,7 +133,7 @@ describe("native direct text action", () => {
         return parsed;
       },
       baseline: () => ({ take: 0 }),
-      recordAttempt: (a) => attempts.push(a),
+      recordAttempt: (a) => recordAttemptSnapshot(attempts, a),
       markFallback,
       maxAttempts: 2,
     });

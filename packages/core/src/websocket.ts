@@ -193,6 +193,7 @@ export function attachWebSocket<State, Decision>(
       const spec = botSeats.get(seat.seat);
       if (spec) {
         pilots.set(seat.seat, {
+          purpose: "learner",
           pilot: deps.makeBotPilot(seat.seat, spec),
           guidance: spec.guidance,
           model: spec.model,
@@ -200,7 +201,13 @@ export function attachWebSocket<State, Decision>(
         });
       } else {
         // A human seat with autopilot off: the shared HumanPilot drives it.
-        pilots.set(seat.seat, { pilot: humanPilot, guidance: "", model: null, name: seat.name });
+        pilots.set(seat.seat, {
+          purpose: "learner",
+          pilot: humanPilot,
+          guidance: "",
+          model: null,
+          name: seat.name,
+        });
       }
     }
     const r = new GameRunner<State, Decision>(module, pilots, {
@@ -247,6 +254,7 @@ export function attachWebSocket<State, Decision>(
     const spec = lobby.botControlLive(seat, null);
     const name = lobby.state().seats.find((s) => s.seat === seat)?.name ?? "";
     runner?.setSeatPilot(seat, {
+      purpose: "learner",
       pilot: deps.makeBotPilot(seat, spec),
       guidance: spec.guidance,
       model: spec.model,
@@ -289,6 +297,7 @@ export function attachWebSocket<State, Decision>(
             // runner sees the pilot already swapped when that turn's reject lands, so it
             // re-drives the in-flight turn with the bot instead of playing baseline.
             runner.setSeatPilot(msg.seat, {
+              purpose: "learner",
               pilot: deps.makeBotPilot(msg.seat, spec),
               guidance: spec.guidance,
               model: spec.model,
@@ -296,7 +305,13 @@ export function attachWebSocket<State, Decision>(
             });
             humanPilot.cancel(msg.seat);
           } else {
-            runner.setSeatPilot(msg.seat, { pilot: humanPilot, guidance: "", model: null, name });
+            runner.setSeatPilot(msg.seat, {
+              purpose: "learner",
+              pilot: humanPilot,
+              guidance: "",
+              model: null,
+              name,
+            });
           }
         }
         return;
@@ -440,6 +455,7 @@ export function attachWebSocket<State, Decision>(
           conn.ownSeat = msg.seat;
           conn.liveSeat = msg.seat;
           runner.setSeatPilot(msg.seat, {
+            purpose: "learner",
             pilot: humanPilot,
             guidance: "",
             model: null,

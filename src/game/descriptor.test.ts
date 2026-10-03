@@ -22,7 +22,13 @@ const COGS = 4;
 function baselinePilots(n: number): Map<number, SeatPilot<CoghereSeamState, CoghereDecision>> {
   const pilots = new Map<number, SeatPilot<CoghereSeamState, CoghereDecision>>();
   for (let seat = 0; seat < n; seat++) {
-    pilots.set(seat, { pilot: new ScriptedPilot(), guidance: "", model: null, name: "" });
+    pilots.set(seat, {
+      purpose: "learner",
+      pilot: new ScriptedPilot(),
+      guidance: "",
+      model: null,
+      name: "",
+    });
   }
   return pilots;
 }
