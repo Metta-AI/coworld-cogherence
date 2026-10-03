@@ -50,14 +50,29 @@ export function renderSpeechMessages(view: CoghereView, seat: number, messages: 
     { role: "user" as const, content: renderTalk(view, seat, messages) },
   ];
 }
+export function speechSchema(view: CoghereView, seat: number) {
+  return sendMessagesSchema.superRefine((input, context) => {
+    for (const [index, post] of (input.messages ?? []).entries()) {
+      if (
+        post.to !== "public" &&
+        !view.cogs.some((cog) => cog.id === post.to && cog.index !== seat)
+      )
+        context.addIssue({
+          code: "custom",
+          path: ["messages", index, "to"],
+          message: "Recipient must be public or another cog's id",
+        });
+    }
+  });
+}
 export function normalizePosts(input: unknown, view: CoghereView, seat: number): TalkLine[] {
-  return (sendMessagesSchema.parse(input).messages ?? [])
+  return (speechSchema(view, seat).parse(input).messages ?? [])
     .slice(0, 2)
     .filter((post) => post.text.trim())
     .map((post) => {
       const recipient =
-        post.to === "public" ? null : (view.cogs.find((cog) => cog.id === post.to)?.index ?? null);
-      return { text: post.text.trim(), to: recipient === seat ? null : recipient };
+        post.to === "public" ? null : view.cogs.find((cog) => cog.id === post.to)!.index;
+      return { text: post.text.trim(), to: recipient };
     });
 }
 export function parseSpeechResponse(response: string, view: CoghereView, seat: number): TalkLine[] {

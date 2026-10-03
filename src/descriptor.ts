@@ -97,21 +97,23 @@ export const cogherenceDescriptor: GameDescriptor = {
         rejectCancellation(signal.reason);
       };
       signal.addEventListener("abort", onAbort, { once: true });
+      const completion = client.complete({
+        signal,
+        purpose: { kind: "learner" },
+        system: messages[0]!.content,
+        slot: seat,
+        messages: [{ role: "user", text: user }],
+        recordGeneration: (evidence) => {
+          if (!captured) generation = structuredClone(evidence);
+        },
+      });
+      const settled = completion.then(
+        () => undefined,
+        () => undefined,
+      );
       try {
         signal.throwIfAborted();
-        const reply = await Promise.race([
-          client.complete({
-            signal,
-            purpose: { kind: "learner" },
-            system: messages[0]!.content,
-            slot: seat,
-            messages: [{ role: "user", text: user }],
-            recordGeneration: (evidence) => {
-              if (!captured) generation = structuredClone(evidence);
-            },
-          }),
-          cancelled,
-        ]);
+        const reply = await Promise.race([completion, cancelled]);
         signal.throwIfAborted();
         posts = parseSpeechResponse(reply.text, view, seat);
       } catch (err) {
@@ -119,9 +121,17 @@ export const cogherenceDescriptor: GameDescriptor = {
         console.warn(`[cogherence] talk pass failed for seat ${seat}`);
         return;
       } finally {
+        const joinTimer: { id: ReturnType<typeof setTimeout> | null } = { id: null };
+        await Promise.race([
+          settled,
+          new Promise<void>((resolve) => {
+            joinTimer.id = setTimeout(resolve, Math.min(client.timeoutMs, 1000));
+          }),
+        ]);
+        if (joinTimer.id !== null) clearTimeout(joinTimer.id);
         signal.removeEventListener("abort", onAbort);
       }
-      signal.throwIfAborted();
+      if (signal.aborted) return;
       captured = true;
       const spoken = { messages: posts };
       getWs().recordSpeech({

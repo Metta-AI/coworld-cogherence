@@ -12,8 +12,8 @@ import {
   renderPlayerMessages,
   type CoghereSeamState,
 } from "./game.js";
-import { renderSpeechMessages, normalizePosts } from "./speech.js";
-import { SEND_MESSAGES_FORMAT, sendMessagesSchema } from "../agents/llm/negotiate.js";
+import { renderSpeechMessages, normalizePosts, speechSchema } from "./speech.js";
+import { SEND_MESSAGES_FORMAT } from "../agents/llm/negotiate.js";
 import { resolve } from "../shared/engine/resolve.js";
 
 /** Direct language actions use exactly the ordinary native player's messages. */
@@ -88,7 +88,9 @@ export class TrainingSession {
     if (this.phase === "talk") {
       const json = parseJsonAction(response);
       if (json.kind === "rejected") return this.speech([], json.reason);
-      const parsed = sendMessagesSchema.safeParse(json.value);
+      const parsed = speechSchema(observation.semantic_view, observation.seat).safeParse(
+        json.value,
+      );
       if (!parsed.success) return this.speech([], parsed.error.message);
       return this.speech(
         normalizePosts(parsed.data, observation.semantic_view, observation.seat),
