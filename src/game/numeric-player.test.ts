@@ -38,6 +38,10 @@ describe("ordinary numeric player", () => {
     const decide = numericDecide(`http://127.0.0.1:${(server.address() as AddressInfo).port}/choice`, "proof");
     const action = await decide({
       view,
+      signal: new AbortController().signal,
+      playerSlot: 0,
+      recordAttempt: () => {},
+      markFallback: () => {},
       seat: 0,
       turn: view.turn,
       messages: [],
@@ -63,6 +67,10 @@ describe("ordinary numeric player", () => {
     await expect(
       decide({
         view,
+        signal: new AbortController().signal,
+        playerSlot: 0,
+        recordAttempt: () => {},
+        markFallback: () => {},
         seat: 0,
         turn: view.turn,
         messages: [],
@@ -72,6 +80,32 @@ describe("ordinary numeric player", () => {
         module: cogherenceModule,
       }),
     ).rejects.toThrow();
+    expect(cogherenceGame.pendingActors(state)).toEqual([0, 1, 2, 3]);
+  });
+
+  it("joins host cancellation while a numeric request is in flight", async () => {
+    const state = cogherenceGame.newGame({ seed: "19", playerCount: 4, seatNames: ["a", "b", "c", "d"] });
+    const view = cogherenceGame.redact(state, 0);
+    const controller = new AbortController();
+    const server = createServer(() => controller.abort());
+    servers.push(server);
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    const decide = numericDecide(`http://127.0.0.1:${(server.address() as AddressInfo).port}/choice`, "proof");
+    await expect(decide({
+      view,
+      signal: controller.signal,
+      playerSlot: 0,
+      recordAttempt: () => {},
+      markFallback: () => {},
+      seat: 0,
+      turn: view.turn,
+      messages: [],
+      reason: null,
+      timeLeftMs: null,
+      config: undefined,
+      module: cogherenceModule,
+    })).rejects.toMatchObject({ name: "AbortError" });
     expect(cogherenceGame.pendingActors(state)).toEqual([0, 1, 2, 3]);
   });
 });

@@ -25,19 +25,21 @@ Softmax platform as a **Coworld** — see
 upload runbook.
 
 The certified four-seat game has a local training bridge and an ordinary numeric player.
-Run `pnpm build:training` and `pnpm build:coworld` first.
+Run `pnpm build:numeric` and `pnpm build:coworld` first.
 The bridge drives the same redacted game seam as the Coworld host.
 Its 1,308 values encode the board, public hearts, and the acting seat's private resources.
 The 30 masked action slots select the current finite board-order catalog.
 This curriculum omits unrestricted trades, combined order sets, and speech.
-Hosted speech trajectories use the separate replay-verified exporter.
+Language training remains separate: `pnpm build:training` builds the full speech-and-orders
+bridge at `dist-server/game/training-bridge.js`. Hosted evidence follows the native
+artifact and receipt contracts in [the Coworld guide](docs/coworld/README.md).
 
 From the Metta checkout, declare the standalone bridge bundle as an asset:
 
 ```bash
 uv run ./tools/run.py train recipes.external.coworld \
-  'command=["node","/absolute/coworld-cogherence/dist-server/game/training-bridge.js"]' \
-  'assets=["/absolute/coworld-cogherence/dist-server/game/training-bridge.js"]' \
+  'command=["node","/absolute/coworld-cogherence/dist-server/game/numeric-bridge.js"]' \
+  'assets=["/absolute/coworld-cogherence/dist-server/game/numeric-bridge.js"]' \
   players=4 seat=0 max_decisions=400 total_timesteps=512 environments=2
 ```
 

@@ -7,7 +7,7 @@
 // against the schema ONLY; the game HOST checks legality and, on rejection,
 // re-requests with a `reason` that the next observation surfaces for a retry.
 
-import { BedrockLlmClient, robustDecide } from "@cogweb/llm";
+import { OpenRouterLlmClient, robustDecide } from "@cogweb/llm";
 import type { GameModule } from "@cogweb/core";
 import { runCoworldPlayer } from "./player-runtime.js";
 import type { PlayerDecideContext } from "./player-runtime.js";
@@ -16,7 +16,7 @@ export interface LlmCoworldPlayerOpts<State, Decision, View> {
   /** The game module; MUST carry an `autopilot` (its prompts drive the model). */
   module: GameModule<State, Decision, View>;
   /** A Bedrock client; defaults to one built from env (optionally `prefix`ed). */
-  client?: BedrockLlmClient;
+  client?: OpenRouterLlmClient;
   /** Env prefix for the default client (e.g. "COGNAMES" → COGNAMES_BEDROCK_*). */
   prefix?: string;
   /** Socket URL; defaults to COWORLD_PLAYER_WS_URL. */
@@ -35,9 +35,19 @@ export function makeLlmCoworldDecide<State, Decision, View>(
 ): (ctx: PlayerDecideContext<State, Decision, View>) => Promise<Decision> {
   const { game, autopilot } = opts.module;
   if (!autopilot) throw new Error("makeLlmCoworldDecide requires module.autopilot");
-  const client = opts.client ?? new BedrockLlmClient({ prefix: opts.prefix });
+  const client = opts.client ?? new OpenRouterLlmClient({ prefix: opts.prefix });
 
-  return ({ view, seat, reason, messages, timeLeftMs }) => {
+  return ({
+    view,
+    seat,
+    playerSlot,
+    signal,
+    reason,
+    messages,
+    timeLeftMs,
+    recordAttempt,
+    markFallback,
+  }) => {
     // The redacted view IS this player's working state: the autopilot, schema,
     // and baseline read only view-available fields. (Legality needs the full
     // state and is the host's job — hence schema-only validate here.)
@@ -45,11 +55,18 @@ export function makeLlmCoworldDecide<State, Decision, View>(
     const guidance = opts.guidanceFor?.(seat) ?? "";
     return robustDecide<Decision>({
       client,
-      system: autopilot.systemPrompt({ game, seat }),
+      purpose: { kind: "learner" },
+      signal: AbortSignal.any([signal, AbortSignal.timeout(client.timeoutMs)]),
+      system:
+        autopilot.systemPrompt({ game, seat }) +
+        (autopilot.actionSchema
+          ? `\nReturn only a JSON object matching this schema: ${JSON.stringify(autopilot.actionSchema(state, seat).inputSchema)}`
+          : ""),
+      slot: playerSlot,
       renderUser: (rejection) => {
         // Fold the seat's visible inbox into the prompt so the policy reacts to the
         // table talk it's entitled to (empty for a game with no comms).
-        const observation = autopilot.renderObservation(state, seat, { guidance, messages });
+        const observation = autopilot.renderView(view, seat, { guidance, messages });
         // Chess clock: tell the model its remaining whole-episode thinking budget so
         // it can pace itself; at 0 the host plays random for it. Omitted with no clock.
         const clock =
@@ -64,8 +81,8 @@ export function makeLlmCoworldDecide<State, Decision, View>(
       },
       validate: (candidate) => game.decisionSchema(state, seat).parse(candidate),
       baseline: () => game.baselineDecision(state, seat),
-      tool: autopilot.tool?.(state, seat),
-      recordAttempt: () => {},
+      recordAttempt,
+      markFallback,
       maxAttempts: opts.maxAttempts,
     });
   };

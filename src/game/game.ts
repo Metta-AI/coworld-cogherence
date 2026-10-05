@@ -93,10 +93,20 @@ function seedToNumber(seed: string): number {
 function eventSeat(s: CoghereSeamState, ev: TurnEvent): number | null {
   // The seat the event is "about", when one applies — used so a per-seat feed can
   // attribute the line. Auction settles and captures are board-wide (seat null).
-  if (ev.type === "order" || ev.type === "rejected" || ev.type === "exploit" || ev.type === "abandon")
+  if (
+    ev.type === "order" ||
+    ev.type === "rejected" ||
+    ev.type === "exploit" ||
+    ev.type === "abandon"
+  )
     return seatForId(s, ev.cog);
   if (ev.type === "transfer") return seatForId(s, ev.from);
-  if (ev.type === "starved" || ev.type === "lost" || ev.type === "mint" || ev.type === "firstCommit")
+  if (
+    ev.type === "starved" ||
+    ev.type === "lost" ||
+    ev.type === "mint" ||
+    ev.type === "firstCommit"
+  )
     return seatForId(s, ev.cog);
   return null; // capture, auction
 }
@@ -130,7 +140,13 @@ function eventText(ev: TurnEvent): string {
 
 /** Lower one completed turn's TurnRecord to FeedEvents (the runner stamps `turn`). */
 function lowerRecord(s: CoghereSeamState, record: TurnRecord): Array<Omit<FeedEvent, "turn">> {
-  return record.events.map((ev) => ({ seat: eventSeat(s, ev), kind: ev.type, text: eventText(ev), to: "public", data: ev }));
+  return record.events.map((ev) => ({
+    seat: eventSeat(s, ev),
+    kind: ev.type,
+    text: eventText(ev),
+    to: "public",
+    data: ev,
+  }));
 }
 
 // ── bounds ──────────────────────────────────────────────────────────────────────
@@ -177,7 +193,7 @@ export const cogherenceGame: Game<CoghereSeamState, CoghereDecision, CoghereView
   // still sees one canonical shape.
   decisionSchema(_s, _seat): z.ZodType<CoghereDecision> {
     return z.union([
-      z.object({ orders: OrderSchema.array() }),
+      z.object({ orders: OrderSchema.array() }).strict(),
       submitOrdersSchema.transform((p) => ({ orders: toOrders(p) })),
     ]) as z.ZodType<CoghereDecision>;
   },
@@ -213,7 +229,12 @@ export const cogherenceGame: Game<CoghereSeamState, CoghereDecision, CoghereView
     const engine = stepTurn(next.engine, ordersByCog);
     const record = engine.log[engine.log.length - 1]!;
     const events = lowerRecord(next, record);
-    const fresh: CoghereSeamState = { engine, pending: [...engine.cogOrder], orders: {}, committedOrder: [] };
+    const fresh: CoghereSeamState = {
+      engine,
+      pending: [...engine.cogOrder],
+      orders: {},
+      committedOrder: [],
+    };
     return { state: fresh, events };
   },
 
@@ -246,7 +267,7 @@ export const cogherenceGame: Game<CoghereSeamState, CoghereDecision, CoghereView
 // A thin autopilot over the seam that RELABELS cogherence's existing LLM pieces
 // onto the @cogweb/core seam rather than reinventing them:
 //  - `systemPrompt` is cogherence's SYSTEM_PROMPT (the full rules copy);
-//  - `tool` is cogherence's REAL `SUBMIT_ORDERS_TOOL` (the grouped
+//  - `tool` is cogherence's REAL `SUBMIT_ORDERS_FORMAT` (the grouped
 //    {aligns,exploits,abandons,transfers,bid} spec, with the rich per-field
 //    cost/strategy descriptions that materially help the model). Its grouped
 //    payload is normalized to the canonical `{ orders }` by `decisionSchema`
@@ -258,17 +279,20 @@ export const cogherenceGame: Game<CoghereSeamState, CoghereDecision, CoghereView
 //    and operator guidance folded in via `applyGuidance`.
 
 import { SYSTEM_PROMPT } from "../agents/llm/render.js";
-import { SUBMIT_ORDERS_TOOL } from "../agents/llm/submit.js";
+import { SUBMIT_ORDERS_FORMAT } from "../agents/llm/submit.js";
 
 function renderSnapshotFor(view: CoghereView, seat: number): string {
   const me = view.cogs[seat];
   const lines: string[] = [`Turn ${view.turn}/${MAX_TURNS}. You are ${me?.id ?? `seat ${seat}`}.`];
-  if (me) lines.push(`Your treasury: C${me.treasury.C} O${me.treasury.O} Ge${me.treasury.Ge} S${me.treasury.S} — ${me.energy} energy stored.`);
-  lines.push(
-    "Hearts — " + view.cogs.map((c) => `${c.id}:${c.hearts}`).join(" "),
-  );
+  if (me)
+    lines.push(
+      `Your treasury: C${me.treasury.C} O${me.treasury.O} Ge${me.treasury.Ge} S${me.treasury.S} — ${me.energy} energy stored.`,
+    );
+  lines.push("Hearts — " + view.cogs.map((c) => `${c.id}:${c.hearts}`).join(" "));
   const mine = view.tiles.filter((t) => me && t.alignment === me.id);
-  lines.push(`Your tiles (${mine.length}): ${mine.map((t) => `${t.q},${t.r}[coh${t.coherence} ${t.mineral} d${Math.floor(t.density)}]`).join(" ") || "(none)"}`);
+  lines.push(
+    `Your tiles (${mine.length}): ${mine.map((t) => `${t.q},${t.r}[coh${t.coherence} ${t.mineral} d${Math.floor(t.density)}]`).join(" ") || "(none)"}`,
+  );
   return lines.join("\n");
 }
 
@@ -281,6 +305,22 @@ function messageLine(view: CoghereView, m: ObservedMessage): string {
   return `  ${fromId} ${scope}: ${m.text}`;
 }
 
+export function renderSeatView(
+  view: CoghereView,
+  seat: number,
+  guidance: string,
+  messages: ObservedMessage[],
+): string {
+  const lines = [renderSnapshotFor(view, seat)];
+  if (messages.length > 0) {
+    lines.push("Messages you can see:");
+    for (const m of messages.slice(-12)) lines.push(messageLine(view, m));
+  }
+  lines.push("\nReturn JSON with your orders for this turn (an empty list holds).");
+  const body = lines.join("\n");
+  return guidance ? applyGuidance(body, guidance) : body;
+}
+
 export const cogherenceAutopilot: Autopilot<CoghereSeamState, CoghereDecision> = {
   // cogherence's full rules copy, verbatim.
   systemPrompt(): string {
@@ -291,21 +331,17 @@ export const cogherenceAutopilot: Autopilot<CoghereSeamState, CoghereDecision> =
   // the public hearts board, and its own tiles, then its visible inbox, then the
   // submit ask. Operator guidance is folded in via the shared `applyGuidance`.
   renderObservation(state, seat, ctx): string {
-    const view = cogherenceGame.redact(state, seat);
-    const lines = [renderSnapshotFor(view, seat)];
-    if (ctx.messages.length > 0) {
-      lines.push("Messages you can see:");
-      for (const m of ctx.messages.slice(-12)) lines.push(messageLine(view, m));
-    }
-    lines.push("\nCall submit_orders with your orders for this turn (an empty list holds).");
-    const body = lines.join("\n");
-    return ctx.guidance ? applyGuidance(body, ctx.guidance) : body;
+    return renderSeatView(cogherenceGame.redact(state, seat), seat, ctx.guidance, ctx.messages);
+  },
+
+  renderView(view, seat, ctx): string {
+    return renderSeatView(view as CoghereView, seat, ctx.guidance, ctx.messages);
   },
 
   // cogherence's REAL submit_orders tool: the grouped {aligns,exploits,abandons,
   // transfers,bid} payload normalized to `{orders}` by `decisionSchema`.
-  tool(): { name: string; description: string; inputSchema: unknown } {
-    return SUBMIT_ORDERS_TOOL;
+  actionSchema(): { name: string; description: string; inputSchema: unknown } {
+    return SUBMIT_ORDERS_FORMAT;
   },
 };
 
@@ -318,3 +354,27 @@ export const cogherenceModule: GameModule<CoghereSeamState, CoghereDecision, Cog
 
 // Re-exported for convenience / tests.
 export { scoreGame };
+
+/** The same production text-action renderer used by hosted players and training. */
+export function renderPlayerMessages(
+  view: CoghereView,
+  seat: number,
+  reason: string | null,
+  guidance = "",
+  messages: ObservedMessage[] = [],
+) {
+  const state = view as unknown as CoghereSeamState;
+  const contract = cogherenceAutopilot.actionSchema!(state, seat);
+  const clock = reason
+    ? `\n\nThe game rejected your previous move: ${reason}. Choose a different legal move.`
+    : "";
+  return [
+    {
+      role: "system" as const,
+      content:
+        cogherenceAutopilot.systemPrompt({ game: cogherenceGame, seat }) +
+        `\nReturn only a JSON object matching this schema: ${JSON.stringify(contract.inputSchema)}`,
+    },
+    { role: "user" as const, content: renderSeatView(view, seat, guidance, messages) + clock },
+  ];
+}

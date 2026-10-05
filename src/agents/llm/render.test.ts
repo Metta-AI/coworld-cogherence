@@ -7,7 +7,7 @@ const view = (me = "cog0") => ({ state: newGame(7, 4), me });
 describe("renderView", () => {
   it("system prompt states the goal and the submit tool", () => {
     expect(SYSTEM_PROMPT).toMatch(/hearts/i);
-    expect(SYSTEM_PROMPT).toContain("submit_orders");
+    expect(SYSTEM_PROMPT).toContain("JSON");
     expect(SYSTEM_PROMPT).toMatch(/align/);
   });
   it("user prompt names the cog, the turn, and its treasury", () => {
@@ -48,6 +48,8 @@ describe("renderView", () => {
   });
 
   it("also steers the negotiate prompt", () => {
-    expect(renderNegotiate(view("cog0"), "always lie in DMs").system).toContain("always lie in DMs");
+    expect(renderNegotiate(view("cog0"), "always lie in DMs").system).toContain(
+      "always lie in DMs",
+    );
   });
 });

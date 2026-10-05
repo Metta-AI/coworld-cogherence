@@ -4,33 +4,24 @@
 // `MessageBus` is the visibility-aware negotiation substrate.
 
 export {
-  BedrockLlmClient,
-  bedrockConfigFromEnv,
-  bedrockRequestMetadataFromEnv,
-  bedrockUsageTotals,
-  resetBedrockUsage,
+  OpenRouterLlmClient,
+  llmConfigFromEnv,
+  llmUsageTotals,
+  resetLlmUsage,
   isCredentialsUnavailable,
-  type BedrockConfig,
-  type BedrockSend,
-  type BedrockUsageTotals,
-  type ConverseMessage,
-  type ConverseResult,
-  type ConverseUsage,
-  type ToolSpec,
-} from "./bedrock.js";
-
-export { discoverModels, MODEL_CANDIDATES, type ModelProbe } from "./model-discovery.js";
+  type LlmConfig,
+  type LlmUsageTotals,
+  type LlmMessage,
+  type LlmResult,
+  type LlmUsage,
+} from "./openrouter.js";
 
 export {
-  parseClaudeModel,
-  orderCandidates,
-  bedrockProfileLister,
-  type ClaudeTier,
-  type ClaudeModelId,
-  type ProfileLister,
-} from "./latest-model.js";
-
-export { robustDecide, extractJson, type RobustDecideOpts } from "./robust-decide.js";
+  robustDecide,
+  extractJson,
+  parseJsonAction,
+  type RobustDecideOpts,
+} from "./robust-decide.js";
 
 export { LlmPilot, type LlmPilotOpts } from "./llm-pilot.js";
 

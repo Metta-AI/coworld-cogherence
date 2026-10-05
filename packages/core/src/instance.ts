@@ -7,6 +7,7 @@ import { createLobby } from "./lobby";
 import type { Lobby } from "./lobby";
 import { attachWebSocket } from "./websocket";
 import type { MakeBotPilot, AttachedWebSocket } from "./websocket";
+import type { DecisionTelemetryEvent } from "./pilot";
 import type { GameModule } from "./game";
 import type { ServerMessage } from "@cogweb/protocol";
 
@@ -18,6 +19,7 @@ export interface InstanceWiring<State = unknown, Decision = unknown> {
   makeBotPilot: MakeBotPilot<State, Decision>;
   /** Server-side tap on every outbound frame (e.g. to feed a MessageBus). */
   onServerMessage?: (m: ServerMessage) => void;
+  onDecision?: (event: DecisionTelemetryEvent<unknown>) => void;
 }
 
 /** Handed to a descriptor's createWiring so its closures can reach the instance's
@@ -67,15 +69,21 @@ export function createInstance(descriptor: GameDescriptor, gameId: string): Runn
   // socket — the multi-instance form of the `let server` ref a single-game
   // cli-serve uses.
   let ws!: AttachedWebSocket;
-  const wiring = (descriptor.createWiring as (ctx: InstanceContext) => InstanceWiring<unknown, unknown>)({
+  const wiring = (
+    descriptor.createWiring as (ctx: InstanceContext) => InstanceWiring<unknown, unknown>
+  )({
     lobby,
     getWs: () => ws,
   });
   ws = attachWebSocket({
     lobby,
     makeBotPilot: wiring.makeBotPilot,
-    runnerOptions: { seed: descriptor.runnerOptions?.seed, stepDelayMs: descriptor.runnerOptions?.stepDelayMs },
+    runnerOptions: {
+      seed: descriptor.runnerOptions?.seed,
+      stepDelayMs: descriptor.runnerOptions?.stepDelayMs,
+    },
     onServerMessage: wiring.onServerMessage,
+    onDecision: wiring.onDecision,
   });
   const verify = descriptor.verifySeatToken;
   return {

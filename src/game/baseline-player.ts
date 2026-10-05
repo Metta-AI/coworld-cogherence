@@ -1,3 +1,4 @@
+import { realpathSync } from "node:fs";
 // The cogherence certification baseline player, on the shared @cogweb/coworld
 // runtime. A websocket CLIENT of the game's `/player` server: on each
 // `observation` it returns `cogherenceGame.baselineDecision` — an always-legal,
@@ -21,7 +22,9 @@ import type { CoghereSeamState, CoghereDecision, CoghereView } from "./game.js";
 /** `baselineDecision` reads neither the state nor the seat (it always holds with
  *  an empty order set), so the redacted per-seat view is a sufficient stand-in
  *  for the seam state it nominally expects. */
-export function decide(ctx: PlayerDecideContext<CoghereSeamState, CoghereDecision, CoghereView>): CoghereDecision {
+export function decide(
+  ctx: PlayerDecideContext<CoghereSeamState, CoghereDecision, CoghereView>,
+): CoghereDecision {
   return cogherenceModule.game.baselineDecision(ctx.view as unknown as CoghereSeamState, ctx.seat);
 }
 
@@ -35,6 +38,6 @@ export function run(): Promise<number[]> {
 
 // Run only when invoked as the entrypoint (`npx tsx src/game/baseline-player.ts`),
 // not when imported (e.g. by tests reusing `decide`).
-if (argv[1] === fileURLToPath(import.meta.url)) {
+if (realpathSync(argv[1]!) === fileURLToPath(import.meta.url)) {
   await run();
 }

@@ -22,7 +22,10 @@ export function numericDecide(url: string, session: string) {
         values: encoding.values,
         action_mask: encoding.actions.map((action) => action !== null),
       }),
-      signal: AbortSignal.timeout(Math.max(1, Math.min(30_000, ctx.timeLeftMs ?? 30_000))),
+      signal: AbortSignal.any([
+        ctx.signal,
+        AbortSignal.timeout(Math.max(1, Math.min(30_000, ctx.timeLeftMs ?? 30_000))),
+      ]),
     });
     if (!response.ok) throw new Error(`Numeric policy returned HTTP ${response.status}`);
     const selected = z

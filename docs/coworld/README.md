@@ -23,29 +23,35 @@ replay clients.
 | Baseline player | `src/game/baseline-player.ts` | Deterministic no-LLM baseline: always-legal holds, so it certifies the contract offline. |
 | Replay viewer | `coworld/tools/build_replay_viewer.sh` | Static replay bundle (`build/static-replay-viewer`) baked into the coworld build. |
 
-External policies receive the ordinary seat observation and return board orders
-through the player protocol. A policy that records typed decisions and public
-talk can keep a private JSONL trace. That trace needs the host replay's
-validated decisions before training export; it alone does not establish an
-executed action or completed episode.
+## Native language training
 
-After a finished local episode, join that private player trace to the host's
-result and replay with:
+`pnpm build:training` bundles `dist-server/game/training-bridge.js`. Run it over
+JSONL stdin/stdout using the shared Metta `GameBridge` reset/step/teacher protocol.
+Each seat has a grouped JSON talk target followed by an orders target. Both use
+`inference_mode: text_action`, the production renderer, and the production parser.
+Posts retain public/private recipients. Speech is buffered until the player reply,
+so orders see the same inbox as the concurrent native player call.
 
-```sh
-node scripts/export-complete-episode.mjs \
-  --replay /private/replay.json --result /private/results.json \
-  --trace /private/model-calls.jsonl --source-revision <40-character-git-sha> \
-  --episode-id <unique-id> --output /private/complete.jsonl
-```
+`pnpm build:coworld` also bundles `dist-server/game/llm-player.js`. Configure it
+with `COWORLD_LLM_ENDPOINT` and `COWORLD_LLM_MODEL`; it uses native chat completions.
+The game writes complete private trajectories to `COGAME_SAVE_TRAJECTORY_URI`.
+Exact requests, sampled responses, actual platform call IDs, rejected attempts,
+and applied actions stay in this artifact. Public replay omits private prompts,
+model responses, and private direct messages.
 
-The exporter requires one validated host decision for every game turn, matching
-typed orders, matching public talk events, a finished replay, and result scores
-matching the final host status. It rejects episodes with missing model calls,
-rejected decisions, or host fallback. The output is a mode-0600
-`CompleteEpisode` JSONL row for the shared training contract. Typed decisions
-retain semantic requests and typed orders; public speech retains chat messages
-and the generated text for native-tokenizer post-training.
+The coordinator supplies `COWORLD_EPISODE_ID`, `COWORLD_GAME_VERSION`,
+`COWORLD_SOURCE_REVISION`, and `COWORLD_GAME_IMAGE_DIGEST`. Missing pins remain
+unavailable; shared strict training qualification rejects unpinned episodes.
+Use the shared Coworld training qualifier/exporter on the private complete
+trajectory. No public replay reconstruction supplies training labels.
+
+The separately bundled `pnpm build:numeric` interface is an encoded numeric
+candidate policy interface. It is not ordinary language prompt parity.
+
+A full four-seat episode makes 800 language calls before retries. At 30 calls
+per minute, it cannot finish within a 15-minute hosted budget without an explicit
+capacity configuration. Local deterministic parity tests do not establish model
+strength or production capacity.
 
 ## Slot count
 

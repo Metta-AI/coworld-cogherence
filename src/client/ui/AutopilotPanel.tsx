@@ -9,7 +9,7 @@ import type { BotSpec, ClientMessage } from "@cogweb/protocol";
 import type { Order } from "../../shared/engine/orders";
 import { cogName } from "../colors";
 import { TilePill } from "../cg/atoms";
-import { BEDROCK_MODELS, DEFAULT_BEDROCK_MODEL } from "../../shared/models";
+import { LLM_MODELS, DEFAULT_LLM_MODEL } from "../../shared/models";
 
 /** One act-prompt transcript: what this Cog's model saw and decided that turn. */
 export interface ReasoningEntry {
@@ -186,7 +186,7 @@ export function AutopilotPanel({
   // draft so typing doesn't fight the wire until "Send Guidance" commits it.
   const autopilot = bot?.autopilot ?? true;
   const paused = !autopilot;
-  const model = bot?.model ?? DEFAULT_BEDROCK_MODEL;
+  const model = bot?.model ?? DEFAULT_LLM_MODEL;
   const guidance = bot?.guidance ?? "";
   const [persona, setPersona] = useState(guidance);
   const [saved, setSaved] = useState(false);
@@ -240,7 +240,7 @@ export function AutopilotPanel({
           className="cg-mono"
           style={{ flex: 1, fontSize: 10, color: "var(--text-dim)", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 6, padding: "3px 6px", cursor: "pointer" }}
         >
-          {BEDROCK_MODELS.map((m) => (
+          {LLM_MODELS.map((m) => (
             <option key={m.id} value={m.id} disabled={!m.enabled}>
               {m.label}
             </option>

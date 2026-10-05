@@ -12,14 +12,14 @@ THE BOARD. Each tile has an alignment (a Cog or neutral), a Coherence 0–${COHE
 
 ENERGY. Aligned tiles mint floor(density × coherence / 10) of their mineral each turn — a tile at full coherence (${COHERENCE_MAX}) yields its full density; weaker tiles yield proportionally less. Density runs 0-10 (power-law: most tiles thin, a few rich). ENERGY IS STORED — it is the only spendable currency, and minerals are trade goods until CONVERTED: a full C+O+Ge+S set converts to ${SET_ENERGY} energy (your complete sets are converted automatically every turn while you play; loose singles have NO energy value). So a balanced treasury is what funds you — trade for what you lack; lopsided piles are dead weight until balanced. Each tile bills upkeep every turn: just a base of floor(sqrt(your tile count)) energy — empire scale taxes EVERY tile, so sprawl gets expensive. Resistance costs NO energy — neighbors move COHERENCE directly instead: every turn a tile shifts +1 Coherence per allied neighbor and −1 per enemy neighbor (net, cap ${COHERENCE_MAX}, at 0 it goes neutral and you lose it; neutral neighbors count for nothing). The ally bonus only applies if the tile's bill is PAID — an unpaid tile still suffers the enemy drain but gets no healing. Bills are paid strongest-tile-first automatically. Frontiers survive by being BACKED with allied tiles, not by money. IMPORTANT: minerals you mint this turn land in your treasury NEXT turn (a one-turn lag), and only STORED energy spends — an order set you can't afford from stored energy is rejected wholesale.
 
-YOUR ACTIONS each turn (via the submit_orders tool):
+YOUR ACTIONS each turn (as JSON):
 - align {tile, force}: commit FORCE (1-10) to a tile's tug-of-war; the ENERGY billed = force² + distance², where distance is from your CLOSEST tile (your own tile = 0, adjacent = 1) — reach is quadratically expensive, and a cost above 100e is out of reach (rejected). The FULL cost is charged win or lose, and so is any set you cannot afford. REPEAT TAX: each additional Align in the same turn bills +10 energy more than the last (first free, then +10, +20, ...) — overhead that buys no force. Capture is a tug-of-war: you take a tile when your force exceeds the incumbent's Coherence (plus any force they commit).
 - exploit {tile}: strip-mine a tile you own for a floor(10×coherence×density) windfall of its MINERAL — but it goes neutral and its density permanently drops by coherence/10. Scorched earth.
 - abandon {tile}: return a tile you own to neutral; its standing coherence comes home as energy (next-turn money, full value, no scarring). The orderly retreat — cash out ground you cannot afford to hold.
 - transfer {to, mineral, amount}: send minerals to another Cog (1 energy). Deals are non-binding.
 - bid: a sealed second-price heart bid, in energy. Highest bidder wins the heart and pays the second price; tied bids go to whoever committed first.
 
-Spend only energy you can afford — an unaffordable order set is rejected wholesale. Think briefly, then call submit_orders exactly once.`;
+Spend only energy you can afford — an unaffordable order set is rejected wholesale. Think briefly, then return JSON exactly once.`;
 
 /** Prepend an operator-set persona to the system prompt (empty/blank = unchanged).
  *  Re-applied every turn so live steering takes effect on the next decision. */
@@ -52,7 +52,9 @@ export function renderView(view: AgentView, persona?: string): { system: string;
       mine.push(`  ${k}  coh${tile.coherence}  ${tile.mineral} d${Math.floor(tile.density)}`);
     } else if (isLegalAlignTarget(state, me, k)) {
       const owner: CogId | "neutral" = tile.alignment ?? "neutral";
-      frontier.push(`  ${k}  ${owner}  coh${tile.coherence}  ${tile.mineral} d${Math.floor(tile.density)}`);
+      frontier.push(
+        `  ${k}  ${owner}  coh${tile.coherence}  ${tile.mineral} d${Math.floor(tile.density)}`,
+      );
     }
   }
 
@@ -72,7 +74,7 @@ export function renderView(view: AgentView, persona?: string): { system: string;
     `Recent messages (public + your DMs):`,
     renderMessages(view),
     ``,
-    `Call submit_orders with your orders for this turn.`,
+    `Return JSON with your orders for this turn.`,
   ].join("\n");
 
   return { system: systemWithPersona(persona), user };
@@ -80,7 +82,10 @@ export function renderView(view: AgentView, persona?: string): { system: string;
 
 /** The Negotiate-phase prompt: board + scoreboard + recent messages + an
  *  instruction to send public/DM messages (the cheap-talk politics, design §9). */
-export function renderNegotiate(view: AgentView, persona?: string): { system: string; user: string } {
+export function renderNegotiate(
+  view: AgentView,
+  persona?: string,
+): { system: string; user: string } {
   const { state, me } = view;
   const t = state.cogs[me]!.treasury;
   const user = [
@@ -91,7 +96,7 @@ export function renderNegotiate(view: AgentView, persona?: string): { system: st
     `Recent messages (public + your DMs):`,
     renderMessages(view),
     ``,
-    `Send public messages (to "public") or private DMs (to a cog id like "cog1") to form alliances, propose mineral trades, bluff, or threaten — nothing is binding, and you can betray later. Call send_messages with your messages (empty list to stay silent). One or two sentences each.`,
+    `Send public messages (to "public") or private DMs (to a cog id like "cog1") to form alliances, propose mineral trades, bluff, or threaten — nothing is binding, and you can betray later. Return JSON with your messages (empty list to stay silent). One or two sentences each.`,
   ].join("\n");
   return { system: systemWithPersona(persona), user };
 }
