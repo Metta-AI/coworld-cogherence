@@ -1,9 +1,11 @@
+import { renderSystemPrompt } from "../agents/llm/render.js";
+import { resolvePromptSelection } from "../agents/llm/prompt-variants.js";
 import type { ObservedMessage } from "@cogweb/core";
 import type { TalkLine } from "@cogweb/coworld";
 import { extractJson } from "@cogweb/llm";
 import { SEND_MESSAGES_FORMAT, sendMessagesSchema } from "../agents/llm/negotiate.js";
 import { MAX_TURNS } from "../shared/engine/constants.js";
-import { cogherenceAutopilot, cogherenceGame, type CoghereView } from "./game.js";
+import { type CoghereView } from "./game.js";
 
 export const renderTalk = (
   view: CoghereView,
@@ -39,12 +41,12 @@ export const renderTalk = (
   return lines.join("\n");
 };
 
-export function renderSpeechMessages(view: CoghereView, seat: number, messages: ObservedMessage[]) {
+export function renderSpeechMessages(view: CoghereView, seat: number, messages: ObservedMessage[], selection = resolvePromptSelection()) {
   return [
     {
       role: "system" as const,
       content:
-        cogherenceAutopilot.systemPrompt({ game: cogherenceGame, seat }) +
+        renderSystemPrompt(selection) +
         `\nReturn JSON matching this schema: ${JSON.stringify(SEND_MESSAGES_FORMAT.inputSchema)}`,
     },
     { role: "user" as const, content: renderTalk(view, seat, messages) },

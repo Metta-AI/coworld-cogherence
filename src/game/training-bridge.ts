@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { promptConfigFields, resolvePromptSelection, type PromptSelection } from "../agents/llm/prompt-variants.js";
 import { realpathSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { argv } from "node:process";
@@ -28,7 +30,7 @@ export class TrainingSession {
   private phase: "talk" | "orders" = "talk";
   private heldInbox: ObservedMessage[] | null = null;
   private pendingSpeech: TalkLine[] | null = null;
-  constructor(seed: string, players: number) {
+  constructor(seed: string, players: number, private readonly selection: PromptSelection = resolvePromptSelection()) {
     if (players !== 4) throw new Error("Cogherence requires four players");
     this.state = cogherenceGame.newGame({
       seed,
@@ -42,42 +44,29 @@ export class TrainingSession {
     const seat = cogherenceGame.pendingActors(this.state)[0]!;
     const view = cogherenceGame.redact(this.state, seat);
     this.heldInbox ??= this.bus.visibleTo(seat);
-    if (this.phase === "talk")
-      return {
-        kind: "decision" as const,
-        game: "cogherence",
-        decision_id: this.decisionId,
-        seat,
-        engine_seat: seat,
-        turn: view.turn,
-        inference_mode: "text_action" as const,
-        semantic_view: view,
-        inbox: this.heldInbox,
-        messages: renderSpeechMessages(view, seat, this.heldInbox),
-        speech_messages: [],
-        action_schema: SEND_MESSAGES_FORMAT.inputSchema,
-        typed_question: null,
-      };
+    const messages = this.phase === "talk"
+      ? renderSpeechMessages(view, seat, this.heldInbox, this.selection)
+      : renderPlayerMessages(view, seat, this.reason, "", this.heldInbox, this.selection).map((message) =>
+          message.role === "user" && this.parseReason
+            ? { ...message, content: message.content + `\n\n${this.parseReason}` }
+            : message,
+        );
     return {
       kind: "decision" as const,
-      game: "cogherence",
-      decision_id: this.decisionId,
-      seat,
-      engine_seat: seat,
-      turn: view.turn,
-      inference_mode: "text_action" as const,
-      semantic_view: view,
-      inbox: this.heldInbox,
-      messages: renderPlayerMessages(view, seat, this.reason, "", this.heldInbox).map((message) =>
-        message.role === "user" && this.parseReason
-          ? { ...message, content: message.content + `\n\n${this.parseReason}` }
-          : message,
-      ),
-      speech_messages: [],
-      action_schema: cogherenceAutopilot.actionSchema!(this.state, seat).inputSchema,
+      game: "cogherence", decision_id: this.decisionId, seat, engine_seat: seat,
+      turn: view.turn, inference_mode: "text_action" as const,
+      semantic_view: { ...view, prompt_template: {
+        ...this.selection,
+        system_sha256: createHash("sha256").update(messages[0]!.content).digest("hex"),
+        user_sha256: createHash("sha256").update(messages[1]!.content).digest("hex"),
+      } },
+      inbox: this.heldInbox, messages, speech_messages: [],
+      action_schema: this.phase === "talk" ? SEND_MESSAGES_FORMAT.inputSchema
+        : cogherenceAutopilot.actionSchema!(this.state, seat).inputSchema,
       typed_question: null,
     };
   }
+
   teacher() {
     return { response: this.phase === "talk" ? '{"messages":[]}' : "{}" };
   }
@@ -174,7 +163,8 @@ export class TrainingSession {
   }
 }
 const Command = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("reset"), seed: z.string(), players: z.number().int() }),
+  z.object({ kind: z.literal("reset"), seed: z.string(), players: z.number().int(),
+    ...promptConfigFields, split: z.enum(["train", "validation", "test"]).default("train") }),
   z.object({ kind: z.literal("teacher") }),
   z.object({ kind: z.literal("step"), decision_id: z.number().int(), response: z.string() }),
 ]);
@@ -182,7 +172,12 @@ export async function runTrainingBridge(): Promise<void> {
   let session: TrainingSession | undefined;
   for await (const line of createInterface({ input: process.stdin })) {
     const command = Command.parse(JSON.parse(line));
-    if (command.kind === "reset") session = new TrainingSession(command.seed, command.players);
+    if (command.kind === "reset") {
+      const selection = resolvePromptSelection(command);
+      if (command.split === "train" && selection.variant.startsWith("heldout-"))
+        throw new Error("Held-out wording is evaluation-only");
+      session = new TrainingSession(command.seed, command.players, selection);
+    }
     if (!session) throw new Error("reset required");
     const response =
       command.kind === "reset"

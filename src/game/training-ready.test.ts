@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdtemp, readFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -102,9 +102,18 @@ it("completes the real four-seat production loop with exact private attempts and
         expect(attempt.prompt).toEqual(attempt.request.messages);
         const observation = bridge.observation();
         if (observation.kind !== "decision") throw new Error("Bridge ended before hosted loop");
-        expect(observation.semantic_view).toEqual(
-          decision.observation.phase === "talk" ? decision.observation.view : decision.observation,
-        );
+        const { prompt_template, ...bridgeView } = observation.semantic_view;
+        const { prompt_selection, ...nativeView } = decision.observation.phase === "talk"
+          ? decision.observation.view : decision.observation;
+        expect(prompt_selection).toEqual({
+          bank: "cogherence-rules-v1", variant: "canonical", selection: "canonical", seed: 0,
+        });
+        expect(prompt_template).toEqual({
+          ...prompt_selection,
+          system_sha256: createHash("sha256").update(observation.messages[0]!.content).digest("hex"),
+          user_sha256: createHash("sha256").update(observation.messages[1]!.content).digest("hex"),
+        });
+        expect(bridgeView).toEqual(nativeView);
         expect(observation.messages).toEqual(attempt.prompt);
         const applied = bridge.step(observation.decision_id, attempt.response);
         expect(applied.kind).toBe(attempt.accepted ? "accepted" : "rejected");

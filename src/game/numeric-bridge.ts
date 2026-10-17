@@ -1,3 +1,4 @@
+import { promptConfigFields, resolvePromptSelection } from "../agents/llm/prompt-variants.js";
 import { realpathSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { argv } from "node:process";
@@ -101,7 +102,7 @@ export class NumericTrainingSession {
 }
 
 const Command = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("reset"), seed: z.string(), players: z.number().int() }),
+  z.object({ kind: z.literal("reset"), seed: z.string(), players: z.number().int(), ...promptConfigFields }),
   z.object({ kind: z.literal("encode") }),
   z.object({ kind: z.literal("teacher") }),
   z.object({ kind: z.literal("step"), decision_id: z.number().int(), response: z.string() }),
@@ -111,8 +112,11 @@ export async function runNumericBridge(): Promise<void> {
   let session: NumericTrainingSession | undefined;
   for await (const line of createInterface({ input: process.stdin })) {
     const command = Command.parse(JSON.parse(line));
-    if (command.kind === "reset")
+    if (command.kind === "reset") {
+      if (resolvePromptSelection(command).selection !== "canonical")
+        throw new Error("Prompt variation requires the language training bridge");
       session = new NumericTrainingSession(command.seed, command.players);
+    }
     if (!session) throw new Error("reset required");
     const response =
       command.kind === "reset"
