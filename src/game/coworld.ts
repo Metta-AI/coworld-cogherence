@@ -19,7 +19,7 @@ import { cogherenceGame } from "./game.js";
 import { promptVariants } from "../agents/llm/prompt-variants.js";
 
 const GAME_IMAGE = "{{GAME_IMAGE}}";
-const SOURCE_TREE = "https://github.com/Metta-AI/cogame-cogherence/tree/main";
+const SOURCE_TREE = "https://github.com/Metta-AI/coworld-cogherence/tree/main";
 
 // ── config / results JSON-Schema contracts ──────────────────────────────────
 // Hand-authored draft-2020-12 schemas (the repo has no zod-to-json-schema dep).
