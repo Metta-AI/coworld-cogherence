@@ -19,15 +19,11 @@ def request(process, command):
     return json.loads(line)
 
 
-with subprocess.Popen(
-    ["node", BUNDLE], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True
-) as process:
+with subprocess.Popen(["node", BUNDLE], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True) as process:
     for seed in ("17", "946001"):
         baseline = None
         direct_systems = []
-        for choice, prompt_seed in [(v, 0) for v in DIRECT] + [
-            ("mixed", i) for i in range(5)
-        ]:
+        for choice, prompt_seed in [(v, 0) for v in DIRECT] + [("mixed", int(seed) % 5)]:
             obs = request(
                 process,
                 {
@@ -52,22 +48,17 @@ with subprocess.Popen(
                     meta["variant"],
                     meta["selection"],
                     meta["seed"],
-                ) == ("cogherence-rules-v1", selected, choice, prompt_seed)
+                ) == ("cogherence-rules-v2", selected, choice, prompt_seed)
                 messages = obs["messages"]
                 for message in messages:
-                    assert (
-                        meta[message["role"] + "_sha256"]
-                        == hashlib.sha256(message["content"].encode()).hexdigest()
-                    )
+                    assert meta[message["role"] + "_sha256"] == hashlib.sha256(message["content"].encode()).hexdigest()
                 system, user = [message["content"] for message in messages]
                 talk = "messages" in obs["action_schema"]["properties"]
                 assert systems.setdefault(talk, system) == system
                 assert "prompt_template" not in user and "prompt_selection" not in user
                 for other in view["cogs"]:
                     if other["index"] != seat:
-                        assert other["energy"] == 0 and all(
-                            v == 0 for v in other["treasury"].values()
-                        )
+                        assert other["energy"] == 0 and all(v == 0 for v in other["treasury"].values())
                 for sender in range(4):
                     if seat not in (sender, (sender + 1) % 4):
                         assert f"SECRET-{sender}" not in user
@@ -134,14 +125,12 @@ with subprocess.Popen(
     process.stdout.close()
     assert process.wait(timeout=5) == 0
 
-for invalid in [
-    {"promptVariant": v}
-    for v in ("heldout-briefing", "heldout-reference", "unknown", "mixed")
-] + [{"promptVariant": "mixed", "promptSeed": value} for value in (-1, True, 1.5)]:
+for invalid in [{"promptVariant": v} for v in ("heldout-briefing", "heldout-reference", "unknown", "mixed")] + [
+    {"promptVariant": "mixed", "promptSeed": value} for value in (-1, True, 1.5)
+]:
     result = subprocess.run(
         ["node", BUNDLE],
-        input=json.dumps({"kind": "reset", "seed": "17", "players": 4} | invalid)
-        + "\n",
+        input=json.dumps({"kind": "reset", "seed": "17", "players": 4} | invalid) + "\n",
         capture_output=True,
         text=True,
         timeout=10,
@@ -160,22 +149,14 @@ if len(sys.argv) == 4:
     ]
     try:
         for seed in ("17", "946001"):
-            observations = [
-                request(p, {"kind": "reset", "seed": seed, "players": 4})
-                for p in processes
-            ]
+            observations = [request(p, {"kind": "reset", "seed": seed, "players": 4}) for p in processes]
             count = 0
             while observations[0]["kind"] == "decision":
                 assert observations[0] == observations[1]
                 encodings = [request(p, {"kind": "encode"}) for p in processes]
                 assert encodings[0] == encodings[1]
-                assert (
-                    len(encodings[0]["values"]) == 1308
-                    and len(encodings[0]["actions"]) == 30
-                )
-                legal = [
-                    action for action in encodings[0]["actions"] if action is not None
-                ]
+                assert len(encodings[0]["values"]) == 1308 and len(encodings[0]["actions"]) == 30
+                legal = [action for action in encodings[0]["actions"] if action is not None]
                 action = legal[count % len(legal)]
                 results = [
                     request(

@@ -106,7 +106,7 @@ it("completes the real four-seat production loop with exact private attempts and
         const { prompt_selection, ...nativeView } = decision.observation.phase === "talk"
           ? decision.observation.view : decision.observation;
         expect(prompt_selection).toEqual({
-          bank: "cogherence-rules-v1", variant: "canonical", selection: "canonical", seed: 0,
+          bank: "cogherence-rules-v2", variant: "canonical", selection: "canonical", seed: 0,
         });
         expect(prompt_template).toEqual({
           ...prompt_selection,

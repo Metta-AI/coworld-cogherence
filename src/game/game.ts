@@ -266,7 +266,7 @@ export const cogherenceGame: Game<CoghereSeamState, CoghereDecision, CoghereView
 // ── autopilot ────────────────────────────────────────────────────────────────
 // A thin autopilot over the seam that RELABELS cogherence's existing LLM pieces
 // onto the @cogweb/core seam rather than reinventing them:
-//  - `systemPrompt` renders the selected introduction and shared hosted rules;
+//  - `systemPrompt` renders the selected hosted rule presentation;
 //  - `tool` is cogherence's REAL `SUBMIT_ORDERS_FORMAT` (the grouped
 //    {aligns,exploits,abandons,transfers,bid} spec, with the rich per-field
 //    cost/strategy descriptions that materially help the model). Its grouped

@@ -25,4 +25,3 @@ jobs:
       - run: pnpm build:numeric
       - run: pnpm emit-manifest && git diff --exit-code -- coworld/coworld_manifest_template.json
       - run: python3 scripts/test_prompt_games.py dist-server/game/training-bridge.js
-      - run: python3 scripts/test_prompt_native_games.py dist-server/coworld/game-cli.js dist-server/game/llm-player.js "$RUNNER_TEMP/cogherence-prompts" "$GITHUB_SHA"

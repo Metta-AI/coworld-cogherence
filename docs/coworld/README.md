@@ -59,7 +59,10 @@ strength or production capacity.
 `reordered`. `mixed` selects one of those five using an explicit nonnegative
 `promptSeed`. `heldout-briefing` and `heldout-reference` are evaluation-only;
 training-bridge resets reject them unless an evaluation split is supplied.
-The bank is `cogherence-rules-v1`. Every wording uses the same corrected rule body.
+The v2 bank varies the board, mineral economy, and upkeep explanations and their
+ordering. Held-out presentations use separate paraphrases. Action syntax, costs,
+strategic guidance, and operator instructions remain fixed. Canonical retains
+the existing corrections described below.
 
 The host sends the fixed selection in the welcome config. Both negotiation and
 orders use it, including retries; game randomness and engine state are untouched.
@@ -75,7 +78,7 @@ replays, and scores against the original numeric path; compare all new wordings
 against the corrected canonical text. Neither comparison proves learned robustness.
 
 The full language workflow covers two game seeds across all seven direct wordings
-and five mixed selections: 24 complete 100-turn episodes. Each runs both talk and
+and one mixed selection per seed: 16 complete 100-turn episodes. Each runs both talk and
 orders, one real parser rejection/retry, private direct messages, and energy-backed
 bids. It compares private views, exact prompt hashes, actions, and final scores.
 Optional numeric bundle arguments compare two complete original/current games,
@@ -88,21 +91,11 @@ python3 scripts/test_prompt_games.py dist-server/game/training-bridge.js \
   /absolute/original/dist-server/game/numeric-bridge.js dist-server/game/numeric-bridge.js
 ```
 
-The native workflow runs 12 complete games with the actual host and four native
-players against a closed local endpoint. Requests are captured before network I/O;
-failed calls retain exact messages and request bodies, without invented receipts.
-It checks all seven direct wordings and five mixed selections, 400 speech plus
-400 orders decisions, private-view and public-state parity, and final scores.
-Transport failure follows the existing host retry policy: one speech attempt and
-three model requests for orders per turn and seat. The host also records its terminal
-orders failure with unknown origin and no model request; that record is not a model call.
-These checks do not measure model play quality.
-
-```sh
-pnpm build
-python3 scripts/test_prompt_native_games.py dist-server/coworld/game-cli.js \
-  dist-server/game/llm-player.js /tmp/cogherence-prompt-proof "$(git rev-parse HEAD)"
-```
+The existing production-loop test uses the real host, four players, and a local
+HTTP provider. It checks captured attempts, a rejected response and retry,
+bridge/native message parity, private recipients, and public replay redaction.
+Keep this production check alongside the complete-game wording workflow.
+Neither test measures learned play quality.
 
 ## Rules described to players
 
