@@ -48,7 +48,7 @@ with subprocess.Popen(["node", BUNDLE], stdin=subprocess.PIPE, stdout=subprocess
                     meta["variant"],
                     meta["selection"],
                     meta["seed"],
-                ) == ("cogherence-rules-v2", selected, choice, prompt_seed)
+                ) == ("cogherence-rules-v3", selected, choice, prompt_seed)
                 messages = obs["messages"]
                 for message in messages:
                     assert meta[message["role"] + "_sha256"] == hashlib.sha256(message["content"].encode()).hexdigest()

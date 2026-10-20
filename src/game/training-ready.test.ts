@@ -8,6 +8,7 @@ import { runCoworldPlayer } from "@cogweb/coworld";
 import { runCoworldGame } from "../coworld/server.js";
 import { cogherenceModule } from "./game.js";
 import { TrainingSession } from "./training-bridge.js";
+import { resolvePromptSelection } from "../agents/llm/prompt-variants.js";
 import { makeLlmDecide, makeLlmTalk } from "./llm-player.js";
 
 afterEach(() => {
@@ -69,6 +70,8 @@ it("completes the real four-seat production loop with exact private attempts and
       tokens: Array.from({ length: 4 }, (_, seat) => `fixture-${seat}`),
       players: Array.from({ length: 4 }, (_, seat) => ({ name: `Cog ${seat + 1}` })),
       seed: 7,
+      promptVariant: "mixed",
+      promptSeed: 3,
     },
   });
   try {
@@ -88,7 +91,9 @@ it("completes the real four-seat production loop with exact private attempts and
     expect(trajectory.decisions).toHaveLength(800);
     expect(calls).toHaveLength(802);
     const byId = new Map(calls.map((call) => [call.id, call]));
-    const bridge = new TrainingSession("7", 4);
+    const bridge = new TrainingSession(
+      "7", 4, resolvePromptSelection({ promptVariant: "mixed", promptSeed: 3 }),
+    );
     for (const decision of trajectory.decisions) {
       expect(decision.visibility).toBe("private");
       expect(decision.action_status).toBe("accepted");
@@ -106,7 +111,7 @@ it("completes the real four-seat production loop with exact private attempts and
         const { prompt_selection, ...nativeView } = decision.observation.phase === "talk"
           ? decision.observation.view : decision.observation;
         expect(prompt_selection).toEqual({
-          bank: "cogherence-rules-v2", variant: "canonical", selection: "canonical", seed: 0,
+          bank: "cogherence-rules-v3", variant: "questions", selection: "mixed", seed: 3,
         });
         expect(prompt_template).toEqual({
           ...prompt_selection,

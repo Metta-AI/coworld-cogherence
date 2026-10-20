@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { MAX_TURNS } from "../../shared/engine/constants.js";
 
-export const PROMPT_BANK = "cogherence-rules-v2";
+export const PROMPT_BANK = "cogherence-rules-v3";
 export const trainingPromptVariants = ["canonical", "plain", "numbered", "questions", "reordered"] as const;
 export const promptVariants = [...trainingPromptVariants, "heldout-briefing", "heldout-reference"] as const;
 export const promptConfigFields = {

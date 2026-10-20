@@ -59,9 +59,9 @@ strength or production capacity.
 `reordered`. `mixed` selects one of those five using an explicit nonnegative
 `promptSeed`. `heldout-briefing` and `heldout-reference` are evaluation-only;
 training-bridge resets reject them unless an evaluation split is supplied.
-The v2 bank varies the board, mineral economy, and upkeep explanations and their
-ordering. Held-out presentations use separate paraphrases. Action syntax, costs,
-strategic guidance, and operator instructions remain fixed. Canonical retains
+The v3 bank gives each alternate presentation independent board, mineral economy,
+and upkeep explanations. Both held-out presentations have their own paraphrases.
+Action syntax, costs, strategic guidance, and operator instructions remain fixed. Canonical retains
 the existing corrections described below.
 
 The host sends the fixed selection in the welcome config. Both negotiation and
