@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdtemp, readFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -8,6 +8,7 @@ import { runCoworldPlayer } from "@cogweb/coworld";
 import { runCoworldGame } from "../coworld/server.js";
 import { cogherenceModule } from "./game.js";
 import { TrainingSession } from "./training-bridge.js";
+import { resolvePromptSelection } from "../agents/llm/prompt-variants.js";
 import { makeLlmDecide, makeLlmTalk } from "./llm-player.js";
 
 afterEach(() => {
@@ -69,6 +70,8 @@ it("completes the real four-seat production loop with exact private attempts and
       tokens: Array.from({ length: 4 }, (_, seat) => `fixture-${seat}`),
       players: Array.from({ length: 4 }, (_, seat) => ({ name: `Cog ${seat + 1}` })),
       seed: 7,
+      promptVariant: "mixed",
+      promptSeed: 3,
     },
   });
   try {
@@ -88,7 +91,9 @@ it("completes the real four-seat production loop with exact private attempts and
     expect(trajectory.decisions).toHaveLength(800);
     expect(calls).toHaveLength(802);
     const byId = new Map(calls.map((call) => [call.id, call]));
-    const bridge = new TrainingSession("7", 4);
+    const bridge = new TrainingSession(
+      "7", 4, resolvePromptSelection({ promptVariant: "mixed", promptSeed: 3 }),
+    );
     for (const decision of trajectory.decisions) {
       expect(decision.visibility).toBe("private");
       expect(decision.action_status).toBe("accepted");
@@ -102,9 +107,18 @@ it("completes the real four-seat production loop with exact private attempts and
         expect(attempt.prompt).toEqual(attempt.request.messages);
         const observation = bridge.observation();
         if (observation.kind !== "decision") throw new Error("Bridge ended before hosted loop");
-        expect(observation.semantic_view).toEqual(
-          decision.observation.phase === "talk" ? decision.observation.view : decision.observation,
-        );
+        const { prompt_template, ...bridgeView } = observation.semantic_view;
+        const { prompt_selection, ...nativeView } = decision.observation.phase === "talk"
+          ? decision.observation.view : decision.observation;
+        expect(prompt_selection).toEqual({
+          bank: "cogherence-rules-v3", variant: "questions", selection: "mixed", seed: 3,
+        });
+        expect(prompt_template).toEqual({
+          ...prompt_selection,
+          system_sha256: createHash("sha256").update(observation.messages[0]!.content).digest("hex"),
+          user_sha256: createHash("sha256").update(observation.messages[1]!.content).digest("hex"),
+        });
+        expect(bridgeView).toEqual(nativeView);
         expect(observation.messages).toEqual(attempt.prompt);
         const applied = bridge.step(observation.decision_id, attempt.response);
         expect(applied.kind).toBe(attempt.accepted ? "accepted" : "rejected");

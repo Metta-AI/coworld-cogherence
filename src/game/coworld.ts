@@ -16,6 +16,7 @@ import { buildManifest } from "@cogweb/coworld";
 import type { CoworldManifest, JsonSchema, PlayerRunnable, Variant } from "@cogweb/coworld";
 
 import { cogherenceGame } from "./game.js";
+import { promptVariants } from "../agents/llm/prompt-variants.js";
 
 const GAME_IMAGE = "{{GAME_IMAGE}}";
 const SOURCE_TREE = "https://github.com/Metta-AI/coworld-cogherence/tree/main";
@@ -42,6 +43,14 @@ const configSchema: JsonSchema = {
   additionalProperties: false,
   required: ["tokens", "players"],
   properties: {
+    promptVariant: {
+      type: "string", enum: [...promptVariants, "mixed"], default: "canonical",
+      description: "Episode-stable rule wording; held-out variants are evaluation-only.",
+    },
+    promptSeed: {
+      type: "integer", minimum: 0, default: 0,
+      description: "Independent wording seed, required explicitly for mixed selection.",
+    },
     tokens: {
       type: "array",
       items: { type: "string", minLength: 1 },

@@ -1,3 +1,4 @@
+import { resolvePromptSelection } from "../agents/llm/prompt-variants.js";
 import { realpathSync } from "node:fs";
 import { argv } from "node:process";
 import { fileURLToPath } from "node:url";
@@ -17,7 +18,7 @@ type Context = PlayerDecideContext<CoghereSeamState, CoghereDecision, CoghereVie
 export function makeLlmDecide(client = new OpenRouterLlmClient({ prefix: "COGHERENCE" })) {
   return (ctx: Context) => {
     const state = ctx.view as unknown as CoghereSeamState;
-    const messages = renderPlayerMessages(ctx.view, ctx.seat, ctx.reason, "", ctx.messages);
+    const messages = renderPlayerMessages(ctx.view, ctx.seat, ctx.reason, "", ctx.messages, resolvePromptSelection(ctx.config));
     return robustDecide({
       client,
       purpose: { kind: "learner" },
@@ -37,7 +38,7 @@ export function makeLlmTalk(client = new OpenRouterLlmClient({ prefix: "COGHEREN
   return async (ctx: Context) => {
     if ((talkedThrough.get(ctx.seat) ?? -1) >= ctx.turn) return [];
     talkedThrough.set(ctx.seat, ctx.turn);
-    const messages = renderSpeechMessages(ctx.view, ctx.seat, ctx.messages);
+    const messages = renderSpeechMessages(ctx.view, ctx.seat, ctx.messages, resolvePromptSelection(ctx.config));
     const result = await robustDecide({
       client,
       purpose: { kind: "learner" },

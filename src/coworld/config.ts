@@ -11,12 +11,14 @@
 // no per-episode rounds/tax knobs — `MAX_TURNS` is a constant in
 // `src/shared/engine/constants.ts`.
 import { z } from "zod";
+import { promptConfigFields } from "../agents/llm/prompt-variants.js";
 
 /** The fixed seat count of this coworld package. */
 export const COWORLD_SEATS = 4;
 
 export const coworldConfigSchema = z
   .object({
+    ...promptConfigFields,
     tokens: z.array(z.string().min(1)).min(COWORLD_SEATS).max(COWORLD_SEATS),
     // The league ladder injects num_agents (= the fixed seat count) into every
     // episode's game_config to size the round; the host itself is fixed at 4

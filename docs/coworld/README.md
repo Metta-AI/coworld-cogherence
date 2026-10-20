@@ -53,6 +53,64 @@ per minute, it cannot finish within a 15-minute hosted budget without an explici
 capacity configuration. Local deterministic parity tests do not establish model
 strength or production capacity.
 
+## Episode wording
+
+`promptVariant` selects `canonical`, `plain`, `numbered`, `questions`, or
+`reordered`. `mixed` selects one of those five using an explicit nonnegative
+`promptSeed`. `heldout-briefing` and `heldout-reference` are evaluation-only;
+training-bridge resets reject them unless an evaluation split is supplied.
+The v3 bank gives each alternate presentation independent board, mineral economy,
+and upkeep explanations. Both held-out presentations have their own paraphrases.
+Action syntax, costs, strategic guidance, and operator instructions remain fixed. Canonical retains
+the existing corrections described below.
+
+The host sends the fixed selection in the welcome config. Both negotiation and
+orders use it, including retries; game randomness and engine state are untouched.
+Private native observations retain `prompt_selection`, and attempts retain their
+actual messages and serving evidence. Public views omit the selection. The
+training bridge records `semantic_view.prompt_template` with selection fields and
+SHA256 hashes of the exact system/user messages, including any retry instruction.
+Metadata is not inserted into model messages.
+
+The prior canonical prompt described retired live-server behavior. Its corrections
+below intentionally change the text. Compare engine observations, decisions,
+replays, and scores against the original numeric path; compare all new wordings
+against the corrected canonical text. Neither comparison proves learned robustness.
+
+The full language workflow covers two game seeds across all seven direct wordings
+and one mixed selection per seed: 16 complete 100-turn episodes. Each runs both talk and
+orders, one real parser rejection/retry, private direct messages, and energy-backed
+bids. It compares private views, exact prompt hashes, actions, and final scores.
+Optional numeric bundle arguments compare two complete original/current games,
+including all 1,308 values and 30 candidate slots at every decision:
+
+```sh
+pnpm build:training
+pnpm build:numeric
+python3 scripts/test_prompt_games.py dist-server/game/training-bridge.js \
+  /absolute/original/dist-server/game/numeric-bridge.js dist-server/game/numeric-bridge.js
+```
+
+The existing production-loop test uses the real host, four players, and a local
+HTTP provider. It checks captured attempts, a rejected response and retry,
+bridge/native message parity, private recipients, and public replay redaction.
+Keep this production check alongside the complete-game wording workflow.
+Neither test measures learned play quality.
+
+## Rules described to players
+
+The published host uses `cogherenceGame` and the pure engine's `stepTurn`.
+It does not use the retired live server's conversion buttons, automatic set
+conversion, commit-order auction ties, or first-commit energy bonus. Orders cannot
+convert minerals. Auction ties follow the fixed Cog order. The platform reports
+hearts as scores; the separate engine wealth-ranking helper does not change them.
+
+The player rules now describe that existing behavior. They also remove conflicting
+claims that neighbor resistance costs energy or that rejected unaffordable orders
+are charged. Neighbor pressure changes coherence; valid affordable orders pay
+costs, while rejected sets do not execute. These wording corrections leave the
+engine, resource budgets, scoring, and 100-turn horizon unchanged.
+
 ## Slot count
 
 A Coworld has **one fixed slot count** (the manifest's `config_schema.tokens` must have equal

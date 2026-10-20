@@ -266,7 +266,7 @@ export const cogherenceGame: Game<CoghereSeamState, CoghereDecision, CoghereView
 // ── autopilot ────────────────────────────────────────────────────────────────
 // A thin autopilot over the seam that RELABELS cogherence's existing LLM pieces
 // onto the @cogweb/core seam rather than reinventing them:
-//  - `systemPrompt` is cogherence's SYSTEM_PROMPT (the full rules copy);
+//  - `systemPrompt` renders the selected hosted rule presentation;
 //  - `tool` is cogherence's REAL `SUBMIT_ORDERS_FORMAT` (the grouped
 //    {aligns,exploits,abandons,transfers,bid} spec, with the rich per-field
 //    cost/strategy descriptions that materially help the model). Its grouped
@@ -278,7 +278,8 @@ export const cogherenceGame: Game<CoghereSeamState, CoghereDecision, CoghereView
 //    `AgentView`/`GameState` `renderView` takes), plus the seat's visible inbox
 //    and operator guidance folded in via `applyGuidance`.
 
-import { SYSTEM_PROMPT } from "../agents/llm/render.js";
+import { renderSystemPrompt } from "../agents/llm/render.js";
+import { resolvePromptSelection, type PromptSelection } from "../agents/llm/prompt-variants.js";
 import { SUBMIT_ORDERS_FORMAT } from "../agents/llm/submit.js";
 
 function renderSnapshotFor(view: CoghereView, seat: number): string {
@@ -322,9 +323,9 @@ export function renderSeatView(
 }
 
 export const cogherenceAutopilot: Autopilot<CoghereSeamState, CoghereDecision> = {
-  // cogherence's full rules copy, verbatim.
+  // Canonical wording for callers without an episode selection.
   systemPrompt(): string {
-    return SYSTEM_PROMPT;
+    return renderSystemPrompt();
   },
 
   // `renderView` adapted to the redacted seam view: the seat's treasury/energy,
@@ -352,6 +353,21 @@ export const cogherenceModule: GameModule<CoghereSeamState, CoghereDecision, Cog
   autopilot: cogherenceAutopilot,
 };
 
+/** Wording belongs to the episode wrapper, outside the deterministic engine state. */
+export function moduleWithPromptSelection(selection: PromptSelection): typeof cogherenceModule {
+  return {
+    ...cogherenceModule,
+    game: {
+      ...cogherenceGame,
+      redact(state, seat) {
+        const view = cogherenceGame.redact(state, seat);
+        return seat === null ? view : { ...view, prompt_selection: selection };
+      },
+    },
+    autopilot: { ...cogherenceAutopilot, systemPrompt: () => renderSystemPrompt(selection) },
+  };
+}
+
 // Re-exported for convenience / tests.
 export { scoreGame };
 
@@ -362,6 +378,7 @@ export function renderPlayerMessages(
   reason: string | null,
   guidance = "",
   messages: ObservedMessage[] = [],
+  selection: PromptSelection = resolvePromptSelection(),
 ) {
   const state = view as unknown as CoghereSeamState;
   const contract = cogherenceAutopilot.actionSchema!(state, seat);
@@ -372,7 +389,7 @@ export function renderPlayerMessages(
     {
       role: "system" as const,
       content:
-        cogherenceAutopilot.systemPrompt({ game: cogherenceGame, seat }) +
+        renderSystemPrompt(selection) +
         `\nReturn only a JSON object matching this schema: ${JSON.stringify(contract.inputSchema)}`,
     },
     { role: "user" as const, content: renderSeatView(view, seat, guidance, messages) + clock },
