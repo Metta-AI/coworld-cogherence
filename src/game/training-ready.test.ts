@@ -46,7 +46,11 @@ it("completes the real four-seat production loop with exact private attempts and
           ? '{"orders":"invalid"}'
           : slot === "1" && seen === 0
             ? '{"bid":999999}'
-            : "{}";
+            : slot === "3" && seen === 0
+              ? JSON.stringify({
+                  abandons: [request.messages[1].content.match(/Your tiles[^\n]*?(-?\d+,-?\d+)\[/)[1]],
+                })
+              : "{}";
       const response = {
         model: "fixture/cogherence",
         choices: [{ message: { content: text }, finish_reason: "stop" }],
@@ -136,6 +140,19 @@ it("completes the real four-seat production loop with exact private attempts and
         });
         expect(bridgeView).toEqual(nativeView);
         expect(observation.messages).toEqual(attempt.prompt);
+        if (decision.observation.phase !== "talk") {
+          const user = attempt.prompt[1].content;
+          expect(user).toContain("Public board — tile: owner, coherence, mineral, density:");
+          // Check a public rival tile and a neutral tile outside the own-tile summary.
+          for (const alignment of [null, `cog${(Number(decision.seat) + 1) % 4}`]) {
+            const tile = nativeView.tiles.find((tile: { alignment: string | null }) => tile.alignment === alignment);
+            if (tile)
+              expect(user).toContain(`${tile.q},${tile.r}: ${alignment ?? "neutral"}, ${tile.coherence}, ${tile.mineral}, ${tile.density}`);
+          }
+          const schema = observation.action_schema;
+          expect(schema.properties.abandons.type).toBe("array");
+          expect(schema.properties.exploits).not.toHaveProperty("abandons");
+        }
         const applied = await command({ kind: "step", decision_id: observation.decision_id,
           response: attempt.response });
         bridgeObservation = applied.observation;

@@ -39,6 +39,16 @@ Omitting it retains the historical `Cog 1` through `Cog 4` defaults. The complet
 native-loop system test checks a custom roster through the actual subprocess
 reset/step protocol, including every negotiation/orders request and retry.
 
+The orders renderer includes the entire public board: coordinates, owner,
+coherence, mineral and density. These are already present in the native redacted
+view; other players' private treasuries and energy remain redacted. The earlier
+own-tile-only summary hid public expansion/trade information from the language
+player. The JSON contract also lists `abandons` at the top level, matching the
+existing parser. It was previously misplaced inside `exploits`. These corrections
+change the native prompt profile, not the engine or its 100-turn horizon. Preserve
+older captures as their original source version; collect and qualify fresh model
+data before claiming the corrected profile ready.
+
 `pnpm build:coworld` also bundles `dist-server/game/llm-player.js`. Configure it
 with `COWORLD_LLM_ENDPOINT` and `COWORLD_LLM_MODEL`; it uses native chat completions.
 The game writes complete private trajectories to `COGAME_SAVE_TRAJECTORY_URI`.

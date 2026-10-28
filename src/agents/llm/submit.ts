@@ -56,12 +56,12 @@ export const SUBMIT_ORDERS_FORMAT = {
         description:
           "Tile keys you own to strip-mine for a one-time windfall (the tile goes neutral and its density permanently drops).",
         items: { type: "string" },
-        abandons: {
-          type: "array",
-          items: { type: "string" },
-          description:
-            "Tile keys you own to return to neutral — their standing coherence comes home as energy (next-turn money).",
-        },
+      },
+      abandons: {
+        type: "array",
+        items: { type: "string" },
+        description:
+          "Tile keys you own to return to neutral — their standing coherence comes home as energy (next-turn money).",
       },
       transfers: {
         type: "array",
