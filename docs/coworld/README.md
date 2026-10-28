@@ -48,10 +48,20 @@ trajectory. No public replay reconstruction supplies training labels.
 The separately bundled `pnpm build:numeric` interface is an encoded numeric
 candidate policy interface. It is not ordinary language prompt parity.
 
-A full four-seat episode makes 800 language calls before retries. At 30 calls
-per minute, it cannot finish within a 15-minute hosted budget without an explicit
-capacity configuration. Local deterministic parity tests do not establish model
-strength or production capacity.
+A full four-seat episode makes 800 language calls before retries. The manifest
+sets a 90-minute hosted wall-clock limit so the native serial seat loop can
+complete all 100 turns with real inference. This changes the platform deadline;
+the engine's horizon, player behavior and pacing stay the same. Measure actual
+call latency, retries and completion rather than assuming a fast mock provider
+represents hosted runtime. The sidecar's source default is 30 requests per minute
+per effective player slot; deployed capacity remains an operational measurement.
+Local deterministic parity tests do not establish model strength or capacity.
+
+A deadline-only release can retain the certified immutable game/player image:
+use the supported `coworld upload-coworld --from-coworld <id> --patch
+'{"episode_timeout_minutes":90}' --version <new-version>` path and wait for hosted
+certification. Keep the image's original runtime source identity and record the
+manifest-change source separately. Rebuild the image for runtime code changes.
 
 ## Episode wording
 

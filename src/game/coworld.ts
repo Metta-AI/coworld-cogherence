@@ -154,6 +154,9 @@ export function buildCogherenceManifest(): CoworldManifest {
       "final turn wins.",
     owner: "daveey@gmail.com",
     tags: ["board", "negotiation", "mixed-motive"],
+    // Four native players each negotiate and submit orders for all 100 turns.
+    // The serial seat loop needs room beyond the platform's default deadline.
+    episodeTimeoutMinutes: 90,
     gameImage: GAME_IMAGE,
     gameRun: ["node", "dist-server/coworld/game-cli.js"],
     sourceUrl: SOURCE_TREE,
