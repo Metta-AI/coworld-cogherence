@@ -30,12 +30,15 @@ export class TrainingSession {
   private phase: "talk" | "orders" = "talk";
   private heldInbox: ObservedMessage[] | null = null;
   private pendingSpeech: TalkLine[] | null = null;
-  constructor(seed: string, players: number, private readonly selection: PromptSelection = resolvePromptSelection()) {
+  constructor(seed: string, players: number, private readonly selection: PromptSelection = resolvePromptSelection(),
+    seatNames?: string[]) {
     if (players !== 4) throw new Error("Cogherence requires four players");
+    const names = seatNames ?? Array.from({ length: players }, (_, seat) => `Cog ${seat + 1}`);
+    z.array(z.string()).length(players).parse(names);
     this.state = cogherenceGame.newGame({
       seed,
       playerCount: players,
-      seatNames: Array.from({ length: players }, (_, seat) => `Cog ${seat + 1}`),
+      seatNames: names,
     });
   }
   observation() {
@@ -176,7 +179,9 @@ export async function runTrainingBridge(): Promise<void> {
       const selection = resolvePromptSelection(command);
       if (command.split === "train" && selection.variant.startsWith("heldout-"))
         throw new Error("Held-out wording is evaluation-only");
-      session = new TrainingSession(command.seed, command.players, selection);
+      const names = process.env.COGHERENCE_SEAT_NAMES_JSON;
+      session = new TrainingSession(command.seed, command.players, selection,
+        names === undefined ? undefined : z.array(z.string()).parse(JSON.parse(names)));
     }
     if (!session) throw new Error("reset required");
     const response =
