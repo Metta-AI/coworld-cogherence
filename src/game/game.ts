@@ -294,6 +294,11 @@ function renderSnapshotFor(view: CoghereView, seat: number): string {
   lines.push(
     `Your tiles (${mine.length}): ${mine.map((t) => `${t.q},${t.r}[coh${t.coherence} ${t.mineral} d${Math.floor(t.density)}]`).join(" ") || "(none)"}`,
   );
+  lines.push("Public board — tile: owner, coherence, mineral, density:");
+  for (const tile of view.tiles)
+    lines.push(
+      `  ${tile.q},${tile.r}: ${tile.alignment ?? "neutral"}, ${tile.coherence}, ${tile.mineral}, ${tile.density}`,
+    );
   return lines.join("\n");
 }
 
