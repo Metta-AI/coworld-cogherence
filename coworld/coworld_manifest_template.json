@@ -5,6 +5,7 @@
     "negotiation",
     "mixed-motive"
   ],
+  "episode_timeout_minutes": 90,
   "game": {
     "name": "cogherence",
     "description": "A luminous hex-lattice, mixed-motive game for 3–6 LLM Cogs. Align tiles to mine C/O/Ge/S, convert balanced COGS sets to energy, talk to rivals asynchronously (public + private cheap talk, nothing binding), and win the single heart auctioned each turn by sealed second-price bid. Most hearts at the final turn wins.",

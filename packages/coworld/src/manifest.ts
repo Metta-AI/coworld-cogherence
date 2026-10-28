@@ -126,6 +126,7 @@ export type Certification = z.infer<typeof Certification>;
 export const CoworldManifest = z.object({
   $schema: z.string().url().optional(),
   tags: z.array(z.string().min(1)).optional(),
+  episode_timeout_minutes: z.number().int().min(1).max(1440).optional(),
   game: GameSection,
   player: z.array(PlayerRunnable).min(1),
   commissioner: z.array(CommissionerRunnable).default([]),
@@ -160,6 +161,8 @@ export interface BuildManifestOpts {
   sourceUrl?: string;
   /** Discovery tags for the Coworld catalog; certification requires at least three. */
   tags?: string[];
+  /** Hosted wall-clock limit; independent of the engine's turn horizon. */
+  episodeTimeoutMinutes?: number;
   /** Package-relative static replay bundle built by `tools/build_replay_viewer.sh`. */
   replayViewerBundle?: string;
   /** JSON Schema for the per-episode config (seed/playerCount/…). */
@@ -182,6 +185,7 @@ export function buildManifest(opts: BuildManifestOpts): CoworldManifest {
   return CoworldManifest.parse({
     $schema: opts.schemaUrl,
     tags: opts.tags,
+    episode_timeout_minutes: opts.episodeTimeoutMinutes,
     game: {
       name: opts.id,
       description: opts.description,
