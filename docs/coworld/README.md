@@ -32,6 +32,13 @@ Each seat has a grouped JSON talk target followed by an orders target. Both use
 Posts retain public/private recipients. Speech is buffered until the player reply,
 so orders see the same inbox as the concurrent native player call.
 
+Set `COGHERENCE_SEAT_NAMES_JSON` to a JSON array of the four dispatched roster
+names, in seat order, when replaying or training against a hosted scenario. The
+public training bridge preserves those labels in private views and prompts.
+Omitting it retains the historical `Cog 1` through `Cog 4` defaults. The complete
+native-loop system test checks a custom roster through the actual subprocess
+reset/step protocol, including every negotiation/orders request and retry.
+
 `pnpm build:coworld` also bundles `dist-server/game/llm-player.js`. Configure it
 with `COWORLD_LLM_ENDPOINT` and `COWORLD_LLM_MODEL`; it uses native chat completions.
 The game writes complete private trajectories to `COGAME_SAVE_TRAJECTORY_URI`.

@@ -3,12 +3,12 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdtemp, readFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { createInterface } from "node:readline";
 import { afterEach, expect, it, vi } from "vitest";
 import { runCoworldPlayer } from "@cogweb/coworld";
 import { runCoworldGame } from "../coworld/server.js";
 import { cogherenceModule } from "./game.js";
-import { TrainingSession } from "./training-bridge.js";
-import { resolvePromptSelection } from "../agents/llm/prompt-variants.js";
 import { makeLlmDecide, makeLlmTalk } from "./llm-player.js";
 
 afterEach(() => {
@@ -68,12 +68,13 @@ it("completes the real four-seat production loop with exact private attempts and
     port: 0,
     config: {
       tokens: Array.from({ length: 4 }, (_, seat) => `fixture-${seat}`),
-      players: Array.from({ length: 4 }, (_, seat) => ({ name: `Cog ${seat + 1}` })),
+      players: Array.from({ length: 4 }, (_, seat) => ({ name: `Fixture policy ${seat + 1}` })),
       seed: 7,
       promptVariant: "mixed",
       promptSeed: 3,
     },
   });
+  let bridgeProcess: ChildProcessWithoutNullStreams | undefined;
   try {
     const decide = makeLlmDecide();
     const talk = makeLlmTalk();
@@ -91,9 +92,24 @@ it("completes the real four-seat production loop with exact private attempts and
     expect(trajectory.decisions).toHaveLength(800);
     expect(calls).toHaveLength(802);
     const byId = new Map(calls.map((call) => [call.id, call]));
-    const bridge = new TrainingSession(
-      "7", 4, resolvePromptSelection({ promptVariant: "mixed", promptSeed: 3 }),
-    );
+    // Use the public subprocess protocol with the same dispatched roster labels.
+    // Default-only names would silently change observations and native prompts.
+    bridgeProcess = spawn(process.execPath, ["--import", "tsx", "src/game/training-bridge.ts"], {
+      env: { ...process.env, COGHERENCE_SEAT_NAMES_JSON: JSON.stringify(
+        Array.from({ length: 4 }, (_, seat) => `Fixture policy ${seat + 1}`),
+      ) },
+    });
+    const bridgeExit = new Promise<number | null>((resolve) => bridgeProcess!.once("exit", resolve));
+    bridgeProcess.stderr.pipe(process.stderr);
+    const bridgeLines = createInterface({ input: bridgeProcess.stdout })[Symbol.asyncIterator]();
+    const command = async (value: unknown) => {
+      bridgeProcess!.stdin.write(JSON.stringify(value) + "\n");
+      const line = await bridgeLines.next();
+      if (line.done) throw new Error("Training bridge exited before replying");
+      return JSON.parse(line.value);
+    };
+    let bridgeObservation = await command({ kind: "reset", seed: "7", players: 4,
+      promptVariant: "mixed", promptSeed: 3 });
     for (const decision of trajectory.decisions) {
       expect(decision.visibility).toBe("private");
       expect(decision.action_status).toBe("accepted");
@@ -105,7 +121,7 @@ it("completes the real four-seat production loop with exact private attempts and
           JSON.stringify(byId.get(attempt.platform_call_id)!.response),
         );
         expect(attempt.prompt).toEqual(attempt.request.messages);
-        const observation = bridge.observation();
+        const observation = bridgeObservation;
         if (observation.kind !== "decision") throw new Error("Bridge ended before hosted loop");
         const { prompt_template, ...bridgeView } = observation.semantic_view;
         const { prompt_selection, ...nativeView } = decision.observation.phase === "talk"
@@ -120,7 +136,9 @@ it("completes the real four-seat production loop with exact private attempts and
         });
         expect(bridgeView).toEqual(nativeView);
         expect(observation.messages).toEqual(attempt.prompt);
-        const applied = bridge.step(observation.decision_id, attempt.response);
+        const applied = await command({ kind: "step", decision_id: observation.decision_id,
+          response: attempt.response });
+        bridgeObservation = applied.observation;
         expect(applied.kind).toBe(attempt.accepted ? "accepted" : "rejected");
         if (applied.kind === "accepted") expect(applied.action).toEqual(decision.executed_action);
       }
@@ -135,7 +153,9 @@ it("completes the real four-seat production loop with exact private attempts and
           .every((cog: { energy: number }) => cog.energy === 0),
       ).toBe(true);
     }
-    expect(bridge.observation().kind).toBe("terminal");
+    expect(bridgeObservation.kind).toBe("terminal");
+    bridgeProcess.stdin.end();
+    expect(await bridgeExit).toBe(0);
     expect((await stat(join(directory, "trajectory.jsonl"))).mode & 0o777).toBe(0o600);
     const replay = JSON.parse(await readFile(join(directory, "replay.json"), "utf8"));
     const prompts = replay.frames.filter((frame: { type: string }) => frame.type === "actPrompt");
@@ -152,6 +172,7 @@ it("completes the real four-seat production loop with exact private attempts and
     expect(JSON.stringify(replay)).not.toContain("private talk");
     expect(JSON.stringify(replay)).toContain("public talk");
   } finally {
+    bridgeProcess?.kill();
     await host.close();
     await new Promise<void>((resolve, reject) =>
       inference.close((error) => (error ? reject(error) : resolve())),
